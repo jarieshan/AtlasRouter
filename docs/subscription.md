@@ -16,7 +16,7 @@ https://<worker-domain>/surge?token=<SUBSCRIBE_TOKEN>
 - `#!MANAGED-CONFIG`，用于托管配置更新。
 - `[Proxy]`，由 `NODES_TEXT` 渲染。
 - `[Proxy Group]`，包含手动选择、自动测速、AI、流媒体和区域策略组。
-- `[Rule]`，包含 Surge 内置 `SYSTEM`、`LAN` 规则集，少量自维护内联规则，以及参考配置中的第三方规则集。
+- `[Rule]`，由 `surge/template.conf` 维护规则集、`GEOIP` 和 `FINAL`，由 `surge/rules.list` 插入零散自定义规则。
 - `FINAL,♻️ Auto` 兜底。
 
 如果订阅返回 `401 Unauthorized`，检查 URL 中的 token 是否与 Worker Secret `SUBSCRIBE_TOKEN` 一致。

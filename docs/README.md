@@ -18,6 +18,6 @@
 不建议放在这里的内容：
 
 - 真实节点、Token、上游订阅链接或其他密钥。
-- 可直接被 Surge 加载的大量规则文件；少量自维护规则应优先内联在 `surge/template.conf`。
+- 分散的小规则文件；当前零散自定义规则维护在 `surge/rules.list`。
 - Worker 运行时代码。
 - `references/` 中未经核实的样例结论。

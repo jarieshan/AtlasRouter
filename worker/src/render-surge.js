@@ -30,6 +30,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes }) {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildUrl(requestUrl, "/surge", token)} interval=86400 strict=false`,
     PROXY_LINES: renderProxyLines(nodes),
     PROXY_GROUP_LINES: renderProxyGroupLines(activeRegionGroups),
+    RULE_LINES: ASSETS.rules,
     POLICY_US: hasRegion(activeRegionGroups, "🇺🇸 Airport_US") ? "🇺🇸 Airport_US" : "♻️ Auto",
     POLICY_JP: hasRegion(activeRegionGroups, "🇯🇵 Airport_JP") ? "🇯🇵 Airport_JP" : "♻️ Auto",
   };

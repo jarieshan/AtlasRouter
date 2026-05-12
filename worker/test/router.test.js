@@ -15,7 +15,7 @@ test("rejects unauthorized requests", async () => {
   assert.equal(await response.text(), "Unauthorized");
 });
 
-test("renders Surge profile with inline local rules", async () => {
+test("renders Surge profile with separate rules config", async () => {
   const response = await handleRequest(new Request("https://atlas.example/surge?token=test-token"), env);
   const body = await response.text();
 
@@ -26,6 +26,7 @@ test("renders Surge profile with inline local rules", async () => {
   assert.match(body, /DOMAIN-SUFFIX,longbridge\.global,DIRECT/);
   assert.match(body, /DOMAIN-SUFFIX,kaggle\.com,🇺🇸 Airport_US/);
   assert.match(body, /RULE-SET,SYSTEM,DIRECT/);
+  assert.match(body, /RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/OpenAI\/OpenAI\.list,🤖 AIProxy,update-interval=86400/);
   assert.match(body, /FINAL,♻️ Auto/);
 });
 

@@ -24,6 +24,7 @@ function readDirectoryFiles(relativeDir, extension) {
 
 const assets = {
   template: readText("surge/template.conf"),
+  rules: readText("surge/rules.list"),
   modules: readDirectoryFiles("modules", ".sgmodule"),
 };
 

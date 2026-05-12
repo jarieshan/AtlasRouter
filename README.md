@@ -21,7 +21,7 @@ AtlasRouter 是一个围绕 Surge APP 组织的代理分流套件仓库，目标
 后续实现可以按下面的职责拆分，具体目录以实际代码为准：
 
 - `worker/`：Cloudflare Worker 订阅入口、鉴权、节点注入、配置渲染。
-- `surge/`：Surge 主配置模板、策略组定义和少量自维护分流规则。
+- `surge/`：Surge 主配置模板、策略组定义和规则配置。
 - `modules/`：Surge `.sgmodule` 模块。
 - `scripts/`：Surge 脚本与相关说明。
 - `docs/`：架构说明、部署流程、配置约定和变更决策。

@@ -45,7 +45,7 @@ AtlasRouter 是基于 Surge APP 的代理分流套件仓库，涉及：
 
 ## Surge 约定
 
-- 保持规则顺序可审查：少量自维护规则直接放在 `surge/template.conf`，精确域名、专用服务和高优先级规则靠前，通用规则靠后。
+- 保持规则顺序可审查：零散自定义规则放在 `surge/rules.list`，规则集、`GEOIP` 和 `FINAL` 留在 `surge/template.conf`。
 - `[Rule]` 必须有最终兜底规则，通常是 `FINAL,<policy>`。
 - 新增策略组时，确认被规则引用的策略组确实存在。
 - 使用 `policy-path`、`include-other-group`、`policy-regex-filter` 等能力前，先确认官方语义和当前配置风格。

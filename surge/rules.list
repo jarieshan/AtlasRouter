@@ -1,0 +1,10 @@
+DOMAIN-SUFFIX,longbridge.global,DIRECT
+DOMAIN-SUFFIX,ibkr.com,DIRECT
+DOMAIN-SUFFIX,binance.info,DIRECT
+DOMAIN-SUFFIX,bochk.com,DIRECT
+DOMAIN-SUFFIX,cdn.kineticbloom.org,DIRECT
+
+DOMAIN-SUFFIX,kaggle.com,{{POLICY_US}}
+DOMAIN-SUFFIX,kaggleusercontent.com,{{POLICY_US}}
+DOMAIN-SUFFIX,buyee.jp,{{POLICY_JP}}
+DOMAIN-SUFFIX,nikkei.cn,♻️ Auto
