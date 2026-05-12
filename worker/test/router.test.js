@@ -5,16 +5,7 @@ import { handleRequest } from "../src/index.js";
 
 const env = {
   SUBSCRIBE_TOKEN: "test-token",
-  NODES_JSON: JSON.stringify([
-    {
-      name: "US-01 美国",
-      type: "trojan",
-      server: "us.example.com",
-      port: 443,
-      password: "secret",
-      sni: "us.example.com",
-    },
-  ]),
+  NODES_TEXT: "US-01 美国 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
 };
 
 test("rejects unauthorized requests", async () => {
@@ -41,15 +32,7 @@ test("renders Surge profile with inline local rules", async () => {
 test("falls back regional rules when no matching region group exists", async () => {
   const response = await handleRequest(new Request("https://atlas.example/surge?token=test-token"), {
     ...env,
-    NODES_JSON: JSON.stringify([
-      {
-        name: "Generic-01",
-        type: "trojan",
-        server: "generic.example.com",
-        port: 443,
-        password: "secret",
-      },
-    ]),
+    NODES_TEXT: "Generic-01 = trojan, generic.example.com, 443, password=secret",
   });
   const body = await response.text();
 

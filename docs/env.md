@@ -3,80 +3,34 @@
 AtlasRouter 初版只需要两个 Worker Secrets：
 
 - `SUBSCRIBE_TOKEN`：订阅访问 token。
-- `NODES_JSON`：节点列表，JSON 字符串。
+- `NODES_TEXT`：Surge 节点列表，一行一个节点。
 
-GitHub Actions Secrets 只用于部署，不保存节点信息：
+GitHub 不保存部署 token 或节点信息。部署由 Cloudflare Git Integration 触发，运行时密钥只保存在 Cloudflare Worker Secrets 中。
 
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`
+## NODES_TEXT
 
-## NODES_JSON
+`NODES_TEXT` 直接使用 Surge `[Proxy]` 中的节点行格式：
 
-结构化节点示例：
-
-```json
-[
-  {
-    "name": "US-01 美国",
-    "type": "trojan",
-    "server": "us.example.com",
-    "port": 443,
-    "password": "REPLACE_WITH_PASSWORD",
-    "sni": "us.example.com",
-    "skipCertVerify": false
-  },
-  {
-    "name": "JP-01 日本",
-    "type": "vmess",
-    "server": "jp.example.com",
-    "port": 443,
-    "uuid": "00000000-0000-4000-8000-000000000000"
-  }
-]
+```text
+US-01 美国 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com
+JP-01 日本 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com
+SG-01 新加坡 = trojan, sg.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=sg.example.com
 ```
 
-如果协议参数比较复杂，使用 `surgeProxy` 直接写 Surge `[Proxy]` 右侧语法：
+可以添加空行和 `#` 注释，Worker 会忽略：
 
-```json
-[
-  {
-    "name": "Raw-01",
-    "surgeProxy": "trojan, raw.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=raw.example.com"
-  }
-]
+```text
+# 美国节点
+US-01 美国 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com
+
+# 日本节点
+JP-01 日本 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com
 ```
 
-结构化字段不允许包含逗号；遇到逗号或特殊参数时，使用 `surgeProxy`。
+每一行必须是：
+
+```text
+节点名称 = Surge 节点语法
+```
 
 区域策略组会根据节点名称动态生成。需要区域组时，节点名中保留 `US`、`美国`、`JP`、`日本`、`SG`、`新加坡`、`HK`、`香港` 等地区关键词。
-
-## 支持的结构化类型
-
-- `http`
-- `https`
-- `socks5`
-- `socks5-tls`
-- `ss`
-- `snell`
-- `vmess`
-- `trojan`
-- `tuic`
-- `hysteria2`
-- `anytls`
-
-额外参数可以放到 `params` 对象中，键名会原样写入 Surge 参数：
-
-```json
-[
-  {
-    "name": "US-02",
-    "type": "trojan",
-    "server": "us2.example.com",
-    "port": 443,
-    "password": "REPLACE_WITH_PASSWORD",
-    "params": {
-      "test-url": "http://www.gstatic.com/generate_204"
-    }
-  }
-]
-```

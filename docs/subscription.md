@@ -14,7 +14,7 @@ https://<worker-domain>/surge?token=<SUBSCRIBE_TOKEN>
 生成的 Surge 配置会包含：
 
 - `#!MANAGED-CONFIG`，用于托管配置更新。
-- `[Proxy]`，由 `NODES_JSON` 渲染。
+- `[Proxy]`，由 `NODES_TEXT` 渲染。
 - `[Proxy Group]`，包含手动选择、自动测速、AI、流媒体和区域策略组。
 - `[Rule]`，包含 Surge 内置 `SYSTEM`、`LAN` 规则集，少量自维护内联规则，以及参考配置中的第三方规则集。
 - `FINAL,♻️ Auto` 兜底。

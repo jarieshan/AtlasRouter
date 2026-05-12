@@ -4,30 +4,54 @@
 
 ```text
 GitHub main
-  -> GitHub Actions
-  -> Wrangler deploy
+  -> Cloudflare Workers Builds
   -> Cloudflare Worker
 ```
 
-## 1. 配置 Worker Secrets
+## 1. 导入 GitHub 仓库
 
-在 `worker/` 目录执行：
+在 Cloudflare Dashboard 中：
 
-```sh
-npx wrangler secret put SUBSCRIBE_TOKEN
-npx wrangler secret put NODES_JSON
+```text
+Workers & Pages
+  -> Create application
+  -> Import a repository
+  -> 选择 jarieshan/AtlasRouter
 ```
 
-也可以在 Cloudflare Dashboard 的 Worker 设置页添加同名 Secrets。
+构建配置：
 
-## 2. 配置 GitHub Actions Secrets
+```text
+Root directory: worker
+Build command: npm run generate
+Deploy command: npx wrangler deploy
+```
 
-在 GitHub 仓库设置中添加：
+Worker 名称使用 `worker/wrangler.jsonc` 中的 `atlas-router`。
 
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`
+## 2. 配置 Worker Secrets
 
-API Token 只需要具备部署当前 Worker 所需权限。节点信息不要放到 GitHub。
+在 Cloudflare Dashboard 中进入 Worker：
+
+```text
+Settings
+  -> Variables and Secrets
+```
+
+添加 Secrets：
+
+```text
+SUBSCRIBE_TOKEN
+NODES_TEXT
+```
+
+也可以用 Wrangler 配置：
+
+```sh
+cd worker
+npx wrangler secret put SUBSCRIBE_TOKEN
+npx wrangler secret put NODES_TEXT
+```
 
 ## 3. 本地验证
 
@@ -41,7 +65,7 @@ npm run dev
 
 ## 4. 部署
 
-合并到 `main` 后，`.github/workflows/deploy-worker.yml` 会触发部署。
+合并到 `main` 后，Cloudflare Workers Builds 会自动构建和部署。
 
 手动部署：
 

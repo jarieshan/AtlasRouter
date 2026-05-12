@@ -1,149 +1,53 @@
 import { HttpError } from "./errors.js";
 
-const DIRECT_PROXY_TYPES = new Set(["http", "https", "socks5", "socks5-tls"]);
-const PASSWORD_PROXY_TYPES = new Set(["trojan", "hysteria2", "anytls"]);
-
-export function parseNodesJson(value) {
+export function parseNodesText(value) {
   if (!value) {
-    throw new HttpError(500, "NODES_JSON is not configured");
+    throw new HttpError(500, "NODES_TEXT is not configured");
   }
 
-  let parsed;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new HttpError(500, "NODES_JSON must be valid JSON");
+  const nodes = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .map(parseNodeLine);
+
+  if (nodes.length === 0) {
+    throw new HttpError(500, "NODES_TEXT must contain at least one proxy line");
   }
 
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new HttpError(500, "NODES_JSON must be a non-empty array");
-  }
-
-  return parsed.map(normalizeNode);
+  return nodes;
 }
 
 export function renderProxyLines(nodes) {
-  return nodes.map(renderProxyLine).join("\n");
+  return nodes.map((node) => node.line).join("\n");
 }
 
-export function renderProxyLine(node) {
-  validatePolicyName(node.name);
+function parseNodeLine(line) {
+  assertSingleLine(line);
 
-  if (node.surgeProxy) {
-    assertSingleLine(node.surgeProxy, "surgeProxy");
-    return `${node.name} = ${node.surgeProxy}`;
+  const separatorIndex = line.indexOf("=");
+  if (separatorIndex <= 0 || separatorIndex === line.length - 1) {
+    throw new HttpError(500, "Each NODES_TEXT line must use Surge proxy syntax: name = type, server, port, ...");
   }
 
-  const type = requireString(node.type, "type");
-  const server = requireString(node.server, "server");
-  const port = requirePort(node.port);
-  const parts = [type, server, String(port)];
+  const name = line.slice(0, separatorIndex).trim();
+  const value = line.slice(separatorIndex + 1).trim();
 
-  if (DIRECT_PROXY_TYPES.has(type)) {
-    if (node.username || node.password) {
-      parts.push(requireString(node.username, "username"));
-      parts.push(requireString(node.password, "password"));
-    }
-  } else if (type === "ss") {
-    parts.push(`encrypt-method=${requireString(node.encryptMethod, "encryptMethod")}`);
-    parts.push(`password=${requireString(node.password, "password")}`);
-  } else if (type === "vmess") {
-    parts.push(`username=${requireString(node.username ?? node.uuid, "username")}`);
-  } else if (type === "snell") {
-    parts.push(`psk=${requireString(node.psk ?? node.password, "psk")}`);
-    if (node.version) {
-      parts.push(`version=${formatValue(node.version, "version")}`);
-    }
-  } else if (type === "tuic") {
-    parts.push(`token=${requireString(node.token ?? node.password, "token")}`);
-  } else if (PASSWORD_PROXY_TYPES.has(type)) {
-    parts.push(`password=${requireString(node.password, "password")}`);
-  } else {
-    throw new HttpError(500, `Unsupported node type for ${node.name}`);
+  if (!name || !value) {
+    throw new HttpError(500, "Each NODES_TEXT line must include both name and proxy value");
+  }
+  if (name.includes(",")) {
+    throw new HttpError(500, "Node name cannot contain a comma");
   }
 
-  appendCommonParams(parts, node);
-  appendCustomParams(parts, node.params);
-
-  return `${node.name} = ${parts.join(", ")}`;
+  return {
+    name,
+    line: `${name} = ${value}`,
+  };
 }
 
-function normalizeNode(node, index) {
-  if (!node || typeof node !== "object" || Array.isArray(node)) {
-    throw new HttpError(500, `NODES_JSON item ${index + 1} must be an object`);
-  }
-
-  const name = requireString(node.name, "name");
-  validatePolicyName(name);
-  return { ...node, name };
-}
-
-function appendCommonParams(parts, node) {
-  appendParam(parts, "sni", node.sni);
-  appendParam(parts, "skip-cert-verify", node.skipCertVerify);
-  appendParam(parts, "udp-relay", node.udpRelay);
-  appendParam(parts, "tfo", node.tfo);
-}
-
-function appendCustomParams(parts, params) {
-  if (params === undefined) {
-    return;
-  }
-  if (!params || typeof params !== "object" || Array.isArray(params)) {
-    throw new HttpError(500, "params must be an object");
-  }
-
-  for (const [key, value] of Object.entries(params)) {
-    validateParamKey(key);
-    appendParam(parts, key, value);
-  }
-}
-
-function appendParam(parts, key, value) {
-  if (value === undefined || value === null || value === "") {
-    return;
-  }
-  parts.push(`${key}=${formatValue(value, key)}`);
-}
-
-function requireString(value, field) {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new HttpError(500, `Node ${field} is required`);
-  }
-  return formatValue(value, field);
-}
-
-function requirePort(value) {
-  if (!Number.isInteger(value) || value < 1 || value > 65535) {
-    throw new HttpError(500, "Node port must be an integer between 1 and 65535");
-  }
-  return value;
-}
-
-function formatValue(value, field) {
-  const text = String(value);
-  assertSingleLine(text, field);
-  if (text.includes(",")) {
-    throw new HttpError(500, `${field} cannot contain a comma; use surgeProxy for raw Surge syntax`);
-  }
-  return text;
-}
-
-function assertSingleLine(value, field) {
+function assertSingleLine(value) {
   if (/[\r\n]/.test(value)) {
-    throw new HttpError(500, `${field} must be a single line`);
-  }
-}
-
-function validatePolicyName(name) {
-  assertSingleLine(name, "name");
-  if (/[=,]/.test(name)) {
-    throw new HttpError(500, "Node name cannot contain '=' or ','");
-  }
-}
-
-function validateParamKey(key) {
-  if (!/^[a-zA-Z0-9-]+$/.test(key)) {
-    throw new HttpError(500, `Invalid param key: ${key}`);
+    throw new HttpError(500, "Proxy line must be a single line");
   }
 }

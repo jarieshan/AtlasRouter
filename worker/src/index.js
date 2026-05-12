@@ -1,6 +1,6 @@
 import { requireAuthorized } from "./auth.js";
 import { HttpError } from "./errors.js";
-import { parseNodesJson } from "./nodes.js";
+import { parseNodesText } from "./nodes.js";
 import { getModule, renderSurgeProfile } from "./render-surge.js";
 
 const TEXT_HEADERS = {
@@ -24,7 +24,7 @@ export async function handleRequest(request, env) {
     const token = requireAuthorized(request, env);
 
     if (url.pathname === "/surge" || url.pathname === "/surge.conf") {
-      const nodes = parseNodesJson(env.NODES_JSON);
+      const nodes = parseNodesText(env.NODES_TEXT);
       return textResponse(renderSurgeProfile({ requestUrl: request.url, token, nodes }));
     }
 

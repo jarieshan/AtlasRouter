@@ -7,7 +7,7 @@
   "secrets": {
     "required": [
       "SUBSCRIBE_TOKEN",
-      "NODES_JSON"
+      "NODES_TEXT"
     ]
   }
 }
