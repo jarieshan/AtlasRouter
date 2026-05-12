@@ -1,0 +1,11 @@
+{
+  "name": "@atlas-router/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-assets.js",
+    "test": "npm run generate && node --test",
+    "dev": "npm run generate && npx wrangler dev",
+    "deploy": "npm run generate && npx wrangler deploy"
+  }
+}

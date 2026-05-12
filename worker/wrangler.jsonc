@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "atlas-router",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-12",
+  "workers_dev": true,
+  "secrets": {
+    "required": [
+      "SUBSCRIBE_TOKEN",
+      "NODES_JSON"
+    ]
+  }
+}

@@ -6,11 +6,14 @@ AtlasRouter 是一个围绕 Surge APP 组织的代理分流套件仓库，目标
 
 ## 当前状态
 
-仓库仍处于初始化阶段。
+仓库已具备初版订阅生成闭环：
 
 - `README.md`：项目说明与维护入口。
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
 - `docs/`：设计、部署、运维和决策记录。
+- `worker/`：Cloudflare Worker 订阅服务。
+- `surge/`：Surge 主配置模板。
+- `modules/`：Surge 模块。
 - `references/`：历史配置和样例，仅用于理解已有想法，不作为事实来源或实现依据。
 
 ## 目标组成
@@ -18,8 +21,7 @@ AtlasRouter 是一个围绕 Surge APP 组织的代理分流套件仓库，目标
 后续实现可以按下面的职责拆分，具体目录以实际代码为准：
 
 - `worker/`：Cloudflare Worker 订阅入口、鉴权、节点注入、配置渲染。
-- `surge/`：Surge 主配置模板与策略组定义。
-- `rules/`：自维护分流规则、规则集入口、第三方规则引用说明。
+- `surge/`：Surge 主配置模板、策略组定义和少量自维护分流规则。
 - `modules/`：Surge `.sgmodule` 模块。
 - `scripts/`：Surge 脚本与相关说明。
 - `docs/`：架构说明、部署流程、配置约定和变更决策。
@@ -44,6 +46,15 @@ flowchart LR
 3. Surge 规则保持可解释的顺序：越具体的规则越靠前，兜底规则放最后。
 4. Worker 中的订阅鉴权、路径分发和错误响应要保持简单明确。
 5. 新增规则、策略组或模块时，同步更新说明，避免配置和文档漂移。
+
+## 本地验证
+
+```sh
+cd worker
+npm test
+```
+
+Worker 会在测试和部署前运行 `scripts/generate-assets.js`，把 `surge/` 和 `modules/` 中的静态资产打包进 Worker。
 
 ## Cloudflare Worker 配置约定
 
