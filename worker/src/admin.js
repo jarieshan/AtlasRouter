@@ -7,21 +7,22 @@ export function renderAdminPage() {
   <title>AtlasRouter Admin</title>
   <style>
     :root {
-      color-scheme: light dark;
+      color-scheme: light;
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --bg: #f4f6f8;
+      --bg: #ffffff;
       --surface: #ffffff;
-      --surface-muted: #f8fafc;
-      --border: #d8dee8;
-      --border-strong: #bac4d2;
-      --text: #17202f;
-      --muted: #5d6878;
-      --primary: #0b63ce;
-      --primary-strong: #084fa6;
-      --danger: #b42318;
-      --success: #067647;
-      --warning: #b54708;
-      --focus: rgba(11, 99, 206, .22);
+      --surface-muted: #fafafa;
+      --border: #e5e7eb;
+      --border-strong: #d1d5db;
+      --text: #111827;
+      --muted: #6b7280;
+      --muted-soft: #9ca3af;
+      --primary: #111827;
+      --primary-strong: #000000;
+      --danger: #b91c1c;
+      --success: #047857;
+      --warning: #92400e;
+      --focus: rgba(17, 24, 39, .14);
       background: var(--bg);
       color: var(--text);
     }
@@ -29,17 +30,18 @@ export function renderAdminPage() {
     body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); }
     button, input, textarea { font: inherit; }
     button {
-      min-height: 38px;
+      min-height: 36px;
       border: 1px solid var(--border-strong);
-      border-radius: 6px;
-      padding: 0 13px;
+      border-radius: 4px;
+      padding: 0 12px;
       background: var(--surface);
       color: var(--text);
-      font-weight: 650;
+      font-size: 13px;
+      font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
     }
-    button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+    button:hover:not(:disabled) { background: var(--surface-muted); border-color: var(--text); }
     button:focus-visible, input:focus-visible, textarea:focus-visible {
       outline: 3px solid var(--focus);
       outline-offset: 1px;
@@ -47,64 +49,73 @@ export function renderAdminPage() {
     button:disabled { opacity: .55; cursor: not-allowed; }
     button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
     button.primary:hover:not(:disabled) { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
-    button.danger { color: var(--danger); border-color: rgba(180, 35, 24, .45); }
+    button.danger { color: var(--danger); border-color: #f1c4c4; }
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: .95em;
     }
-    .shell { width: min(1320px, 100%); margin: 0 auto; padding: 28px 22px 40px; }
+    .shell { width: min(1240px, 100%); margin: 0 auto; padding: 24px 20px 36px; }
     .masthead {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 18px;
       align-items: end;
-      margin-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+      padding-bottom: 16px;
     }
-    .eyebrow { margin: 0 0 5px; color: var(--primary); font-size: 13px; font-weight: 750; }
+    .eyebrow {
+      margin: 0 0 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
     h1, h2, h3, p { margin-top: 0; }
-    h1 { margin-bottom: 7px; font-size: 28px; line-height: 1.2; letter-spacing: 0; }
-    h2 { margin-bottom: 0; font-size: 16px; line-height: 1.3; letter-spacing: 0; }
+    h1 { margin-bottom: 6px; font-size: 24px; line-height: 1.2; letter-spacing: 0; }
+    h2 { margin-bottom: 0; font-size: 15px; line-height: 1.3; letter-spacing: 0; }
     h3 { margin-bottom: 0; font-size: 14px; line-height: 1.3; letter-spacing: 0; }
     .intro { margin-bottom: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
     .status-pill {
       min-width: 180px;
       max-width: 100%;
       border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 8px 12px;
+      border-radius: 4px;
+      margin-top: 8px;
+      padding: 7px 10px;
       background: var(--surface);
       color: var(--muted);
       font-size: 13px;
       text-align: center;
     }
-    .status-pill.error { border-color: rgba(180, 35, 24, .35); color: var(--danger); }
-    .status-pill.success { border-color: rgba(6, 118, 71, .35); color: var(--success); }
+    .status-pill.error { border-color: #f1c4c4; color: var(--danger); }
+    .status-pill.success { border-color: #b7dbc9; color: var(--success); }
     .top-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 14px;
+      gap: 10px;
+      margin-bottom: 12px;
     }
     .metric {
       min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 4px;
       background: var(--surface);
-      padding: 13px 14px;
+      padding: 12px;
     }
-    .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 650; }
-    .metric strong { display: block; margin-top: 5px; font-size: 24px; line-height: 1.1; letter-spacing: 0; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 600; }
+    .metric strong { display: block; margin-top: 5px; font-size: 22px; line-height: 1.1; letter-spacing: 0; }
     .workspace {
       display: grid;
       grid-template-columns: 320px minmax(0, 1fr);
-      gap: 14px;
+      gap: 12px;
       align-items: start;
     }
     .panel {
       min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 4px;
       background: var(--surface);
     }
     .panel-heading {
@@ -113,16 +124,17 @@ export function renderAdminPage() {
       justify-content: space-between;
       gap: 12px;
       border-bottom: 1px solid var(--border);
-      padding: 14px;
+      padding: 13px 14px;
     }
     .panel-heading p { margin: 3px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
     .panel-body { padding: 14px; }
-    .profile-list { display: grid; gap: 8px; padding: 10px; }
+    .profile-list { display: grid; gap: 0; padding: 6px; }
     .profile-item {
       display: block;
       width: 100%;
       height: auto;
       border-color: transparent;
+      border-radius: 4px;
       background: transparent;
       padding: 10px;
       text-align: left;
@@ -130,9 +142,10 @@ export function renderAdminPage() {
     }
     .profile-item:hover:not(:disabled) { background: var(--surface-muted); }
     .profile-item.active {
-      border-color: rgba(11, 99, 206, .35);
-      background: rgba(11, 99, 206, .08);
+      border-color: var(--border);
+      background: var(--surface-muted);
       color: var(--text);
+      box-shadow: inset 3px 0 0 var(--text);
     }
     .profile-row {
       display: flex;
@@ -161,21 +174,22 @@ export function renderAdminPage() {
       display: none;
       margin-bottom: 14px;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-left: 3px solid var(--border-strong);
+      border-radius: 4px;
       padding: 10px 12px;
-      background: var(--surface-muted);
+      background: var(--surface);
       color: var(--muted);
       font-size: 13px;
       line-height: 1.45;
     }
     .validation.visible { display: block; }
-    .validation.error { border-color: rgba(180, 35, 24, .32); color: var(--danger); background: rgba(180, 35, 24, .06); }
-    .validation.warning { border-color: rgba(181, 71, 8, .32); color: var(--warning); background: rgba(181, 71, 8, .07); }
+    .validation.error { border-left-color: var(--danger); color: var(--danger); }
+    .validation.warning { border-left-color: var(--warning); color: var(--warning); }
     .validation ul { margin: 6px 0 0 18px; padding: 0; }
     .card-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+      gap: 12px 14px;
     }
     .field { min-width: 0; }
     .field.full { grid-column: 1 / -1; }
@@ -184,13 +198,13 @@ export function renderAdminPage() {
       margin-bottom: 7px;
       color: var(--muted);
       font-size: 12px;
-      font-weight: 750;
+      font-weight: 650;
       text-transform: uppercase;
     }
     input, textarea {
       width: 100%;
       border: 1px solid var(--border-strong);
-      border-radius: 6px;
+      border-radius: 4px;
       background: var(--surface);
       color: var(--text);
     }
@@ -209,19 +223,22 @@ export function renderAdminPage() {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin: 18px 0 10px;
+      border-top: 1px solid var(--border);
+      margin: 18px 0 0;
+      padding-top: 14px;
       color: var(--muted);
       font-size: 12px;
-      font-weight: 750;
+      font-weight: 650;
       text-transform: uppercase;
     }
-    .group-stack { display: grid; gap: 12px; }
+    .group-stack { display: grid; gap: 0; border: 1px solid var(--border); border-radius: 4px; }
     .group-card {
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
       overflow: hidden;
       background: var(--surface);
     }
+    .group-card:last-child { border-bottom: 0; }
     .group-heading {
       display: grid;
       grid-template-columns: minmax(180px, 1fr) auto;
@@ -229,7 +246,7 @@ export function renderAdminPage() {
       align-items: center;
       border-bottom: 1px solid var(--border);
       padding: 12px;
-      background: var(--surface-muted);
+      background: var(--surface);
     }
     .group-title-row {
       display: grid;
@@ -240,23 +257,24 @@ export function renderAdminPage() {
     .group-title-row span {
       color: var(--muted);
       font-size: 12px;
-      font-weight: 750;
+      font-weight: 650;
       text-transform: uppercase;
     }
-    .node-stack { display: grid; gap: 10px; padding: 12px; }
+    .node-stack { display: grid; gap: 0; padding: 0 12px; }
     .node-card {
       display: grid;
       grid-template-columns: minmax(160px, .45fr) minmax(0, 1fr) auto;
       gap: 10px;
       align-items: start;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      padding: 12px 0;
       background: var(--surface);
     }
+    .node-card:last-child { border-bottom: 0; }
     .empty {
       border: 1px dashed var(--border-strong);
-      border-radius: 8px;
+      border-radius: 4px;
       padding: 18px;
       color: var(--muted);
       font-size: 14px;
@@ -267,13 +285,13 @@ export function renderAdminPage() {
       align-items: center;
       min-height: 26px;
       border: 1px solid var(--border);
-      border-radius: 999px;
+      border-radius: 4px;
       padding: 2px 9px;
       color: var(--muted);
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 650;
     }
-    .dirty.changed { border-color: rgba(181, 71, 8, .35); color: var(--warning); background: rgba(181, 71, 8, .07); }
+    .dirty.changed { border-color: #e0bf91; color: var(--warning); background: #fffaf2; }
     @media (max-width: 1080px) {
       .workspace { grid-template-columns: 1fr; }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -287,28 +305,6 @@ export function renderAdminPage() {
       .summary-grid, .card-grid { grid-template-columns: 1fr; }
       .group-heading, .node-card { grid-template-columns: 1fr; }
       .panel-heading { align-items: stretch; flex-direction: column; }
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0f131a;
-        --surface: #171c25;
-        --surface-muted: #1d2430;
-        --border: #303848;
-        --border-strong: #465164;
-        --text: #edf1f7;
-        --muted: #aab4c3;
-        --primary: #5c9dff;
-        --primary-strong: #3e83ec;
-        --danger: #ff8a7a;
-        --success: #69d59c;
-        --warning: #ffb86a;
-        --focus: rgba(92, 157, 255, .26);
-      }
-      button.primary { color: #08111f; }
-      .profile-item.active { background: rgba(92, 157, 255, .14); border-color: rgba(92, 157, 255, .42); }
-      .validation.error { background: rgba(255, 138, 122, .08); }
-      .validation.warning { background: rgba(255, 184, 106, .08); }
-      .dirty.changed { background: rgba(255, 184, 106, .08); }
     }
   </style>
 </head>
