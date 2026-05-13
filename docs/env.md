@@ -6,7 +6,7 @@ AtlasRouter 需要一个 KV namespace：
 
 GitHub 不保存部署 token 或节点信息。部署由 Cloudflare Git Integration 触发，租户订阅 token 和节点信息保存在 `ATLAS_ROUTER` KV 中。KV 读权限视为订阅敏感配置读取权限。
 
-管理页依赖 Cloudflare Access 保护 `/admin*`，Worker 会校验 Access 注入的 JWT。需要配置这些 Worker vars：
+管理页依赖 Cloudflare Access 保护 `/admin*`，Worker 会校验 Access 注入的 JWT。需要在 Cloudflare Dashboard 的 Worker Variables and Secrets 中配置这些值，不要把真实值写进 `worker/wrangler.jsonc`：
 
 - `ACCESS_TEAM_DOMAIN`：Cloudflare Access team domain，例如 `https://<team>.cloudflareaccess.com`。
 - `ACCESS_AUD`：Access application 的 Audience (AUD)。

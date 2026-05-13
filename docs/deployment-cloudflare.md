@@ -80,17 +80,15 @@ npx wrangler kv key put --binding=ATLAS_ROUTER router-config "$(cat router-confi
 https://<worker-domain>/admin*
 ```
 
-Access policy 只允许自己的账号访问。然后把 Access application 的配置写入 `worker/wrangler.jsonc`：
+Access policy 只允许自己的账号访问。然后在 Worker 的 Settings -> Variables and Secrets 中配置：
 
-```jsonc
-"vars": {
-  "ACCESS_TEAM_DOMAIN": "https://<team>.cloudflareaccess.com",
-  "ACCESS_AUD": "REPLACE_WITH_ACCESS_APPLICATION_AUD",
-  "ADMIN_EMAILS": "you@example.com"
-}
+```text
+ACCESS_TEAM_DOMAIN=https://<team>.cloudflareaccess.com
+ACCESS_AUD=REPLACE_WITH_ACCESS_APPLICATION_AUD
+ADMIN_EMAILS=you@example.com
 ```
 
-`ACCESS_AUD` 使用 Access application 详情页里的 Audience (AUD)。`ADMIN_EMAILS` 是 Worker 内部的二次白名单，用来避免 Access policy 配错时放大管理面。
+不要把这些真实值写进 `worker/wrangler.jsonc`。`ACCESS_AUD` 使用 Access application 详情页里的 Audience (AUD)。`ADMIN_EMAILS` 是 Worker 内部的二次白名单，用来避免 Access policy 配错时放大管理面。
 
 部署后也可以打开管理页，粘贴完整 JSON 并保存到 `router-config`：
 
