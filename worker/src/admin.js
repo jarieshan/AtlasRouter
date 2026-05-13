@@ -9,20 +9,25 @@ export function renderAdminPage() {
     :root {
       color-scheme: light;
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --bg: #ffffff;
+      --bg: #f6f9fc;
       --surface: #ffffff;
-      --surface-muted: #fafafa;
-      --border: #e5e7eb;
-      --border-strong: #d1d5db;
-      --text: #111827;
-      --muted: #6b7280;
-      --muted-soft: #9ca3af;
-      --primary: #111827;
-      --primary-strong: #000000;
-      --danger: #b91c1c;
-      --success: #047857;
-      --warning: #92400e;
-      --focus: rgba(17, 24, 39, .14);
+      --surface-muted: #f0f6ff;
+      --surface-soft: #fbfdff;
+      --border: #dbe5f0;
+      --border-strong: #bfd0e3;
+      --text: #172033;
+      --muted: #64748b;
+      --muted-soft: #94a3b8;
+      --primary: #2563eb;
+      --primary-strong: #1d4ed8;
+      --primary-soft: #e8f0ff;
+      --danger: #dc2626;
+      --danger-soft: #fff1f2;
+      --success: #059669;
+      --success-soft: #ecfdf5;
+      --warning: #d97706;
+      --warning-soft: #fffbeb;
+      --focus: rgba(37, 99, 235, .18);
       background: var(--bg);
       color: var(--text);
     }
@@ -32,7 +37,7 @@ export function renderAdminPage() {
     button {
       min-height: 36px;
       border: 1px solid var(--border-strong);
-      border-radius: 4px;
+      border-radius: 9px;
       padding: 0 12px;
       background: var(--surface);
       color: var(--text);
@@ -41,7 +46,7 @@ export function renderAdminPage() {
       cursor: pointer;
       white-space: nowrap;
     }
-    button:hover:not(:disabled) { background: var(--surface-muted); border-color: var(--text); }
+    button:hover:not(:disabled) { background: var(--primary-soft); border-color: #9bb8ec; color: var(--primary-strong); }
     button:focus-visible, input:focus-visible, textarea:focus-visible {
       outline: 3px solid var(--focus);
       outline-offset: 1px;
@@ -49,24 +54,27 @@ export function renderAdminPage() {
     button:disabled { opacity: .55; cursor: not-allowed; }
     button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
     button.primary:hover:not(:disabled) { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
-    button.danger { color: var(--danger); border-color: #f1c4c4; }
+    button.danger { background: var(--danger-soft); color: var(--danger); border-color: #fecdd3; }
+    button.danger:hover:not(:disabled) { background: #ffe4e6; border-color: #fda4af; color: #b91c1c; }
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: .95em;
     }
-    .shell { width: min(1240px, 100%); margin: 0 auto; padding: 24px 20px 36px; }
+    .shell { width: min(1260px, 100%); margin: 0 auto; padding: 24px 20px 36px; }
     .masthead {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 18px;
       align-items: end;
-      border-bottom: 1px solid var(--border);
+      border: 1px solid var(--border);
+      border-radius: 16px;
       margin-bottom: 16px;
-      padding-bottom: 16px;
+      padding: 18px;
+      background: linear-gradient(135deg, #ffffff 0%, #f3f8ff 100%);
     }
     .eyebrow {
       margin: 0 0 5px;
-      color: var(--muted);
+      color: var(--primary);
       font-size: 12px;
       font-weight: 700;
       text-transform: uppercase;
@@ -80,43 +88,44 @@ export function renderAdminPage() {
       min-width: 180px;
       max-width: 100%;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 10px;
       margin-top: 8px;
       padding: 7px 10px;
-      background: var(--surface);
+      background: rgba(255, 255, 255, .78);
       color: var(--muted);
       font-size: 13px;
       text-align: center;
     }
-    .status-pill.error { border-color: #f1c4c4; color: var(--danger); }
-    .status-pill.success { border-color: #b7dbc9; color: var(--success); }
+    .status-pill.error { border-color: #fecdd3; background: var(--danger-soft); color: var(--danger); }
+    .status-pill.success { border-color: #bbf7d0; background: var(--success-soft); color: var(--success); }
     .top-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      margin-bottom: 12px;
+      gap: 14px;
+      margin-bottom: 14px;
     }
     .metric {
       min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 14px;
       background: var(--surface);
-      padding: 12px;
+      padding: 14px;
     }
     .metric span { display: block; color: var(--muted); font-size: 12px; font-weight: 600; }
     .metric strong { display: block; margin-top: 5px; font-size: 22px; line-height: 1.1; letter-spacing: 0; }
     .workspace {
       display: grid;
       grid-template-columns: 320px minmax(0, 1fr);
-      gap: 12px;
+      gap: 14px;
       align-items: start;
     }
     .panel {
       min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 14px;
       background: var(--surface);
+      overflow: hidden;
     }
     .panel-heading {
       display: flex;
@@ -124,17 +133,18 @@ export function renderAdminPage() {
       justify-content: space-between;
       gap: 12px;
       border-bottom: 1px solid var(--border);
-      padding: 13px 14px;
+      padding: 14px 16px;
+      background: var(--surface-soft);
     }
     .panel-heading p { margin: 3px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
-    .panel-body { padding: 14px; }
-    .profile-list { display: grid; gap: 0; padding: 6px; }
+    .panel-body { padding: 16px; }
+    .profile-list { display: grid; gap: 8px; padding: 10px; }
     .profile-item {
       display: block;
       width: 100%;
       height: auto;
       border-color: transparent;
-      border-radius: 4px;
+      border-radius: 12px;
       background: transparent;
       padding: 10px;
       text-align: left;
@@ -142,10 +152,10 @@ export function renderAdminPage() {
     }
     .profile-item:hover:not(:disabled) { background: var(--surface-muted); }
     .profile-item.active {
-      border-color: var(--border);
-      background: var(--surface-muted);
+      border-color: #9bb8ec;
+      background: var(--primary-soft);
       color: var(--text);
-      box-shadow: inset 3px 0 0 var(--text);
+      box-shadow: inset 4px 0 0 var(--primary);
     }
     .profile-row {
       display: flex;
@@ -175,16 +185,16 @@ export function renderAdminPage() {
       margin-bottom: 14px;
       border: 1px solid var(--border);
       border-left: 3px solid var(--border-strong);
-      border-radius: 4px;
+      border-radius: 12px;
       padding: 10px 12px;
-      background: var(--surface);
+      background: var(--surface-soft);
       color: var(--muted);
       font-size: 13px;
       line-height: 1.45;
     }
     .validation.visible { display: block; }
-    .validation.error { border-left-color: var(--danger); color: var(--danger); }
-    .validation.warning { border-left-color: var(--warning); color: var(--warning); }
+    .validation.error { border-color: #fecdd3; border-left-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+    .validation.warning { border-color: #fde68a; border-left-color: var(--warning); background: var(--warning-soft); color: var(--warning); }
     .validation ul { margin: 6px 0 0 18px; padding: 0; }
     .card-grid {
       display: grid;
@@ -204,11 +214,11 @@ export function renderAdminPage() {
     input, textarea {
       width: 100%;
       border: 1px solid var(--border-strong);
-      border-radius: 4px;
+      border-radius: 10px;
       background: var(--surface);
       color: var(--text);
     }
-    input { min-height: 38px; padding: 0 10px; }
+    input { min-height: 38px; padding: 0 11px; }
     textarea {
       min-height: 74px;
       resize: vertical;
@@ -224,21 +234,20 @@ export function renderAdminPage() {
       justify-content: space-between;
       gap: 12px;
       border-top: 1px solid var(--border);
-      margin: 18px 0 0;
-      padding-top: 14px;
+      margin: 20px 0 10px;
+      padding-top: 16px;
       color: var(--muted);
       font-size: 12px;
       font-weight: 650;
       text-transform: uppercase;
     }
-    .group-stack { display: grid; gap: 0; border: 1px solid var(--border); border-radius: 4px; }
+    .group-stack { display: grid; gap: 14px; border: 0; border-radius: 0; }
     .group-card {
-      border-bottom: 1px solid var(--border);
-      border-radius: 0;
+      border: 1px solid var(--border);
+      border-radius: 14px;
       overflow: hidden;
       background: var(--surface);
     }
-    .group-card:last-child { border-bottom: 0; }
     .group-heading {
       display: grid;
       grid-template-columns: minmax(180px, 1fr) auto;
@@ -246,7 +255,7 @@ export function renderAdminPage() {
       align-items: center;
       border-bottom: 1px solid var(--border);
       padding: 12px;
-      background: var(--surface);
+      background: var(--surface-soft);
     }
     .group-title-row {
       display: grid;
@@ -260,21 +269,20 @@ export function renderAdminPage() {
       font-weight: 650;
       text-transform: uppercase;
     }
-    .node-stack { display: grid; gap: 0; padding: 0 12px; }
+    .node-stack { display: grid; gap: 10px; padding: 12px; }
     .node-card {
       display: grid;
       grid-template-columns: minmax(160px, .45fr) minmax(0, 1fr) auto;
       gap: 10px;
       align-items: start;
-      border-bottom: 1px solid var(--border);
-      border-radius: 0;
-      padding: 12px 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
       background: var(--surface);
     }
-    .node-card:last-child { border-bottom: 0; }
     .empty {
       border: 1px dashed var(--border-strong);
-      border-radius: 4px;
+      border-radius: 12px;
       padding: 18px;
       color: var(--muted);
       font-size: 14px;
@@ -285,13 +293,13 @@ export function renderAdminPage() {
       align-items: center;
       min-height: 26px;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 999px;
       padding: 2px 9px;
       color: var(--muted);
       font-size: 12px;
       font-weight: 650;
     }
-    .dirty.changed { border-color: #e0bf91; color: var(--warning); background: #fffaf2; }
+    .dirty.changed { border-color: #fde68a; color: var(--warning); background: var(--warning-soft); }
     @media (max-width: 1080px) {
       .workspace { grid-template-columns: 1fr; }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
