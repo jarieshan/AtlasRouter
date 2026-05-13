@@ -11,6 +11,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes }) {
   const template = renderNodeGroups(ASSETS.template, nodeGroupState);
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildUrl(requestUrl, SUBSCRIPTION_PATH, token)} interval=86400 strict=false`,
+    MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token),
     PROXY_LINES: renderProxyLines(nodes),
     RULE_LINES: renderRuleLines(ASSETS.rules, nodeGroupState.emptyGroups),
   };
@@ -20,6 +21,22 @@ export function renderSurgeProfile({ requestUrl, token, nodes }) {
 
 export function getModule(name) {
   return ASSETS.modules[name] ?? null;
+}
+
+function renderModuleUrlLines(requestUrl, token) {
+  const moduleEntries = Object.entries(ASSETS.modules).sort(([left], [right]) => left.localeCompare(right));
+  if (moduleEntries.length === 0) {
+    return "# - None";
+  }
+
+  return moduleEntries
+    .map(([moduleName, content]) => `# - ${moduleDisplayName(moduleName, content)}: ${buildUrl(requestUrl, `/modules/${moduleName}`, token)}`)
+    .join("\n");
+}
+
+function moduleDisplayName(moduleName, content) {
+  const name = content.match(/^#!name=(.+)$/m);
+  return name ? name[1].trim() : moduleName;
 }
 
 function buildUrl(requestUrl, pathname, token) {
