@@ -40,15 +40,19 @@ export function renderAdminPage() {
       white-space: nowrap;
     }
     button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
-    button:focus-visible, textarea:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 1px;
+    }
     button:disabled { opacity: .55; cursor: not-allowed; }
     button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
     button.primary:hover:not(:disabled) { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
+    button.danger { color: var(--danger); border-color: rgba(180, 35, 24, .45); }
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: .95em;
     }
-    .shell { width: min(1280px, 100%); margin: 0 auto; padding: 28px 22px 40px; }
+    .shell { width: min(1320px, 100%); margin: 0 auto; padding: 28px 22px 40px; }
     .masthead {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -60,7 +64,7 @@ export function renderAdminPage() {
     h1, h2, h3, p { margin-top: 0; }
     h1 { margin-bottom: 7px; font-size: 28px; line-height: 1.2; letter-spacing: 0; }
     h2 { margin-bottom: 0; font-size: 16px; line-height: 1.3; letter-spacing: 0; }
-    h3 { margin-bottom: 0; font-size: 13px; line-height: 1.3; letter-spacing: 0; }
+    h3 { margin-bottom: 0; font-size: 14px; line-height: 1.3; letter-spacing: 0; }
     .intro { margin-bottom: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
     .status-pill {
       min-width: 180px;
@@ -75,6 +79,7 @@ export function renderAdminPage() {
     }
     .status-pill.error { border-color: rgba(180, 35, 24, .35); color: var(--danger); }
     .status-pill.success { border-color: rgba(6, 118, 71, .35); color: var(--success); }
+    .top-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -111,7 +116,7 @@ export function renderAdminPage() {
       padding: 14px;
     }
     .panel-heading p { margin: 3px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
-    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .panel-body { padding: 14px; }
     .profile-list { display: grid; gap: 8px; padding: 10px; }
     .profile-item {
       display: block;
@@ -152,7 +157,6 @@ export function renderAdminPage() {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .detail-body { padding: 14px; }
     .validation {
       display: none;
       margin-bottom: 14px;
@@ -168,93 +172,87 @@ export function renderAdminPage() {
     .validation.error { border-color: rgba(180, 35, 24, .32); color: var(--danger); background: rgba(180, 35, 24, .06); }
     .validation.warning { border-color: rgba(181, 71, 8, .32); color: var(--warning); background: rgba(181, 71, 8, .07); }
     .validation ul { margin: 6px 0 0 18px; padding: 0; }
-    .facts {
+    .card-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
     }
-    .fact {
-      min-width: 0;
-      border-right: 1px solid var(--border);
-      padding: 11px 12px;
-      background: var(--surface-muted);
-    }
-    .fact:last-child { border-right: 0; }
-    .fact span { display: block; color: var(--muted); font-size: 12px; font-weight: 650; }
-    .fact strong {
+    .field { min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    label {
       display: block;
-      margin-top: 5px;
-      overflow: hidden;
-      font-size: 14px;
-      line-height: 1.35;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .section-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin: 16px 0 8px;
+      margin-bottom: 7px;
       color: var(--muted);
       font-size: 12px;
       font-weight: 750;
       text-transform: uppercase;
     }
-    .chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
-    .chip {
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 5px 9px;
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
       background: var(--surface);
       color: var(--text);
-      font-size: 12px;
-      font-weight: 650;
     }
-    .node-list {
-      display: grid;
-      gap: 8px;
-      max-height: 360px;
-      overflow: auto;
-      padding-right: 2px;
+    input { min-height: 38px; padding: 0 10px; }
+    textarea {
+      min-height: 74px;
+      resize: vertical;
+      padding: 10px;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      tab-size: 2;
     }
-    .node-row {
-      min-width: 0;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 11px;
-      background: var(--surface);
-    }
-    .node-top {
+    .subtle-input { color: var(--muted); }
+    .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .section-title {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      min-width: 0;
-      margin-bottom: 5px;
-    }
-    .node-name {
-      overflow: hidden;
+      margin: 18px 0 10px;
+      color: var(--muted);
+      font-size: 12px;
       font-weight: 750;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      text-transform: uppercase;
     }
-    .node-group {
-      flex: 0 0 auto;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 650;
-    }
-    .node-line {
-      display: block;
+    .group-stack { display: grid; gap: 12px; }
+    .group-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
       overflow: hidden;
+      background: var(--surface);
+    }
+    .group-heading {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding: 12px;
+      background: var(--surface-muted);
+    }
+    .group-title-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+    .group-title-row span {
       color: var(--muted);
       font-size: 12px;
-      line-height: 1.4;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+    .node-stack { display: grid; gap: 10px; padding: 12px; }
+    .node-card {
+      display: grid;
+      grid-template-columns: minmax(160px, .45fr) minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--surface);
     }
     .empty {
       border: 1px dashed var(--border-strong);
@@ -263,29 +261,6 @@ export function renderAdminPage() {
       color: var(--muted);
       font-size: 14px;
       text-align: center;
-    }
-    .editor-panel { margin-top: 14px; }
-    .editor-body { padding: 14px; }
-    label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 13px; font-weight: 700; }
-    textarea {
-      width: 100%;
-      min-height: 52vh;
-      resize: vertical;
-      border: 1px solid var(--border-strong);
-      border-radius: 8px;
-      padding: 12px;
-      background: var(--surface);
-      color: var(--text);
-      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      tab-size: 2;
-    }
-    .meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 13px;
     }
     .dirty {
       display: inline-flex;
@@ -299,25 +274,19 @@ export function renderAdminPage() {
       font-weight: 700;
     }
     .dirty.changed { border-color: rgba(181, 71, 8, .35); color: var(--warning); background: rgba(181, 71, 8, .07); }
-    @media (max-width: 980px) {
-      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (max-width: 1080px) {
       .workspace { grid-template-columns: 1fr; }
-      .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .fact:nth-child(2) { border-right: 0; }
-      .fact:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    @media (max-width: 640px) {
+    @media (max-width: 760px) {
       .shell { padding: 18px 12px 28px; }
       .masthead { grid-template-columns: 1fr; align-items: start; }
       .status-pill { width: 100%; text-align: left; }
-      .summary-grid, .facts { grid-template-columns: 1fr; }
-      .fact { border-right: 0; border-bottom: 1px solid var(--border); }
-      .fact:last-child { border-bottom: 0; }
+      .top-actions { justify-content: stretch; }
+      .top-actions button { flex: 1 1 120px; }
+      .summary-grid, .card-grid { grid-template-columns: 1fr; }
+      .group-heading, .node-card { grid-template-columns: 1fr; }
       .panel-heading { align-items: stretch; flex-direction: column; }
-      .actions { justify-content: stretch; }
-      .actions button { flex: 1 1 120px; }
-      .meta { flex-direction: column; }
-      textarea { min-height: 58vh; }
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -344,19 +313,25 @@ export function renderAdminPage() {
   </style>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell" id="admin-root">
     <header class="masthead">
       <div>
         <p class="eyebrow">AtlasRouter Admin</p>
-        <h1>订阅配置管理</h1>
-        <p class="intro">编辑 ATLAS_ROUTER KV 中的 <code>router-config</code>，预览 profiles、节点组和节点行，保存前先做本地检查。</p>
+        <h1>用户订阅管理</h1>
+        <p class="intro">Profiles、订阅 Token 和节点按用户独立配置。</p>
       </div>
-      <div class="status-pill" id="status" role="status">准备加载配置</div>
+      <div>
+        <div class="top-actions">
+          <button type="button" data-action="load">重新加载</button>
+          <button type="button" data-action="save" class="primary" disabled>保存</button>
+        </div>
+        <div class="status-pill" id="status" role="status">准备加载配置</div>
+      </div>
     </header>
 
     <section class="summary-grid" aria-label="配置摘要">
       <article class="metric">
-        <span>Profiles</span>
+        <span>Users</span>
         <strong id="profile-count">--</strong>
       </article>
       <article class="metric">
@@ -374,135 +349,68 @@ export function renderAdminPage() {
     </section>
 
     <section class="workspace">
-      <aside class="panel" aria-label="Profile 列表">
+      <aside class="panel" aria-label="用户列表">
         <div class="panel-heading">
           <div>
-            <h2>Profiles</h2>
-            <p>选择一个租户查看节点分布。</p>
+            <h2>用户</h2>
+            <p id="user-count-text">0 个用户</p>
           </div>
-          <button type="button" id="load">重新加载</button>
+          <button type="button" data-action="add-profile">新增用户</button>
         </div>
         <div class="profile-list" id="profile-list">
           <div class="empty">尚未加载配置</div>
         </div>
       </aside>
 
-      <section class="panel" aria-label="Profile 详情">
+      <section class="panel" aria-label="用户配置">
         <div class="panel-heading">
           <div>
-            <h2 id="profile-title">配置预览</h2>
-            <p id="profile-subtitle">加载后会显示当前 profile 的可用信息。</p>
+            <h2 id="profile-title">用户配置</h2>
+            <p id="profile-subtitle">加载后选择一个用户。</p>
           </div>
-          <div class="actions">
-            <button type="button" id="copy-url" disabled>复制订阅地址</button>
-            <button type="button" id="format">格式化 JSON</button>
-            <button type="button" id="save" class="primary" disabled>保存</button>
-          </div>
+          <span class="dirty" id="dirty-state">未加载</span>
         </div>
-        <div class="detail-body">
+        <div class="panel-body">
           <div class="validation" id="validation"></div>
-          <div class="facts">
-            <div class="fact">
-              <span>Profile ID</span>
-              <strong id="profile-id">--</strong>
-            </div>
-            <div class="fact">
-              <span>Name</span>
-              <strong id="profile-name">--</strong>
-            </div>
-            <div class="fact">
-              <span>Subscribe Token</span>
-              <strong id="profile-token">--</strong>
-            </div>
-            <div class="fact">
-              <span>Path</span>
-              <strong id="profile-path">--</strong>
-            </div>
-          </div>
-
-          <div class="section-title">Node Groups <span id="group-total">0</span></div>
-          <div class="chip-list" id="group-list">
-            <div class="empty">没有可显示的节点组</div>
-          </div>
-
-          <div class="section-title">Nodes <span id="node-total">0</span></div>
-          <div class="node-list" id="node-list">
-            <div class="empty">没有可显示的节点</div>
+          <div id="profile-editor">
+            <div class="empty">尚未加载配置</div>
           </div>
         </div>
       </section>
     </section>
-
-    <section class="panel editor-panel" aria-label="JSON 编辑器">
-      <div class="panel-heading">
-        <div>
-          <h2>JSON Editor</h2>
-          <p>这是保存到 KV 的完整配置，服务端会在保存时再次规范化。</p>
-        </div>
-        <span class="dirty" id="dirty-state">未加载</span>
-      </div>
-      <div class="editor-body">
-        <label for="config">router-config JSON</label>
-        <textarea id="config" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
-        <div class="meta">
-          <span>KV key: <code>router-config</code></span>
-          <span id="editor-meta">0 chars</span>
-        </div>
-      </div>
-    </section>
   </main>
 
   <script>
-    const configInput = document.getElementById("config");
+    const DEFAULT_GROUPS = ["🇺🇸 US", "🇯🇵 JP", "🇺🇸 US Home"];
+    const rootEl = document.getElementById("admin-root");
     const statusEl = document.getElementById("status");
     const profileListEl = document.getElementById("profile-list");
+    const profileEditorEl = document.getElementById("profile-editor");
     const validationEl = document.getElementById("validation");
-    const groupListEl = document.getElementById("group-list");
-    const nodeListEl = document.getElementById("node-list");
-    const buttons = {
-      load: document.getElementById("load"),
-      save: document.getElementById("save"),
-      format: document.getElementById("format"),
-      copyUrl: document.getElementById("copy-url"),
-    };
+    const saveButton = document.querySelector('[data-action="save"]');
     const fields = {
       profileCount: document.getElementById("profile-count"),
       nodeCount: document.getElementById("node-count"),
       groupCount: document.getElementById("group-count"),
       checkCount: document.getElementById("check-count"),
+      userCountText: document.getElementById("user-count-text"),
       title: document.getElementById("profile-title"),
       subtitle: document.getElementById("profile-subtitle"),
-      id: document.getElementById("profile-id"),
-      name: document.getElementById("profile-name"),
-      token: document.getElementById("profile-token"),
-      path: document.getElementById("profile-path"),
-      groupTotal: document.getElementById("group-total"),
-      nodeTotal: document.getElementById("node-total"),
-      editorMeta: document.getElementById("editor-meta"),
       dirtyState: document.getElementById("dirty-state"),
     };
 
-    let selectedProfileIndex = 0;
-    let savedSnapshot = "";
-    let busy = false;
-    let latest = {
-      config: null,
+    let state = {
       profiles: [],
+      selectedProfileIndex: 0,
+      savedSnapshot: "",
+      busy: false,
       errors: ["尚未加载配置"],
       warnings: [],
     };
 
-    buttons.load.addEventListener("click", loadConfig);
-    buttons.save.addEventListener("click", saveConfig);
-    buttons.format.addEventListener("click", formatConfig);
-    buttons.copyUrl.addEventListener("click", copySelectedUrl);
-    configInput.addEventListener("input", refreshFromEditor);
-    profileListEl.addEventListener("click", (event) => {
-      const item = event.target.closest("[data-profile-index]");
-      if (!item) return;
-      selectedProfileIndex = Number(item.dataset.profileIndex);
-      renderAll();
-    });
+    rootEl.addEventListener("click", handleClick);
+    rootEl.addEventListener("input", handleInput);
+    rootEl.addEventListener("change", handleChange);
     window.addEventListener("beforeunload", (event) => {
       if (!isDirty()) return;
       event.preventDefault();
@@ -518,25 +426,28 @@ export function renderAdminPage() {
         const response = await fetch("/admin/config");
         const text = await response.text();
         if (!response.ok) throw new Error(text || response.statusText);
-        const parsed = JSON.parse(text);
-        const nextText = JSON.stringify(parsed, null, 2);
-        configInput.value = nextText;
-        savedSnapshot = nextText;
-        selectedProfileIndex = 0;
-        refreshFromEditor();
+        state.profiles = normalizeProfiles(JSON.parse(text));
+        state.selectedProfileIndex = 0;
+        state.savedSnapshot = snapshotConfig();
+        refreshValidation();
+        renderAll();
         setStatus("配置已加载", "success");
       } catch (error) {
+        state.errors = [error.message];
+        state.warnings = [];
+        renderAll();
         setStatus(error.message, "error");
-        refreshFromEditor();
       } finally {
         setBusy(false);
       }
     }
 
     async function saveConfig() {
-      refreshFromEditor();
-      if (latest.errors.length > 0) {
-        setStatus("请先修复 JSON 或必填字段错误", "error");
+      refreshValidation();
+      renderValidation();
+      updateSaveState();
+      if (state.errors.length > 0) {
+        setStatus("请先修复当前配置", "error");
         return;
       }
 
@@ -548,15 +459,17 @@ export function renderAdminPage() {
           headers: {
             "content-type": "application/json",
           },
-          body: JSON.stringify(latest.config),
+          body: JSON.stringify(buildConfig()),
         });
         const text = await response.text();
         if (!response.ok) throw new Error(text || response.statusText);
-        const parsed = JSON.parse(text);
-        const nextText = JSON.stringify(parsed, null, 2);
-        configInput.value = nextText;
-        savedSnapshot = nextText;
-        refreshFromEditor();
+        state.profiles = normalizeProfiles(JSON.parse(text));
+        if (state.selectedProfileIndex >= state.profiles.length) {
+          state.selectedProfileIndex = Math.max(0, state.profiles.length - 1);
+        }
+        state.savedSnapshot = snapshotConfig();
+        refreshValidation();
+        renderAll();
         setStatus("配置已保存", "success");
       } catch (error) {
         setStatus(error.message, "error");
@@ -565,23 +478,146 @@ export function renderAdminPage() {
       }
     }
 
-    function formatConfig() {
-      try {
-        const parsed = JSON.parse(configInput.value);
-        configInput.value = JSON.stringify(parsed, null, 2);
-        refreshFromEditor();
-        setStatus("JSON 已格式化", "success");
-      } catch (error) {
-        setStatus(error.message, "error");
-        refreshFromEditor();
+    function handleClick(event) {
+      const target = event.target.closest("[data-action]");
+      if (!target || state.busy) return;
+
+      const action = target.dataset.action;
+      if (action === "load") return loadConfig();
+      if (action === "save") return saveConfig();
+      if (action === "add-profile") return addProfile();
+      if (action === "select-profile") return selectProfile(Number(target.dataset.profileIndex));
+      if (action === "duplicate-profile") return duplicateProfile();
+      if (action === "delete-profile") return deleteProfile();
+      if (action === "copy-url") return copySelectedUrl();
+      if (action === "add-group") return addGroup();
+      if (action === "add-node") return addNode(target.dataset.group);
+      if (action === "delete-group") return deleteGroup(target.dataset.group);
+      if (action === "delete-node") return deleteNode(Number(target.dataset.nodeIndex));
+    }
+
+    function handleInput(event) {
+      const target = event.target;
+      if (target.matches("[data-profile-field]")) {
+        const profile = selectedProfile();
+        if (!profile) return;
+        profile[target.dataset.profileField] = target.value;
+        refreshDerived();
+      }
+      if (target.matches("[data-node-field]")) {
+        const profile = selectedProfile();
+        const node = profile && profile.nodes[Number(target.dataset.nodeIndex)];
+        if (!node) return;
+        node[target.dataset.nodeField] = target.value;
+        refreshDerived();
+      }
+      if (target.matches("[data-group-field]")) {
+        const profile = selectedProfile();
+        if (!profile) return;
+        const previous = target.dataset.group;
+        for (const node of profile.nodes) {
+          if (node.group === previous) node.group = target.value;
+        }
+        target.dataset.group = target.value;
+        refreshDerived();
       }
     }
 
+    function handleChange(event) {
+      if (event.target.matches("[data-group-field]")) {
+        renderAll();
+      }
+    }
+
+    function addProfile() {
+      const nextNumber = state.profiles.length + 1;
+      state.profiles.push({
+        id: uniqueProfileId("user-" + nextNumber),
+        name: "User " + nextNumber,
+        subscribeToken: "",
+        nodes: [blankNode(firstAvailableGroup())],
+      });
+      state.selectedProfileIndex = state.profiles.length - 1;
+      refreshValidation();
+      renderAll();
+      setStatus("已新增用户");
+    }
+
+    function selectProfile(index) {
+      state.selectedProfileIndex = index;
+      renderAll();
+    }
+
+    function duplicateProfile() {
+      const profile = selectedProfile();
+      if (!profile) return;
+      const copy = {
+        id: uniqueProfileId(profile.id + "-copy"),
+        name: profile.name + " Copy",
+        subscribeToken: "",
+        nodes: profile.nodes.map((node) => ({ ...node })),
+      };
+      state.profiles.splice(state.selectedProfileIndex + 1, 0, copy);
+      state.selectedProfileIndex += 1;
+      refreshValidation();
+      renderAll();
+      setStatus("已复制用户");
+    }
+
+    function deleteProfile() {
+      const profile = selectedProfile();
+      if (!profile || state.profiles.length <= 1) return;
+      if (!confirm("删除用户 " + (profile.name || profile.id) + "？")) return;
+      state.profiles.splice(state.selectedProfileIndex, 1);
+      state.selectedProfileIndex = Math.min(state.selectedProfileIndex, state.profiles.length - 1);
+      refreshValidation();
+      renderAll();
+      setStatus("已删除用户");
+    }
+
+    function addGroup() {
+      const profile = selectedProfile();
+      if (!profile) return;
+      profile.nodes.push(blankNode(firstAvailableGroup(profile)));
+      refreshValidation();
+      renderAll();
+      setStatus("已新增分组");
+    }
+
+    function addNode(group) {
+      const profile = selectedProfile();
+      if (!profile) return;
+      profile.nodes.push(blankNode(group || firstAvailableGroup(profile)));
+      refreshValidation();
+      renderAll();
+      setStatus("已新增节点");
+    }
+
+    function deleteGroup(group) {
+      const profile = selectedProfile();
+      if (!profile) return;
+      const count = profile.nodes.filter((node) => node.group === group).length;
+      if (!confirm("删除分组 " + group + " 及其中 " + count + " 个节点？")) return;
+      profile.nodes = profile.nodes.filter((node) => node.group !== group);
+      refreshValidation();
+      renderAll();
+      setStatus("已删除分组");
+    }
+
+    function deleteNode(index) {
+      const profile = selectedProfile();
+      if (!profile || !profile.nodes[index]) return;
+      profile.nodes.splice(index, 1);
+      refreshValidation();
+      renderAll();
+      setStatus("已删除节点");
+    }
+
     async function copySelectedUrl() {
-      const profile = latest.profiles[selectedProfileIndex];
-      if (!profile || typeof profile.subscribeToken !== "string") return;
+      const profile = selectedProfile();
+      if (!profile || !profile.subscribeToken.trim()) return;
       const url = new URL("/surge", window.location.href);
-      url.searchParams.set("token", profile.subscribeToken);
+      url.searchParams.set("token", profile.subscribeToken.trim());
       try {
         await copyText(url.toString());
         setStatus("订阅地址已复制", "success");
@@ -590,186 +626,50 @@ export function renderAdminPage() {
       }
     }
 
-    function refreshFromEditor() {
-      latest = readEditor();
-      if (selectedProfileIndex >= latest.profiles.length) {
-        selectedProfileIndex = Math.max(0, latest.profiles.length - 1);
-      }
-      renderAll();
-    }
-
-    function readEditor() {
-      const text = configInput.value.trim();
-      if (!text) {
-        return {
-          config: null,
-          profiles: [],
-          errors: ["配置不能为空"],
-          warnings: [],
-        };
-      }
-
-      try {
-        const config = JSON.parse(text);
-        const report = validateConfig(config);
-        return {
-          config,
-          profiles: getProfiles(config),
-          errors: report.errors,
-          warnings: report.warnings,
-        };
-      } catch (error) {
-        return {
-          config: null,
-          profiles: [],
-          errors: [error.message],
-          warnings: [],
-        };
-      }
-    }
-
-    function validateConfig(config) {
-      const errors = [];
-      const warnings = [];
-      if (!isPlainObject(config)) {
-        return { errors: ["router-config 必须是 JSON object"], warnings };
-      }
-
-      const profiles = getProfiles(config);
-      if (Array.isArray(config.profiles)) {
-        if (config.profiles.length === 0) {
-          errors.push("profiles 至少需要一个 profile");
-        }
-      } else if (config.profiles != null) {
-        errors.push("profiles 必须是数组");
-      } else if (config.subscribeToken != null || config.nodes != null) {
-        warnings.push("检测到旧版单 profile 格式，保存后会被服务端规范化为 profiles[]");
-      } else {
-        errors.push("router-config 必须包含 profiles[]");
-      }
-
-      const ids = new Set();
-      const tokens = new Set();
-      profiles.forEach((profile, index) => {
-        const label = "Profile " + (profile && (profile.id || profile.name) ? profile.id || profile.name : "#" + (index + 1));
-        if (!isPlainObject(profile)) {
-          errors.push(label + " 必须是 object");
-          return;
-        }
-
-        checkRequiredString(profile.id, label + " 缺少 id", errors);
-        checkRequiredString(profile.name, label + " 缺少 name", errors);
-        checkRequiredString(profile.subscribeToken, label + " 缺少 subscribeToken", errors);
-        if (typeof profile.id === "string" && profile.id.includes(",")) {
-          errors.push(label + " 的 id 不能包含逗号");
-        }
-        if (typeof profile.id === "string" && profile.id.trim()) {
-          if (ids.has(profile.id.trim())) errors.push("重复的 profile id: " + profile.id.trim());
-          ids.add(profile.id.trim());
-        }
-        if (typeof profile.subscribeToken === "string" && profile.subscribeToken.trim()) {
-          if (tokens.has(profile.subscribeToken.trim())) errors.push(label + " 的 subscribeToken 与其他 profile 重复");
-          tokens.add(profile.subscribeToken.trim());
-        }
-
-        if (!Array.isArray(profile.nodes)) {
-          errors.push(label + " 的 nodes 必须是数组");
-          return;
-        }
-        if (profile.nodes.length === 0) {
-          errors.push(label + " 至少需要一个 node");
-          return;
-        }
-
-        const names = new Set();
-        profile.nodes.forEach((node, nodeIndex) => {
-          const nodeLabel = label + " node #" + (nodeIndex + 1);
-          if (!isPlainObject(node)) {
-            errors.push(nodeLabel + " 必须是 object");
-            return;
-          }
-          checkRequiredString(node.group, nodeLabel + " 缺少 group", errors);
-          if (typeof node.group === "string" && node.group.includes(",")) {
-            errors.push(nodeLabel + " 的 group 不能包含逗号");
-          }
-
-          const hasLine = typeof node.line === "string" && node.line.trim() !== "";
-          const hasLegacy = typeof node.name === "string" && node.name.trim() !== "" && typeof node.value === "string" && node.value.trim() !== "";
-          if (hasLine && (node.name != null || node.value != null)) {
-            errors.push(nodeLabel + " 只能使用 line，或使用 name/value，不能混用");
-          }
-          if (!hasLine && !hasLegacy) {
-            errors.push(nodeLabel + " 缺少 line");
-            return;
-          }
-
-          const name = getNodeName(node);
-          if (!name) {
-            errors.push(nodeLabel + " 的 line 必须使用 name = value");
-            return;
-          }
-          if (names.has(name)) errors.push(label + " 存在重复节点名: " + name);
-          names.add(name);
-        });
-      });
-
-      return { errors, warnings };
-    }
-
     function renderAll() {
-      const profile = latest.profiles[selectedProfileIndex];
       renderSummary();
       renderProfiles();
       renderValidation();
-      renderProfile(profile);
-      renderEditorState();
-      buttons.save.disabled = busy || latest.errors.length > 0 || !latest.config;
-      buttons.copyUrl.disabled = busy || !profile || typeof profile.subscribeToken !== "string";
+      renderProfileEditor();
+      renderDirtyState();
+      updateSaveState();
     }
 
     function renderSummary() {
-      const groups = new Set();
+      const groupNames = new Set();
       let nodeCount = 0;
-      for (const profile of latest.profiles) {
-        if (!Array.isArray(profile.nodes)) continue;
+      for (const profile of state.profiles) {
         nodeCount += profile.nodes.length;
         for (const node of profile.nodes) {
-          if (node && typeof node.group === "string" && node.group.trim()) groups.add(node.group.trim());
+          if (node.group.trim()) groupNames.add(node.group.trim());
         }
       }
-      fields.profileCount.textContent = String(latest.profiles.length);
+      fields.profileCount.textContent = String(state.profiles.length);
       fields.nodeCount.textContent = String(nodeCount);
-      fields.groupCount.textContent = String(groups.size);
-      fields.checkCount.textContent = latest.errors.length > 0 ? String(latest.errors.length) : "OK";
+      fields.groupCount.textContent = String(groupNames.size);
+      fields.checkCount.textContent = state.errors.length > 0 ? String(state.errors.length) : "OK";
+      fields.userCountText.textContent = state.profiles.length + " 个用户";
     }
 
     function renderProfiles() {
       profileListEl.replaceChildren();
-      if (latest.profiles.length === 0) {
-        profileListEl.append(emptyState("没有可显示的 profile"));
+      if (state.profiles.length === 0) {
+        profileListEl.append(emptyState("没有用户"));
         return;
       }
 
-      latest.profiles.forEach((profile, index) => {
+      state.profiles.forEach((profile, index) => {
         const item = document.createElement("button");
         item.type = "button";
-        item.className = "profile-item" + (index === selectedProfileIndex ? " active" : "");
+        item.className = "profile-item" + (index === state.selectedProfileIndex ? " active" : "");
+        item.dataset.action = "select-profile";
         item.dataset.profileIndex = String(index);
 
-        const row = document.createElement("div");
-        row.className = "profile-row";
-        const name = document.createElement("span");
-        name.className = "profile-name";
-        name.textContent = profile.name || profile.id || "Unnamed";
-        const count = document.createElement("span");
-        count.className = "profile-count";
-        count.textContent = String(Array.isArray(profile.nodes) ? profile.nodes.length : 0) + " nodes";
-        row.append(name, count);
+        const row = el("div", "profile-row");
+        row.append(textEl("span", "profile-name", profile.name || profile.id || "Unnamed"));
+        row.append(textEl("span", "profile-count", String(profile.nodes.length) + " nodes"));
 
-        const meta = document.createElement("div");
-        meta.className = "profile-meta";
-        meta.textContent = (profile.id || "missing-id") + " · " + maskSecret(profile.subscribeToken);
-
+        const meta = textEl("div", "profile-meta", (profile.id || "missing-id") + " / " + maskSecret(profile.subscribeToken));
         item.append(row, meta);
         profileListEl.append(item);
       });
@@ -778,17 +678,17 @@ export function renderAdminPage() {
     function renderValidation() {
       validationEl.replaceChildren();
       validationEl.className = "validation";
-      if (latest.errors.length === 0 && latest.warnings.length === 0) {
+      if (state.errors.length === 0 && state.warnings.length === 0) {
         validationEl.classList.add("visible");
-        validationEl.textContent = "本地检查通过。保存时服务端仍会做最终校验。";
+        validationEl.textContent = "本地检查通过。";
         return;
       }
 
-      validationEl.classList.add("visible", latest.errors.length > 0 ? "error" : "warning");
+      validationEl.classList.add("visible", state.errors.length > 0 ? "error" : "warning");
       const title = document.createElement("strong");
-      title.textContent = latest.errors.length > 0 ? "需要修复" : "提示";
+      title.textContent = state.errors.length > 0 ? "需要修复" : "提示";
       const list = document.createElement("ul");
-      for (const message of [...latest.errors, ...latest.warnings].slice(0, 8)) {
+      for (const message of [...state.errors, ...state.warnings].slice(0, 10)) {
         const item = document.createElement("li");
         item.textContent = message;
         list.append(item);
@@ -796,88 +696,270 @@ export function renderAdminPage() {
       validationEl.append(title, list);
     }
 
-    function renderProfile(profile) {
-      groupListEl.replaceChildren();
-      nodeListEl.replaceChildren();
+    function renderProfileEditor() {
+      profileEditorEl.replaceChildren();
+      const profile = selectedProfile();
       if (!profile) {
-        fields.title.textContent = "配置预览";
-        fields.subtitle.textContent = "加载或输入有效配置后会显示 profile 详情。";
-        fields.id.textContent = "--";
-        fields.name.textContent = "--";
-        fields.token.textContent = "--";
-        fields.path.textContent = "--";
-        fields.groupTotal.textContent = "0";
-        fields.nodeTotal.textContent = "0";
-        groupListEl.append(emptyState("没有可显示的节点组"));
-        nodeListEl.append(emptyState("没有可显示的节点"));
+        fields.title.textContent = "用户配置";
+        fields.subtitle.textContent = "加载后选择一个用户。";
+        profileEditorEl.append(emptyState("没有可编辑用户"));
         return;
       }
 
-      const nodes = Array.isArray(profile.nodes) ? profile.nodes : [];
-      const groups = countGroups(nodes);
-      fields.title.textContent = profile.name || profile.id || "Unnamed profile";
-      fields.subtitle.textContent = "Profile " + (selectedProfileIndex + 1) + " / " + latest.profiles.length;
-      fields.id.textContent = profile.id || "--";
-      fields.name.textContent = profile.name || "--";
-      fields.token.textContent = maskSecret(profile.subscribeToken);
-      fields.path.textContent = typeof profile.subscribeToken === "string" ? "/surge?token=" + maskSecret(profile.subscribeToken) : "--";
-      fields.groupTotal.textContent = String(groups.length);
-      fields.nodeTotal.textContent = String(nodes.length);
+      fields.title.textContent = profile.name || profile.id || "Unnamed";
+      fields.subtitle.textContent = "User " + (state.selectedProfileIndex + 1) + " / " + state.profiles.length;
 
+      const form = el("div", "card-grid");
+      form.append(field("用户 ID", input("text", profile.id, "profile-field", "id", { autocomplete: "off" })));
+      form.append(field("显示名称", input("text", profile.name, "profile-field", "name", { autocomplete: "off" })));
+      form.append(field("订阅 Token", input("password", profile.subscribeToken, "profile-field", "subscribeToken", { autocomplete: "new-password" })));
+      form.append(field("订阅路径", readonlyInput(subscriptionPath(profile)), "full"));
+      profileEditorEl.append(form);
+
+      const profileActions = el("div", "button-row");
+      profileActions.append(actionButton("复制订阅地址", "copy-url", !profile.subscribeToken.trim()));
+      profileActions.append(actionButton("复制用户", "duplicate-profile"));
+      profileActions.append(actionButton("删除用户", "delete-profile", state.profiles.length <= 1, "danger"));
+      profileEditorEl.append(profileActions);
+
+      const groupsTitle = el("div", "section-title");
+      groupsTitle.append(textEl("span", "", "节点分组"));
+      groupsTitle.append(actionButton("新增分组", "add-group"));
+      profileEditorEl.append(groupsTitle);
+
+      const groups = groupedNodes(profile);
+      const stack = el("div", "group-stack");
       if (groups.length === 0) {
-        groupListEl.append(emptyState("没有可显示的节点组"));
+        stack.append(emptyState("当前用户没有节点"));
       } else {
         for (const group of groups) {
-          const chip = document.createElement("span");
-          chip.className = "chip";
-          chip.textContent = group.name + " · " + group.count;
-          groupListEl.append(chip);
+          stack.append(renderGroup(group));
         }
       }
+      profileEditorEl.append(stack);
+      profileEditorEl.append(knownGroupsDatalist());
+    }
 
-      if (nodes.length === 0) {
-        nodeListEl.append(emptyState("没有可显示的节点"));
-      } else {
-        for (const node of nodes) {
-          nodeListEl.append(renderNode(node));
-        }
+    function renderGroup(group) {
+      const card = el("section", "group-card");
+      const heading = el("div", "group-heading");
+      const titleRow = el("div", "group-title-row");
+      titleRow.append(textEl("span", "", "Group"));
+      const groupInput = document.createElement("input");
+      groupInput.value = group.name;
+      groupInput.dataset.groupField = "name";
+      groupInput.dataset.group = group.name;
+      groupInput.setAttribute("list", "known-groups");
+      titleRow.append(groupInput);
+
+      const actions = el("div", "top-actions");
+      actions.append(actionButton("新增节点", "add-node", false, "", { group: group.name }));
+      actions.append(actionButton("删除分组", "delete-group", false, "danger", { group: group.name }));
+      heading.append(titleRow, actions);
+      card.append(heading);
+
+      const nodes = el("div", "node-stack");
+      for (const nodeRef of group.nodes) {
+        nodes.append(renderNode(nodeRef.node, nodeRef.index));
       }
+      card.append(nodes);
+
+      return card;
     }
 
-    function renderNode(node) {
-      const row = document.createElement("div");
-      row.className = "node-row";
-
-      const top = document.createElement("div");
-      top.className = "node-top";
-      const name = document.createElement("div");
-      name.className = "node-name";
-      name.textContent = getNodeName(node) || "Unnamed node";
-      const group = document.createElement("div");
-      group.className = "node-group";
-      group.textContent = node && typeof node.group === "string" ? node.group : "missing group";
-      top.append(name, group);
-
-      const line = document.createElement("code");
-      line.className = "node-line";
-      line.textContent = getNodeLine(node);
-
-      row.append(top, line);
-      return row;
+    function renderNode(node, index) {
+      const card = el("div", "node-card");
+      card.append(field("节点名", input("text", node.name, "node-field", "name", { nodeIndex: index, autocomplete: "off" })));
+      card.append(field("Surge 参数", textarea(node.value, "node-field", "value", { nodeIndex: index })));
+      card.append(actionButton("删除", "delete-node", false, "danger", { nodeIndex: index }));
+      return card;
     }
 
-    function renderEditorState() {
+    function refreshDerived() {
+      refreshValidation();
+      renderSummary();
+      renderValidation();
+      renderDirtyState();
+      updateSaveState();
+    }
+
+    function refreshValidation() {
+      const report = validateProfiles(state.profiles);
+      state.errors = report.errors;
+      state.warnings = report.warnings;
+    }
+
+    function validateProfiles(profiles) {
+      const errors = [];
+      const warnings = [];
+      if (profiles.length === 0) errors.push("至少需要一个用户");
+
+      const ids = new Set();
+      const tokens = new Set();
+      profiles.forEach((profile, profileIndex) => {
+        const label = "用户 " + (profile.name || profile.id || "#" + (profileIndex + 1));
+        checkSingleLine(profile.id, label + " 的 ID", errors);
+        checkSingleLine(profile.name, label + " 的名称", errors);
+        checkSingleLine(profile.subscribeToken, label + " 的订阅 Token", errors);
+        checkRequired(profile.id, label + " 缺少 ID", errors);
+        checkRequired(profile.name, label + " 缺少名称", errors);
+        checkRequired(profile.subscribeToken, label + " 缺少订阅 Token", errors);
+        if (profile.id.includes(",")) errors.push(label + " 的 ID 不能包含逗号");
+        if (profile.id.trim()) {
+          if (ids.has(profile.id.trim())) errors.push("重复的用户 ID: " + profile.id.trim());
+          ids.add(profile.id.trim());
+        }
+        if (profile.subscribeToken.trim()) {
+          if (tokens.has(profile.subscribeToken.trim())) errors.push(label + " 的订阅 Token 与其他用户重复");
+          tokens.add(profile.subscribeToken.trim());
+        }
+        if (profile.nodes.length === 0) {
+          errors.push(label + " 至少需要一个节点");
+          return;
+        }
+
+        const nodeNames = new Set();
+        profile.nodes.forEach((node, nodeIndex) => {
+          const nodeLabel = label + " 节点 #" + (nodeIndex + 1);
+          checkSingleLine(node.group, nodeLabel + " 的分组", errors);
+          checkSingleLine(node.name, nodeLabel + " 的节点名", errors);
+          checkSingleLine(node.value, nodeLabel + " 的 Surge 参数", errors);
+          checkRequired(node.group, nodeLabel + " 缺少分组", errors);
+          checkRequired(node.name, nodeLabel + " 缺少节点名", errors);
+          checkRequired(node.value, nodeLabel + " 缺少 Surge 参数", errors);
+          if (node.group.includes(",")) errors.push(nodeLabel + " 的分组不能包含逗号");
+          if (node.group.trim() && !DEFAULT_GROUPS.includes(node.group.trim())) {
+            warnings.push(nodeLabel + " 的分组需要确认已在 surge/template.conf 中声明");
+          }
+          if (node.name.includes(",")) errors.push(nodeLabel + " 的节点名不能包含逗号");
+          if (node.name.trim()) {
+            if (nodeNames.has(node.name.trim())) errors.push(label + " 存在重复节点名: " + node.name.trim());
+            nodeNames.add(node.name.trim());
+          }
+        });
+      });
+
+      return { errors, warnings };
+    }
+
+    function normalizeProfiles(config) {
+      if (!config || typeof config !== "object" || Array.isArray(config)) return [];
+      const profiles = Array.isArray(config.profiles)
+        ? config.profiles
+        : [{
+            id: "default",
+            name: "Default",
+            subscribeToken: config.subscribeToken,
+            nodes: config.nodes,
+          }];
+
+      return profiles.map((profile, index) => ({
+        id: stringValue(profile && profile.id) || "user-" + (index + 1),
+        name: stringValue(profile && profile.name) || "User " + (index + 1),
+        subscribeToken: stringValue(profile && profile.subscribeToken),
+        nodes: Array.isArray(profile && profile.nodes)
+          ? profile.nodes.map(normalizeNode)
+          : [],
+      }));
+    }
+
+    function normalizeNode(node) {
+      const group = stringValue(node && node.group);
+      if (typeof (node && node.line) === "string") {
+        const separator = node.line.indexOf("=");
+        if (separator === -1) {
+          return { group, name: "", value: node.line };
+        }
+        return {
+          group,
+          name: node.line.slice(0, separator).trim(),
+          value: node.line.slice(separator + 1).trim(),
+        };
+      }
+      return {
+        group,
+        name: stringValue(node && node.name),
+        value: stringValue(node && node.value),
+      };
+    }
+
+    function buildConfig() {
+      return {
+        profiles: state.profiles.map((profile) => ({
+          id: profile.id.trim(),
+          name: profile.name.trim(),
+          subscribeToken: profile.subscribeToken.trim(),
+          nodes: profile.nodes.map((node) => ({
+            group: node.group.trim(),
+            line: node.name.trim() + " = " + node.value.trim(),
+          })),
+        })),
+      };
+    }
+
+    function snapshotConfig() {
+      return JSON.stringify(buildConfig(), null, 2);
+    }
+
+    function selectedProfile() {
+      return state.profiles[state.selectedProfileIndex];
+    }
+
+    function groupedNodes(profile) {
+      const groups = [];
+      const byName = new Map();
+      profile.nodes.forEach((node, index) => {
+        const groupName = node.group || "";
+        let group = byName.get(groupName);
+        if (!group) {
+          group = { name: groupName, nodes: [] };
+          byName.set(groupName, group);
+          groups.push(group);
+        }
+        group.nodes.push({ node, index });
+      });
+      return groups;
+    }
+
+    function firstAvailableGroup(profile = selectedProfile()) {
+      const used = new Set((profile ? profile.nodes : []).map((node) => node.group));
+      for (const group of DEFAULT_GROUPS) {
+        if (!used.has(group)) return group;
+      }
+      let index = 1;
+      while (used.has("新分组 " + index)) index += 1;
+      return "新分组 " + index;
+    }
+
+    function blankNode(group) {
+      return { group, name: "", value: "" };
+    }
+
+    function uniqueProfileId(base) {
+      const cleanBase = (base || "user").trim() || "user";
+      const existing = new Set(state.profiles.map((profile) => profile.id.trim()));
+      if (!existing.has(cleanBase)) return cleanBase;
+      let index = 2;
+      while (existing.has(cleanBase + "-" + index)) index += 1;
+      return cleanBase + "-" + index;
+    }
+
+    function renderDirtyState() {
       const changed = isDirty();
-      fields.editorMeta.textContent = configInput.value.length + " chars";
       fields.dirtyState.className = "dirty" + (changed ? " changed" : "");
-      fields.dirtyState.textContent = changed ? "有未保存更改" : savedSnapshot ? "已保存" : "未加载";
+      fields.dirtyState.textContent = changed ? "有未保存更改" : state.savedSnapshot ? "已保存" : "未加载";
+    }
+
+    function updateSaveState() {
+      saveButton.disabled = state.busy || state.errors.length > 0 || state.profiles.length === 0;
     }
 
     function setBusy(isBusy) {
-      busy = isBusy;
-      buttons.load.disabled = isBusy;
-      buttons.format.disabled = isBusy;
+      state.busy = isBusy;
       renderAll();
+      document.querySelector('[data-action="load"]').disabled = isBusy;
+      document.querySelector('[data-action="add-profile"]').disabled = isBusy;
+      updateSaveState();
     }
 
     function setStatus(message, tone) {
@@ -885,63 +967,101 @@ export function renderAdminPage() {
       statusEl.className = "status-pill" + (tone ? " " + tone : "");
     }
 
-    function getProfiles(config) {
-      if (!isPlainObject(config)) return [];
-      if (Array.isArray(config.profiles)) return config.profiles;
-      if (config.subscribeToken != null || config.nodes != null) {
-        return [{
-          id: "default",
-          name: "Default",
-          subscribeToken: config.subscribeToken,
-          nodes: config.nodes,
-        }];
-      }
-      return [];
+    function isDirty() {
+      return state.savedSnapshot !== "" && snapshotConfig() !== state.savedSnapshot;
     }
 
-    function countGroups(nodes) {
-      const counts = new Map();
-      for (const node of nodes) {
-        const group = node && typeof node.group === "string" && node.group.trim() ? node.group.trim() : "missing group";
-        counts.set(group, (counts.get(group) || 0) + 1);
-      }
-      return [...counts.entries()].map(([name, count]) => ({ name, count }));
+    function subscriptionPath(profile) {
+      if (!profile.subscribeToken.trim()) return "";
+      return "/surge?token=" + maskSecret(profile.subscribeToken.trim());
     }
 
-    function getNodeName(node) {
-      if (!node || typeof node !== "object") return "";
-      if (typeof node.line === "string") {
-        const separator = node.line.indexOf("=");
-        return separator > 0 ? node.line.slice(0, separator).trim() : "";
-      }
-      return typeof node.name === "string" ? node.name.trim() : "";
-    }
-
-    function getNodeLine(node) {
-      if (!node || typeof node !== "object") return "";
-      if (typeof node.line === "string") return node.line;
-      if (typeof node.name === "string" && typeof node.value === "string") {
-        return node.name + " = " + node.value;
-      }
-      return "";
-    }
-
-    function checkRequiredString(value, message, errors) {
+    function checkRequired(value, message, errors) {
       if (typeof value !== "string" || value.trim() === "") errors.push(message);
     }
 
+    function checkSingleLine(value, label, errors) {
+      if (typeof value === "string" && /[\\r\\n]/.test(value)) errors.push(label + " 必须是单行");
+    }
+
+    function stringValue(value) {
+      return typeof value === "string" ? value : "";
+    }
+
     function maskSecret(value) {
-      if (typeof value !== "string" || value.length === 0) return "--";
+      if (typeof value !== "string" || value.length === 0) return "";
       if (value.length <= 8) return "••••";
       return value.slice(0, 4) + "••••" + value.slice(-4);
     }
 
-    function isDirty() {
-      return savedSnapshot !== "" && configInput.value !== savedSnapshot;
+    function el(tag, className) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      return element;
     }
 
-    function isPlainObject(value) {
-      return value != null && typeof value === "object" && !Array.isArray(value);
+    function textEl(tag, className, text) {
+      const element = el(tag, className);
+      element.textContent = text;
+      return element;
+    }
+
+    function field(labelText, control, variant = "") {
+      const wrapper = el("div", "field" + (variant ? " " + variant : ""));
+      const label = document.createElement("label");
+      label.textContent = labelText;
+      wrapper.append(label, control);
+      return wrapper;
+    }
+
+    function input(type, value, dataKind, dataField, extra = {}) {
+      const control = document.createElement("input");
+      control.type = type;
+      control.value = value;
+      control.setAttribute("data-" + dataKind, dataField);
+      if (extra.nodeIndex != null) control.dataset.nodeIndex = String(extra.nodeIndex);
+      if (extra.autocomplete) control.autocomplete = extra.autocomplete;
+      return control;
+    }
+
+    function readonlyInput(value) {
+      const control = document.createElement("input");
+      control.value = value;
+      control.readOnly = true;
+      control.className = "subtle-input";
+      return control;
+    }
+
+    function textarea(value, dataKind, dataField, extra = {}) {
+      const control = document.createElement("textarea");
+      control.value = value;
+      control.setAttribute("data-" + dataKind, dataField);
+      if (extra.nodeIndex != null) control.dataset.nodeIndex = String(extra.nodeIndex);
+      return control;
+    }
+
+    function knownGroupsDatalist() {
+      const datalist = document.createElement("datalist");
+      datalist.id = "known-groups";
+      for (const groupName of DEFAULT_GROUPS) {
+        const option = document.createElement("option");
+        option.value = groupName;
+        datalist.append(option);
+      }
+      return datalist;
+    }
+
+    function actionButton(label, action, disabled = false, tone = "", extra = {}) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.dataset.action = action;
+      if (tone) button.className = tone;
+      if (state.busy || disabled) button.disabled = true;
+      for (const [key, value] of Object.entries(extra)) {
+        button.dataset[key] = String(value);
+      }
+      return button;
     }
 
     function emptyState(message) {
@@ -965,7 +1085,7 @@ export function renderAdminPage() {
       helper.select();
       const ok = document.execCommand("copy");
       helper.remove();
-      if (!ok) throw new Error("复制失败，请手动复制 JSON 中的 subscribeToken");
+      if (!ok) throw new Error("复制失败");
     }
   </script>
 </body>
