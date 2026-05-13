@@ -4,6 +4,7 @@ import { findAuthorizedProfile } from "./auth.js";
 import { loadRouterConfig, saveRouterConfig, serializeRouterConfig } from "./config-loader.js";
 import { HttpError } from "./errors.js";
 import { getModule, renderSurgeProfile } from "./render-surge.js";
+import { ADMIN_CONFIG_PATH, ADMIN_PATH, SUBSCRIPTION_PATH } from "./routes.js";
 
 const SECURITY_HEADERS = {
   "content-security-policy": "default-src 'self'; base-uri 'none'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
@@ -36,12 +37,17 @@ export default {
 export async function handleRequest(request, env) {
   try {
     const url = new URL(request.url);
+    const moduleName = servedModuleName(url.pathname);
 
-    if (request.method === "GET" && url.pathname === "/admin") {
+    if (!isServedPath(url.pathname, moduleName)) {
+      throw new HttpError(404, "Not Found");
+    }
+
+    if (request.method === "GET" && url.pathname === ADMIN_PATH) {
       return htmlResponse(renderAdminPage());
     }
 
-    if (url.pathname === "/admin/config") {
+    if (url.pathname === ADMIN_CONFIG_PATH) {
       return await handleAdminConfigRequest(request, env);
     }
 
@@ -52,15 +58,12 @@ export async function handleRequest(request, env) {
     const config = await loadRouterConfig(env);
     const { profile, token } = findAuthorizedProfile(request, config.profiles);
 
-    if (url.pathname === "/surge" || url.pathname === "/surge.conf") {
+    if (url.pathname === SUBSCRIPTION_PATH) {
       return textResponse(renderSurgeProfile({ requestUrl: request.url, token, nodes: profile.nodes }));
     }
 
-    if (url.pathname.startsWith("/modules/")) {
-      const content = getModule(lastPathSegment(url.pathname));
-      if (!content) {
-        throw new HttpError(404, "Module not found");
-      }
+    if (moduleName !== null) {
+      const content = getModule(moduleName);
       return textResponse(content);
     }
 
@@ -71,6 +74,27 @@ export async function handleRequest(request, env) {
     }
     return textResponse("Internal Server Error", 500);
   }
+}
+
+function isServedPath(pathname, moduleName) {
+  return pathname === ADMIN_PATH
+    || pathname === ADMIN_CONFIG_PATH
+    || pathname === SUBSCRIPTION_PATH
+    || moduleName !== null;
+}
+
+function servedModuleName(pathname) {
+  if (!pathname.startsWith("/modules/")) {
+    return null;
+  }
+
+  let name;
+  try {
+    name = lastPathSegment(pathname);
+  } catch {
+    return null;
+  }
+  return getModule(name) ? name : null;
 }
 
 async function handleAdminConfigRequest(request, env) {

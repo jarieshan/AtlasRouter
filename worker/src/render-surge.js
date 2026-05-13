@@ -1,6 +1,7 @@
 import { ASSETS } from "./generated/assets.js";
 import { HttpError } from "./errors.js";
 import { renderProxyLines } from "./nodes.js";
+import { SUBSCRIPTION_PATH } from "./routes.js";
 
 const NODE_GROUP_PATTERN = /{{NODE_GROUP:([^}\r\n]+)}}/g;
 const FALLBACK_POLICY = "🚀 Select";
@@ -9,7 +10,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes }) {
   const nodeGroupState = getNodeGroupState(ASSETS.template, nodes);
   const template = renderNodeGroups(ASSETS.template, nodeGroupState);
   const replacements = {
-    MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildUrl(requestUrl, "/surge", token)} interval=86400 strict=false`,
+    MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildUrl(requestUrl, SUBSCRIPTION_PATH, token)} interval=86400 strict=false`,
     PROXY_LINES: renderProxyLines(nodes),
     RULE_LINES: renderRuleLines(ASSETS.rules, nodeGroupState.emptyGroups),
   };

@@ -1,3 +1,5 @@
+import { ADMIN_CONFIG_PATH, SUBSCRIPTION_PATH } from "./routes.js";
+
 export function renderAdminPage() {
   return `<!doctype html>
 <html lang="zh-CN">
@@ -385,6 +387,8 @@ export function renderAdminPage() {
   </main>
 
   <script>
+    const ADMIN_CONFIG_PATH = ${JSON.stringify(ADMIN_CONFIG_PATH)};
+    const SUBSCRIPTION_PATH = ${JSON.stringify(SUBSCRIPTION_PATH)};
     const DEFAULT_GROUPS = ["🇺🇸 US", "🇯🇵 JP", "🇺🇸 US Home"];
     const rootEl = document.getElementById("admin-root");
     const statusEl = document.getElementById("status");
@@ -427,7 +431,7 @@ export function renderAdminPage() {
       setBusy(true);
       setStatus("正在加载配置");
       try {
-        const response = await fetch("/admin/config");
+        const response = await fetch(ADMIN_CONFIG_PATH);
         const text = await response.text();
         if (!response.ok) throw new Error(text || response.statusText);
         state.profiles = normalizeProfiles(JSON.parse(text));
@@ -458,7 +462,7 @@ export function renderAdminPage() {
       setBusy(true);
       setStatus("正在保存配置");
       try {
-        const response = await fetch("/admin/config", {
+        const response = await fetch(ADMIN_CONFIG_PATH, {
           method: "PUT",
           headers: {
             "content-type": "application/json",
@@ -620,7 +624,7 @@ export function renderAdminPage() {
     async function copySelectedUrl() {
       const profile = selectedProfile();
       if (!profile || !profile.subscribeToken.trim()) return;
-      const url = new URL("/surge", window.location.href);
+      const url = new URL(SUBSCRIPTION_PATH, window.location.href);
       url.searchParams.set("token", profile.subscribeToken.trim());
       try {
         await copyText(url.toString());
@@ -977,7 +981,7 @@ export function renderAdminPage() {
 
     function subscriptionPath(profile) {
       if (!profile.subscribeToken.trim()) return "";
-      return "/surge?token=" + maskSecret(profile.subscribeToken.trim());
+      return SUBSCRIPTION_PATH + "?token=" + maskSecret(profile.subscribeToken.trim());
     }
 
     function checkRequired(value, message, errors) {

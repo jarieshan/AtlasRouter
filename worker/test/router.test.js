@@ -21,18 +21,18 @@ const tenantNodes = createNodes("02");
 const env = createEnv();
 
 test("rejects unauthorized requests", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/surge"), env);
+  const response = await handleRequest(new Request("https://atlas.example/atlas-router"), env);
 
   assert.equal(response.status, 401);
   assert.equal(await response.text(), "Unauthorized");
 });
 
 test("renders Surge profile for matching tenant token", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/surge?token=test-token"), env);
+  const response = await handleRequest(new Request("https://atlas.example/atlas-router?token=test-token"), env);
   const body = await response.text();
 
   assert.equal(response.status, 200);
-  assert.match(body, /^#!MANAGED-CONFIG https:\/\/atlas\.example\/surge\?token=test-token/m);
+  assert.match(body, /^#!MANAGED-CONFIG https:\/\/atlas\.example\/atlas-router\?token=test-token/m);
   assert.match(body, /US-01 = trojan, us-01\.example\.com, 443, password=secret, sni=us-01\.example\.com/);
   assert.match(body, /JP-01 = trojan, jp-01\.example\.com, 443, password=secret, sni=jp-01\.example\.com/);
   assert.match(body, /US-HOME-01 = trojan, us-home-01\.example\.com, 443, password=secret, sni=us-home-01\.example\.com/);
@@ -53,7 +53,7 @@ test("renders Surge profile for matching tenant token", async () => {
 });
 
 test("renders different nodes for another tenant token", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/surge?token=tenant-token"), env);
+  const response = await handleRequest(new Request("https://atlas.example/atlas-router?token=tenant-token"), env);
   const body = await response.text();
 
   assert.equal(response.status, 200);
@@ -62,7 +62,7 @@ test("renders different nodes for another tenant token", async () => {
 });
 
 test("renders admin page without reading KV", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/admin"), {});
+  const response = await handleRequest(new Request("https://atlas.example/atlas"), {});
   const body = await response.text();
 
   assert.equal(response.status, 200);
@@ -75,14 +75,14 @@ test("renders admin page without reading KV", async () => {
 });
 
 test("rejects admin config without Cloudflare Access JWT", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/admin/config"), env);
+  const response = await handleRequest(new Request("https://atlas.example/atlas/config"), env);
 
   assert.equal(response.status, 403);
   assert.equal(await response.text(), "Missing Cloudflare Access token");
 });
 
 test("rejects admin query token", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/admin/config?admin_token=admin-token"), env);
+  const response = await handleRequest(new Request("https://atlas.example/atlas/config?admin_token=admin-token"), env);
 
   assert.equal(response.status, 403);
   assert.equal(await response.text(), "Missing Cloudflare Access token");
@@ -90,7 +90,7 @@ test("rejects admin query token", async () => {
 
 test("rejects Cloudflare Access JWT for non-admin email", async () => {
   const response = await handleRequest(
-    new Request("https://atlas.example/admin/config", {
+    new Request("https://atlas.example/atlas/config", {
       headers: accessHeaders({ email: "other@example.com" }),
     }),
     env,
@@ -102,7 +102,7 @@ test("rejects Cloudflare Access JWT for non-admin email", async () => {
 
 test("returns admin config with Cloudflare Access JWT", async () => {
   const response = await handleRequest(
-    new Request("https://atlas.example/admin/config", {
+    new Request("https://atlas.example/atlas/config", {
       headers: accessHeaders(),
     }),
     env,
@@ -131,7 +131,7 @@ test("updates admin config with Cloudflare Access JWT", async () => {
   });
 
   const response = await handleRequest(
-    new Request("https://atlas.example/admin/config", {
+    new Request("https://atlas.example/atlas/config", {
       method: "PUT",
       headers: {
         ...accessHeaders(),
@@ -152,7 +152,7 @@ test("updates admin config with Cloudflare Access JWT", async () => {
 test("creates admin config with Cloudflare Access JWT when KV key is missing", async () => {
   const writableEnv = createEnv();
   writableEnv.ATLAS_ROUTER.get = async () => {
-    assert.fail("PUT /admin/config should not read existing router-config");
+    assert.fail("PUT /atlas/config should not read existing router-config");
   };
   const nextConfig = createConfig({
     profiles: [
@@ -166,7 +166,7 @@ test("creates admin config with Cloudflare Access JWT when KV key is missing", a
   });
 
   const response = await handleRequest(
-    new Request("https://atlas.example/admin/config", {
+    new Request("https://atlas.example/atlas/config", {
       method: "PUT",
       headers: {
         ...accessHeaders(),
@@ -184,7 +184,7 @@ test("creates admin config with Cloudflare Access JWT when KV key is missing", a
 
 test("omits configured node groups that have no nodes", async () => {
   const response = await handleRequest(
-    new Request("https://atlas.example/surge?token=test-token"),
+    new Request("https://atlas.example/atlas-router?token=test-token"),
     createEnv(createConfig({
       profiles: [
         {
@@ -217,7 +217,7 @@ test("omits configured node groups that have no nodes", async () => {
 
 test("rejects nodes that reference a group missing from template", async () => {
   const response = await handleRequest(
-    new Request("https://atlas.example/surge?token=test-token"),
+    new Request("https://atlas.example/atlas-router?token=test-token"),
     createEnv(createConfig({
       profiles: [
         {
@@ -244,6 +244,19 @@ test("returns 404 for unknown route", async () => {
   const response = await handleRequest(new Request("https://atlas.example/unknown?token=test-token"), env);
 
   assert.equal(response.status, 404);
+});
+
+test("returns 404 for retired routes before reading config", async () => {
+  const unreadableEnv = createEnv();
+  unreadableEnv.ATLAS_ROUTER.get = async () => {
+    assert.fail("retired routes should not read router-config");
+  };
+
+  for (const path of ["/surge", "/surge.conf", "/admin", "/admin/config", "/modules/unknown.sgmodule", "/modules/%E0%A4%A"]) {
+    const response = await handleRequest(new Request(`https://atlas.example${path}`), unreadableEnv);
+    assert.equal(response.status, 404);
+    assert.equal(await response.text(), "Not Found");
+  }
 });
 
 function createNodes(suffix) {
