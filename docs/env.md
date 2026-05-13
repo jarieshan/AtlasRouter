@@ -58,6 +58,8 @@ router-config
 
 节点组和策略组顺序维护在 `surge/template.conf`。新增节点组时，在 `[Proxy Group]` 中引用新组并添加对应 `{{NODE_GROUP:<group>}}` 占位符，然后在 KV 节点里使用完全相同的 `group` 值。
 
+某个 profile 没有某个模板节点组的节点时，Worker 会在该 profile 的订阅输出中移除该显式节点组，并从逗号分隔的策略组列表里移除对应引用。`surge/rules.list` 中直接引用空节点组的自定义规则会回退到 `🚀 Select`。
+
 `line` 直接使用 Surge `[Proxy]` 中的完整节点行。Worker 会自动从等号左侧拆出节点名，并把节点名放进对应节点组。旧的 `{ "name": "...", "group": "...", "value": "..." }` 格式仍可读取，但保存时会规范化为 `line`。
 
 ```text

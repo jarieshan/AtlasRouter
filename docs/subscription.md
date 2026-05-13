@@ -22,7 +22,7 @@ https://<worker-domain>/surge?token=<subscribeToken>
 - `[Proxy Group]`，包含手动选择、自动测速、AI、流媒体和显式节点组。
 - `[Rule]`，由 `surge/template.conf` 维护规则集、`GEOIP` 和 `FINAL`，由 `surge/rules.list` 插入零散自定义规则。
 - `FINAL,🚀 Select` 兜底，默认按 `🚀 Select` 的首个可用节点组处理。
-- `🤖 AIProxy` 默认优先 `🇺🇸 US Home`，普通代理流量默认优先 `🇺🇸 US`。
+- `🤖 AIProxy` 有 `🇺🇸 US Home` 节点时默认优先家宽中转；缺少某个节点组时，该组会从策略组列表中移除，直接引用该空组的自定义规则会回退到 `🚀 Select`。
 
 每个 `profiles[]` 条目都有独立的 `subscribeToken` 和节点列表。`/surge?token=...` 会按 token 匹配对应 profile，下发该租户自己的配置。
 

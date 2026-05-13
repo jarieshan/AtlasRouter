@@ -3,13 +3,15 @@ import { HttpError } from "./errors.js";
 import { renderProxyLines } from "./nodes.js";
 
 const NODE_GROUP_PATTERN = /{{NODE_GROUP:([^}\r\n]+)}}/g;
+const FALLBACK_POLICY = "🚀 Select";
 
 export function renderSurgeProfile({ requestUrl, token, nodes }) {
-  const template = renderNodeGroups(ASSETS.template, nodes);
+  const nodeGroupState = getNodeGroupState(ASSETS.template, nodes);
+  const template = renderNodeGroups(ASSETS.template, nodeGroupState);
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildUrl(requestUrl, "/surge", token)} interval=86400 strict=false`,
     PROXY_LINES: renderProxyLines(nodes),
-    RULE_LINES: ASSETS.rules,
+    RULE_LINES: renderRuleLines(ASSETS.rules, nodeGroupState.emptyGroups),
   };
 
   return replaceTemplate(template, replacements);
@@ -41,7 +43,7 @@ function replaceTemplate(template, replacements) {
   return output.trimEnd() + "\n";
 }
 
-function renderNodeGroups(template, nodes) {
+function getNodeGroupState(template, nodes) {
   const nodeGroups = getTemplateNodeGroups(template);
   const nodesByGroup = new Map(nodeGroups.map((group) => [group, []]));
 
@@ -53,11 +55,20 @@ function renderNodeGroups(template, nodes) {
     groupNodes.push(node.name);
   }
 
-  return template.replace(NODE_GROUP_PATTERN, (_placeholder, rawGroup) => {
+  return {
+    nodesByGroup,
+    emptyGroups: new Set(nodeGroups.filter((group) => nodesByGroup.get(group).length === 0)),
+  };
+}
+
+function renderNodeGroups(template, nodeGroupState) {
+  const prunedTemplate = removeEmptyNodeGroupReferences(template, nodeGroupState.emptyGroups);
+
+  return prunedTemplate.replace(NODE_GROUP_PATTERN, (_placeholder, rawGroup) => {
     const group = rawGroup.trim();
-    const groupNodes = nodesByGroup.get(group);
+    const groupNodes = nodeGroupState.nodesByGroup.get(group);
     if (groupNodes.length === 0) {
-      throw new HttpError(500, `Node group ${group} has no nodes`);
+      return "";
     }
     return `${group} = url-test, ${groupNodes.join(", ")}, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50`;
   });
@@ -83,4 +94,67 @@ function getTemplateNodeGroups(template) {
   }
 
   return nodeGroups;
+}
+
+function removeEmptyNodeGroupReferences(template, emptyGroups) {
+  if (emptyGroups.size === 0) {
+    return template;
+  }
+
+  let section = "";
+  return template
+    .split("\n")
+    .map((line) => {
+      const nextSection = line.match(/^\[([^\]]+)\]$/);
+      if (nextSection) {
+        section = nextSection[1];
+        return line;
+      }
+      if (section !== "Proxy Group") {
+        return line;
+      }
+      return removeCommaSeparatedValues(line, emptyGroups);
+    })
+    .join("\n");
+}
+
+function renderRuleLines(rules, emptyGroups) {
+  if (emptyGroups.size === 0) {
+    return rules;
+  }
+
+  return rules
+    .split("\n")
+    .map((line) => replaceRulePolicy(line, emptyGroups))
+    .join("\n");
+}
+
+function replaceRulePolicy(line, emptyGroups) {
+  if (!line.trim() || line.trimStart().startsWith("#")) {
+    return line;
+  }
+
+  const parts = line.split(",");
+  if (parts.length < 3 || !emptyGroups.has(parts[2].trim())) {
+    return line;
+  }
+
+  parts[2] = FALLBACK_POLICY;
+  return parts.map((part) => part.trim()).join(",");
+}
+
+function removeCommaSeparatedValues(line, valuesToRemove) {
+  const separatorIndex = line.indexOf("=");
+  if (separatorIndex === -1) {
+    return line;
+  }
+
+  const left = line.slice(0, separatorIndex).trimEnd();
+  const values = line
+    .slice(separatorIndex + 1)
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value && !valuesToRemove.has(value));
+
+  return `${left} = ${values.join(", ")}`;
 }

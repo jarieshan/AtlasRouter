@@ -182,7 +182,7 @@ test("creates admin config with Cloudflare Access JWT when KV key is missing", a
   assert.deepEqual(JSON.parse(writableEnv.writtenValue), body);
 });
 
-test("rejects missing nodes for a configured node group", async () => {
+test("omits configured node groups that have no nodes", async () => {
   const response = await handleRequest(
     new Request("https://atlas.example/surge?token=test-token"),
     createEnv(createConfig({
@@ -201,9 +201,18 @@ test("rejects missing nodes for a configured node group", async () => {
       ],
     })),
   );
+  const body = await response.text();
 
-  assert.equal(response.status, 500);
-  assert.equal(await response.text(), "Node group 🇯🇵 JP has no nodes");
+  assert.equal(response.status, 200);
+  assert.match(body, /US-01 = trojan, us\.example\.com, 443/);
+  assert.match(body, /🚀 Select = select, 🇺🇸 US, ♻️ Auto, DIRECT/);
+  assert.match(body, /🤖 AIProxy = select, 🇺🇸 US, ♻️ Auto/);
+  assert.match(body, /🎥 GlobalMedia = select, 🇺🇸 US, ♻️ Auto/);
+  assert.match(body, /🇺🇸 US = url-test, US-01, url=http:\/\/www\.gstatic\.com\/generate_204/);
+  assert.doesNotMatch(body, /🇯🇵 JP/);
+  assert.doesNotMatch(body, /🇺🇸 US Home/);
+  assert.doesNotMatch(body, /NODE_GROUP/);
+  assert.match(body, /DOMAIN-SUFFIX,buyee\.jp,🚀 Select/);
 });
 
 test("rejects nodes that reference a group missing from template", async () => {
