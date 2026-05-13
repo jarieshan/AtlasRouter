@@ -4,10 +4,10 @@ Cloudflare Worker 提供订阅路由和管理路由：
 
 - `/atlas-router?token=<subscribeToken>`：输出完整 Surge 配置。
 - `/modules/<name>.sgmodule?token=<subscribeToken>`：输出 Surge 模块。
-- `/atlas`：浏览器管理页。
-- `/atlas/config`：受 Cloudflare Access 保护的配置读写 API。
+- `/admin`：浏览器管理页。
+- `/admin/config`：受 Cloudflare Access 保护的配置读写 API。
 
-`/atlas` 和 `/atlas/config` 应配置 Cloudflare Access application。不要用 `/atlas*` 这类会匹配 `/atlas-router` 的通配路径，避免订阅入口被 Access 拦截。Worker 会校验 Access 注入的 JWT，并用 `ADMIN_EMAILS` 做二次邮箱白名单；不支持 URL 查询参数或 `Authorization: Bearer` 作为管理凭证。
+`/admin` 和 `/admin/config` 应配置 Cloudflare Access application。这两条管理路径在 Worker 内也会校验 Access 注入的 JWT，并用 `ADMIN_EMAILS` 做二次邮箱白名单；不支持 URL 查询参数或 `Authorization: Bearer` 作为管理凭证。
 
 Surge 订阅地址使用：
 

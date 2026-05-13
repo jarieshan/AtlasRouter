@@ -47,7 +47,6 @@ test("renders Surge profile for matching tenant token", async () => {
   assert.doesNotMatch(body, /NODE_GROUP/);
   assert.match(body, /DOMAIN-SUFFIX,longbridge\.global,DIRECT/);
   assert.match(body, /DOMAIN-SUFFIX,kaggle\.com,🇺🇸 US/);
-  assert.match(body, /DOMAIN-SUFFIX,buyee\.jp,🇯🇵 JP/);
   assert.match(body, /RULE-SET,SYSTEM,DIRECT/);
   assert.match(body, /RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/OpenAI\/OpenAI\.list,🤖 AIProxy,update-interval=86400/);
   assert.match(body, /RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/Telegram\/Telegram\.list,🚀 Select,update-interval=86400/);
@@ -63,8 +62,25 @@ test("renders different nodes for another tenant token", async () => {
   assert.doesNotMatch(body, /US-01 = trojan/);
 });
 
-test("renders admin page without reading KV", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/atlas"), {});
+test("rejects admin page without Cloudflare Access JWT", async () => {
+  const response = await handleRequest(new Request("https://atlas.example/admin"), env);
+
+  assert.equal(response.status, 403);
+  assert.equal(await response.text(), "Missing Cloudflare Access token");
+});
+
+test("renders admin page with Cloudflare Access JWT without reading KV", async () => {
+  const unreadableEnv = createEnv();
+  unreadableEnv.ATLAS_ROUTER.get = async () => {
+    assert.fail("GET /admin should not read router-config");
+  };
+
+  const response = await handleRequest(
+    new Request("https://atlas.example/admin", {
+      headers: accessHeaders(),
+    }),
+    unreadableEnv,
+  );
   const body = await response.text();
 
   assert.equal(response.status, 200);
@@ -77,14 +93,14 @@ test("renders admin page without reading KV", async () => {
 });
 
 test("rejects admin config without Cloudflare Access JWT", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/atlas/config"), env);
+  const response = await handleRequest(new Request("https://atlas.example/admin/config"), env);
 
   assert.equal(response.status, 403);
   assert.equal(await response.text(), "Missing Cloudflare Access token");
 });
 
 test("rejects admin query token", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/atlas/config?admin_token=admin-token"), env);
+  const response = await handleRequest(new Request("https://atlas.example/admin/config?admin_token=admin-token"), env);
 
   assert.equal(response.status, 403);
   assert.equal(await response.text(), "Missing Cloudflare Access token");
@@ -92,7 +108,7 @@ test("rejects admin query token", async () => {
 
 test("rejects Cloudflare Access JWT for non-admin email", async () => {
   const response = await handleRequest(
-    new Request("https://atlas.example/atlas/config", {
+    new Request("https://atlas.example/admin/config", {
       headers: accessHeaders({ email: "other@example.com" }),
     }),
     env,
@@ -104,7 +120,7 @@ test("rejects Cloudflare Access JWT for non-admin email", async () => {
 
 test("returns admin config with Cloudflare Access JWT", async () => {
   const response = await handleRequest(
-    new Request("https://atlas.example/atlas/config", {
+    new Request("https://atlas.example/admin/config", {
       headers: accessHeaders(),
     }),
     env,
@@ -133,7 +149,7 @@ test("updates admin config with Cloudflare Access JWT", async () => {
   });
 
   const response = await handleRequest(
-    new Request("https://atlas.example/atlas/config", {
+    new Request("https://atlas.example/admin/config", {
       method: "PUT",
       headers: {
         ...accessHeaders(),
@@ -154,7 +170,7 @@ test("updates admin config with Cloudflare Access JWT", async () => {
 test("creates admin config with Cloudflare Access JWT when KV key is missing", async () => {
   const writableEnv = createEnv();
   writableEnv.ATLAS_ROUTER.get = async () => {
-    assert.fail("PUT /atlas/config should not read existing router-config");
+    assert.fail("PUT /admin/config should not read existing router-config");
   };
   const nextConfig = createConfig({
     profiles: [
@@ -168,7 +184,7 @@ test("creates admin config with Cloudflare Access JWT when KV key is missing", a
   });
 
   const response = await handleRequest(
-    new Request("https://atlas.example/atlas/config", {
+    new Request("https://atlas.example/admin/config", {
       method: "PUT",
       headers: {
         ...accessHeaders(),
@@ -214,7 +230,6 @@ test("omits configured node groups that have no nodes", async () => {
   assert.doesNotMatch(body, /🇯🇵 JP/);
   assert.doesNotMatch(body, /🇺🇸 US Home/);
   assert.doesNotMatch(body, /NODE_GROUP/);
-  assert.match(body, /DOMAIN-SUFFIX,buyee\.jp,🚀 Select/);
 });
 
 test("rejects nodes that reference a group missing from template", async () => {
@@ -254,7 +269,7 @@ test("returns 404 for retired routes before reading config", async () => {
     assert.fail("retired routes should not read router-config");
   };
 
-  for (const path of ["/surge", "/surge.conf", "/admin", "/admin/config", "/modules/unknown.sgmodule", "/modules/%E0%A4%A"]) {
+  for (const path of ["/surge", "/surge.conf", "/atlas", "/atlas/config", "/modules/unknown.sgmodule", "/modules/%E0%A4%A"]) {
     const response = await handleRequest(new Request(`https://atlas.example${path}`), unreadableEnv);
     assert.equal(response.status, 404);
     assert.equal(await response.text(), "Not Found");

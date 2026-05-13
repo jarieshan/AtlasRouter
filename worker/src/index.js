@@ -44,6 +44,7 @@ export async function handleRequest(request, env) {
     }
 
     if (request.method === "GET" && url.pathname === ADMIN_PATH) {
+      await requireAccessAdmin(request, env);
       return htmlResponse(renderAdminPage());
     }
 
