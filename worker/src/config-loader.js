@@ -61,9 +61,8 @@ export function serializeRouterConfig(config) {
       name: profile.name,
       subscribeToken: profile.subscribeToken,
       nodes: profile.nodes.map((node) => ({
-        name: node.name,
         group: node.group,
-        value: node.value,
+        line: node.line,
       })),
     })),
   };

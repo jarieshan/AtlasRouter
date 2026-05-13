@@ -49,19 +49,16 @@ npx wrangler kv namespace create ATLAS_ROUTER
       "subscribeToken": "REPLACE_WITH_SUBSCRIBE_TOKEN",
       "nodes": [
         {
-          "name": "US-01",
           "group": "🇺🇸 US",
-          "value": "trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com"
+          "line": "US-01 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com"
         },
         {
-          "name": "JP-01",
           "group": "🇯🇵 JP",
-          "value": "trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com"
+          "line": "JP-01 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com"
         },
         {
-          "name": "US-HOME-01",
           "group": "🇺🇸 US Home",
-          "value": "trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
+          "line": "US-HOME-01 = trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
         }
       ]
     }

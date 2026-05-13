@@ -22,13 +22,14 @@ function parseNodeConfig(node, index, nodeNames) {
     throw new HttpError(500, `Node at index ${index} must be an object`);
   }
 
-  const name = requiredString(node.name, `Node at index ${index} must include name`);
+  const parsed = parseNodeLine(node, index);
+  const { name, value, line } = parsed;
   const group = requiredString(node.group, `Node ${name} must include group`);
-  const value = requiredString(node.value, `Node ${name} must include value`);
 
   assertSingleLine(name, `Node ${name} name must be a single line`);
   assertSingleLine(group, `Node ${name} group must be a single line`);
   assertSingleLine(value, `Node ${name} value must be a single line`);
+  assertSingleLine(line, `Node ${name} line must be a single line`);
   if (name.includes(",")) {
     throw new HttpError(500, "Node name cannot contain a comma");
   }
@@ -43,6 +44,34 @@ function parseNodeConfig(node, index, nodeNames) {
   return {
     name,
     group,
+    value,
+    line,
+  };
+}
+
+function parseNodeLine(node, index) {
+  if (node.line != null) {
+    if (node.name != null || node.value != null) {
+      throw new HttpError(500, `Node at index ${index} must use either line or name/value`);
+    }
+    const line = requiredString(node.line, `Node at index ${index} must include line`);
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex === -1) {
+      throw new HttpError(500, `Node at index ${index} line must use "name = value"`);
+    }
+    const name = requiredString(line.slice(0, separatorIndex), `Node at index ${index} line must include name`);
+    const value = requiredString(line.slice(separatorIndex + 1), `Node ${name} line must include value`);
+    return {
+      name,
+      value,
+      line: `${name} = ${value}`,
+    };
+  }
+
+  const name = requiredString(node.name, `Node at index ${index} must include name`);
+  const value = requiredString(node.value, `Node ${name} must include value`);
+  return {
+    name,
     value,
     line: `${name} = ${value}`,
   };

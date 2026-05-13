@@ -31,19 +31,16 @@ router-config
       "subscribeToken": "REPLACE_WITH_SUBSCRIBE_TOKEN",
       "nodes": [
         {
-          "name": "US-01",
           "group": "🇺🇸 US",
-          "value": "trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com"
+          "line": "US-01 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com"
         },
         {
-          "name": "JP-01",
           "group": "🇯🇵 JP",
-          "value": "trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com"
+          "line": "JP-01 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com"
         },
         {
-          "name": "US-HOME-01",
           "group": "🇺🇸 US Home",
-          "value": "trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
+          "line": "US-HOME-01 = trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
         }
       ]
     }
@@ -61,8 +58,8 @@ router-config
 
 节点组和策略组顺序维护在 `surge/template.conf`。新增节点组时，在 `[Proxy Group]` 中引用新组并添加对应 `{{NODE_GROUP:<group>}}` 占位符，然后在 KV 节点里使用完全相同的 `group` 值。
 
-`value` 直接使用 Surge `[Proxy]` 中等号右侧的节点语法。最终输出会渲染为：
+`line` 直接使用 Surge `[Proxy]` 中的完整节点行。Worker 会自动从等号左侧拆出节点名，并把节点名放进对应节点组。旧的 `{ "name": "...", "group": "...", "value": "..." }` 格式仍可读取，但保存时会规范化为 `line`。
 
 ```text
-name = value
+节点名 = Surge 节点语法
 ```

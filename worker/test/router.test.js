@@ -112,7 +112,9 @@ test("returns admin config with Cloudflare Access JWT", async () => {
   assert.equal(response.status, 200);
   assert.equal(body.adminToken, undefined);
   assert.deepEqual(body.profiles.map((profile) => profile.id), ["primary", "tenant"]);
-  assert.equal(body.profiles[0].nodes[0].line, undefined);
+  assert.equal(body.profiles[0].nodes[0].name, undefined);
+  assert.equal(body.profiles[0].nodes[0].value, undefined);
+  assert.match(body.profiles[0].nodes[0].line, /^US-01 = trojan/);
 });
 
 test("updates admin config with Cloudflare Access JWT", async () => {
@@ -191,9 +193,8 @@ test("rejects missing nodes for a configured node group", async () => {
           subscribeToken: "test-token",
           nodes: [
             {
-              name: "US-01",
               group: "🇺🇸 US",
-              value: "trojan, us.example.com, 443, password=secret, sni=us.example.com",
+              line: "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
             },
           ],
         },
@@ -217,9 +218,8 @@ test("rejects nodes that reference a group missing from template", async () => {
           nodes: [
             ...nodes,
             {
-              name: "HK-01",
               group: "🇭🇰 HK",
-              value: "trojan, hk.example.com, 443, password=secret, sni=hk.example.com",
+              line: "HK-01 = trojan, hk.example.com, 443, password=secret, sni=hk.example.com",
             },
           ],
         },
@@ -240,19 +240,16 @@ test("returns 404 for unknown route", async () => {
 function createNodes(suffix) {
   return [
     {
-      name: `US-${suffix}`,
       group: "🇺🇸 US",
-      value: `trojan, us-${suffix}.example.com, 443, password=secret, sni=us-${suffix}.example.com`,
+      line: `US-${suffix} = trojan, us-${suffix}.example.com, 443, password=secret, sni=us-${suffix}.example.com`,
     },
     {
-      name: `JP-${suffix}`,
       group: "🇯🇵 JP",
-      value: `trojan, jp-${suffix}.example.com, 443, password=secret, sni=jp-${suffix}.example.com`,
+      line: `JP-${suffix} = trojan, jp-${suffix}.example.com, 443, password=secret, sni=jp-${suffix}.example.com`,
     },
     {
-      name: `US-HOME-${suffix}`,
       group: "🇺🇸 US Home",
-      value: `trojan, us-home-${suffix}.example.com, 443, password=secret, sni=us-home-${suffix}.example.com`,
+      line: `US-HOME-${suffix} = trojan, us-home-${suffix}.example.com, 443, password=secret, sni=us-home-${suffix}.example.com`,
     },
   ];
 }

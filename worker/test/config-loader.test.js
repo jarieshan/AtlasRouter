@@ -5,9 +5,8 @@ import { loadRouterConfig, parseRouterConfig, saveRouterConfig, serializeRouterC
 
 const validNodes = [
   {
-    name: "US-01",
     group: "🇺🇸 US",
-    value: "trojan, us.example.com, 443, password=secret, sni=us.example.com",
+    line: "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
   },
 ];
 
@@ -17,6 +16,7 @@ test("loads router config from KV", async () => {
   assert.equal(config.profiles[0].id, "primary");
   assert.equal(config.profiles[0].subscribeToken, "test-token");
   assert.deepEqual(config.profiles[0].nodes.map((node) => node.name), ["US-01"]);
+  assert.deepEqual(serializeRouterConfig(config).profiles[0].nodes, validNodes);
 });
 
 test("loads legacy single-profile router config", () => {

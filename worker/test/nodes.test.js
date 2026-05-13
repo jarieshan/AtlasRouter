@@ -7,14 +7,12 @@ test("parses KV node config", () => {
   const nodes = parseNodesConfig(
     [
       {
-        name: "US-01",
         group: "🇺🇸 US",
-        value: "trojan, us.example.com, 443, password=secret, sni=us.example.com",
+        line: "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
       },
       {
-        name: "JP-01",
         group: "🇯🇵 JP",
-        value: "vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000",
+        line: "JP-01 = vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000",
       },
     ],
   );
@@ -30,6 +28,19 @@ test("parses KV node config", () => {
   );
 });
 
+test("parses legacy name/value node config", () => {
+  const nodes = parseNodesConfig([
+    {
+      name: "US-01",
+      group: "🇺🇸 US",
+      value: "trojan, us.example.com, 443, password=secret, sni=us.example.com",
+    },
+  ]);
+
+  assert.equal(nodes[0].name, "US-01");
+  assert.equal(nodes[0].line, "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com");
+});
+
 test("rejects empty node config", () => {
   assert.throws(() => parseNodesConfig([]), /at least one node/);
 });
@@ -41,13 +52,27 @@ test("rejects comma in node groups", () => {
   );
 });
 
+test("rejects malformed node line", () => {
+  assert.throws(
+    () => parseNodesConfig([{ group: "🇺🇸 US", line: "US-01 trojan, us.example.com, 443" }]),
+    /line must use "name = value"/,
+  );
+});
+
+test("rejects ambiguous node config", () => {
+  assert.throws(
+    () => parseNodesConfig([{ name: "US-01", group: "🇺🇸 US", value: "trojan, us.example.com, 443", line: "US-01 = trojan, us.example.com, 443" }]),
+    /either line or name\/value/,
+  );
+});
+
 test("rejects duplicate node names", () => {
   assert.throws(
     () =>
       parseNodesConfig(
         [
-          { name: "US-01", group: "🇺🇸 US", value: "trojan, us-1.example.com, 443" },
-          { name: "US-01", group: "🇺🇸 US", value: "trojan, us-2.example.com, 443" },
+          { group: "🇺🇸 US", line: "US-01 = trojan, us-1.example.com, 443" },
+          { group: "🇺🇸 US", line: "US-01 = trojan, us-2.example.com, 443" },
         ],
       ),
     /Duplicate node name/,
