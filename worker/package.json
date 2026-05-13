@@ -5,6 +5,7 @@
   "scripts": {
     "generate": "node scripts/generate-assets.js",
     "test": "npm run generate && node --test",
+    "check:live-security": "node --env-file-if-exists=.env scripts/check-live-security.js",
     "dev": "npm run generate && npx wrangler dev",
     "deploy": "npm run generate && npx wrangler deploy"
   }

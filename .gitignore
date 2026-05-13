@@ -1,5 +1,5 @@
 .DS_Store
-.env*
+.env
 .dev.vars*
 worker/.wrangler/
 worker/node_modules/

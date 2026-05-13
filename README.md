@@ -56,6 +56,17 @@ npm test
 
 Worker 会在测试和部署前运行 `scripts/generate-assets.js`，把 `surge/` 和 `modules/` 中的静态资产打包进 Worker。
 
+线上安全探测需要手动执行，不属于默认测试：
+
+```sh
+cd worker
+npm run check:live-security -- https://<worker-domain>
+```
+
+也可以把目标域名放在本地 `worker/.env` 的 `ATLAS_ROUTER_BASE_URL` 中，然后直接运行 `npm run check:live-security`。`.env*` 已被 git 忽略，不应入库。
+
+完整安全测试流程见 `docs/security-pentest.md`。
+
 ## Cloudflare Worker 配置约定
 
 实际变量名由 Worker 实现决定，但应遵守以下边界：

@@ -43,8 +43,11 @@ export async function handleRequest(request, env) {
       throw new HttpError(404, "Not Found");
     }
 
-    if (request.method === "GET" && url.pathname === ADMIN_PATH) {
+    if (url.pathname === ADMIN_PATH) {
       await requireAccessAdmin(request, env);
+      if (request.method !== "GET") {
+        return textResponse("Method Not Allowed", 405);
+      }
       return htmlResponse(renderAdminPage());
     }
 
@@ -99,11 +102,11 @@ function servedModuleName(pathname) {
 }
 
 async function handleAdminConfigRequest(request, env) {
+  await requireAccessAdmin(request, env);
+
   if (request.method !== "GET" && request.method !== "PUT") {
     return textResponse("Method Not Allowed", 405);
   }
-
-  await requireAccessAdmin(request, env);
 
   if (request.method === "GET") {
     const config = await loadRouterConfig(env);

@@ -109,6 +109,27 @@ npm run dev
 
 本地调试时可以使用 Wrangler 的本地变量机制，但不要提交 `.dev.vars*` 或 `.env*`。
 
+线上部署后可以手动运行非破坏性安全探测，确认管理页被 Cloudflare Access 保护、旧管理路径已退役、无 token 的订阅和模块入口不会泄露内容。这个命令不会被 `npm test` 默认执行：
+
+```sh
+cd worker
+npm run check:live-security -- https://<worker-domain>
+```
+
+也可以把目标域名放在本地 `worker/.env` 的 `ATLAS_ROUTER_BASE_URL` 中，避免把真实域名写进文档或脚本：
+
+```sh
+ATLAS_ROUTER_BASE_URL=https://<worker-domain>
+```
+
+`worker/.env` 会被 `npm run check:live-security` 自动读取，且 `.env*` 已被 git 忽略。也可以临时用环境变量传入：
+
+```sh
+ATLAS_ROUTER_BASE_URL=https://<worker-domain> npm run check:live-security
+```
+
+完整渗透测试流程见 `docs/security-pentest.md`。
+
 ## 5. 部署
 
 合并到 `main` 后，Cloudflare Workers Builds 会自动构建和部署。

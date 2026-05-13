@@ -99,23 +99,135 @@ test("rejects admin config without Cloudflare Access JWT", async () => {
   assert.equal(await response.text(), "Missing Cloudflare Access token");
 });
 
-test("rejects admin query token", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/admin/config?admin_token=admin-token"), env);
+test("rejects fallback admin credentials before reading KV", async () => {
+  const unreadableEnv = createEnv();
+  unreadableEnv.ATLAS_ROUTER.get = async () => {
+    assert.fail("fallback admin credentials should not read router-config");
+  };
+  const requests = [
+    new Request("https://atlas.example/admin?admin_token=admin-token"),
+    new Request("https://atlas.example/admin", {
+      headers: { authorization: "Bearer admin-token" },
+    }),
+    new Request("https://atlas.example/admin/config?admin_token=admin-token"),
+    new Request("https://atlas.example/admin/config", {
+      headers: { authorization: "Bearer admin-token" },
+    }),
+    new Request("https://atlas.example/admin/config", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer admin-token",
+        "content-type": "application/json",
+      },
+      body: "{}",
+    }),
+  ];
 
-  assert.equal(response.status, 403);
-  assert.equal(await response.text(), "Missing Cloudflare Access token");
+  for (const request of requests) {
+    const response = await handleRequest(request, unreadableEnv);
+    assert.equal(response.status, 403);
+    assert.equal(await response.text(), "Missing Cloudflare Access token");
+  }
+});
+
+test("requires Access before admin method handling", async () => {
+  for (const request of [
+    new Request("https://atlas.example/admin", { method: "POST" }),
+    new Request("https://atlas.example/admin/config", { method: "DELETE" }),
+  ]) {
+    const response = await handleRequest(request, env);
+    assert.equal(response.status, 403);
+    assert.equal(await response.text(), "Missing Cloudflare Access token");
+  }
+
+  for (const request of [
+    new Request("https://atlas.example/admin", {
+      method: "POST",
+      headers: accessHeaders(),
+    }),
+    new Request("https://atlas.example/admin/config", {
+      method: "DELETE",
+      headers: accessHeaders(),
+    }),
+  ]) {
+    const response = await handleRequest(request, env);
+    assert.equal(response.status, 405);
+    assert.equal(await response.text(), "Method Not Allowed");
+  }
+});
+
+test("rejects invalid Cloudflare Access JWTs before reading KV", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const { privateKey: untrustedPrivateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const unreadableEnv = createEnv();
+  unreadableEnv.ATLAS_ROUTER.get = async () => {
+    assert.fail("invalid Access JWTs should not read router-config");
+  };
+  const cases = [
+    { token: "not-a-jwt", message: "Invalid Cloudflare Access token" },
+    { token: "bad.bad.bad", message: "Invalid Cloudflare Access token" },
+    { token: createAccessJwt({}, { alg: "HS256" }), message: "Invalid Cloudflare Access token" },
+    { token: createAccessJwt({}, { alg: "none" }), message: "Invalid Cloudflare Access token" },
+    { token: createAccessJwt({}, { kid: null }), message: "Invalid Cloudflare Access token" },
+    { token: createAccessJwt({ iss: "https://other.cloudflareaccess.com" }), message: "Invalid Cloudflare Access token" },
+    { token: createAccessJwt({ aud: "other-aud" }), message: "Invalid Cloudflare Access token" },
+    { token: createAccessJwt({ exp: undefined }), message: "Expired Cloudflare Access token" },
+    { token: createAccessJwt({ exp: now - 60 }), message: "Expired Cloudflare Access token" },
+    { token: createAccessJwt({ nbf: now + 3600 }), message: "Cloudflare Access token is not active" },
+    { token: createAccessJwt({}, { kid: "unknown-key" }), message: "Unknown Cloudflare Access signing key" },
+    { token: createAccessJwt({}, {}, untrustedPrivateKey), message: "Invalid Cloudflare Access token" },
+  ];
+
+  for (const { token, message } of cases) {
+    for (const path of ["/admin", "/admin/config"]) {
+      const response = await handleRequest(
+        new Request(`https://atlas.example${path}`, {
+          headers: { "cf-access-jwt-assertion": token },
+        }),
+        unreadableEnv,
+      );
+      assert.equal(response.status, 403);
+      assert.equal(await response.text(), message);
+    }
+  }
 });
 
 test("rejects Cloudflare Access JWT for non-admin email", async () => {
+  for (const payload of [
+    { email: "other@example.com" },
+    { email: "" },
+    { email: undefined },
+    { email: ["admin@example.com"] },
+  ]) {
+    const response = await handleRequest(
+      new Request("https://atlas.example/admin/config", {
+        headers: accessHeaders(payload),
+      }),
+      env,
+    );
+
+    assert.equal(response.status, 403);
+    assert.equal(await response.text(), "Forbidden");
+  }
+});
+
+test("accepts Access audience arrays and configured admin email casing", async () => {
+  const caseInsensitiveEnv = createEnv();
+  caseInsensitiveEnv.ADMIN_EMAILS = `other@example.com, ${ADMIN_EMAIL.toUpperCase()}`;
+
   const response = await handleRequest(
     new Request("https://atlas.example/admin/config", {
-      headers: accessHeaders({ email: "other@example.com" }),
+      headers: accessHeaders({
+        aud: ["unrelated-aud", ACCESS_AUD],
+        email: ADMIN_EMAIL.toUpperCase(),
+      }),
     }),
-    env,
+    caseInsensitiveEnv,
   );
 
-  assert.equal(response.status, 403);
-  assert.equal(await response.text(), "Forbidden");
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.profiles.map((profile) => profile.id), ["primary", "tenant"]);
 });
 
 test("returns admin config with Cloudflare Access JWT", async () => {
@@ -133,6 +245,21 @@ test("returns admin config with Cloudflare Access JWT", async () => {
   assert.equal(body.profiles[0].nodes[0].name, undefined);
   assert.equal(body.profiles[0].nodes[0].value, undefined);
   assert.match(body.profiles[0].nodes[0].line, /^US-01 = trojan/);
+});
+
+test("sets security headers on sensitive and denied responses", async () => {
+  const responses = [
+    await handleRequest(new Request("https://atlas.example/admin"), env),
+    await handleRequest(new Request("https://atlas.example/admin/config"), env),
+    await handleRequest(new Request("https://atlas.example/admin", { headers: accessHeaders() }), env),
+    await handleRequest(new Request("https://atlas.example/admin/config", { headers: accessHeaders() }), env),
+    await handleRequest(new Request("https://atlas.example/atlas-router"), env),
+    await handleRequest(new Request("https://atlas.example/atlas"), env),
+  ];
+
+  for (const response of responses) {
+    assertSecurityHeaders(response);
+  }
 });
 
 test("updates admin config with Cloudflare Access JWT", async () => {
@@ -165,6 +292,48 @@ test("updates admin config with Cloudflare Access JWT", async () => {
   assert.equal(body.adminToken, undefined);
   assert.equal(body.profiles[0].subscribeToken, "new-token");
   assert.deepEqual(JSON.parse(writableEnv.writtenValue), body);
+});
+
+test("rejects invalid admin config JSON without writing KV", async () => {
+  const writableEnv = createEnv();
+
+  const response = await handleRequest(
+    new Request("https://atlas.example/admin/config", {
+      method: "PUT",
+      headers: {
+        ...accessHeaders(),
+        "content-type": "application/json",
+      },
+      body: "{",
+    }),
+    writableEnv,
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal(await response.text(), "Request body must be valid JSON");
+  assert.equal(writableEnv.writtenValue, undefined);
+});
+
+test("ignores non-token credentials on subscription and module routes", async () => {
+  for (const url of [
+    "https://atlas.example/atlas-router?admin_token=admin-token",
+    "https://atlas.example/atlas-router",
+    "https://atlas.example/modules/skip-proxy-lists.sgmodule?admin_token=admin-token",
+    "https://atlas.example/modules/skip-proxy-lists.sgmodule",
+  ]) {
+    const response = await handleRequest(
+      new Request(url, {
+        headers: {
+          authorization: "Bearer admin-token",
+          "cf-access-jwt-assertion": createAccessJwt(),
+        },
+      }),
+      env,
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(await response.text(), "Unauthorized");
+  }
 });
 
 test("creates admin config with Cloudflare Access JWT when KV key is missing", async () => {
@@ -334,21 +503,22 @@ function createEnv(config = createConfig()) {
   return env;
 }
 
-function accessHeaders(overrides = {}) {
+function accessHeaders(payloadOverrides = {}, headerOverrides = {}) {
   return {
     "cf-access-jwt-assertion": createAccessJwt({
       email: ADMIN_EMAIL,
-      ...overrides,
-    }),
+      ...payloadOverrides,
+    }, headerOverrides),
   };
 }
 
-function createAccessJwt(overrides = {}) {
+function createAccessJwt(payloadOverrides = {}, headerOverrides = {}, signingKey = privateKey) {
   const now = Math.floor(Date.now() / 1000);
   const header = {
     alg: "RS256",
     kid: ACCESS_KID,
     typ: "JWT",
+    ...headerOverrides,
   };
   const payload = {
     iss: TEAM_DOMAIN,
@@ -356,10 +526,10 @@ function createAccessJwt(overrides = {}) {
     email: ADMIN_EMAIL,
     exp: now + 3600,
     nbf: now - 60,
-    ...overrides,
+    ...payloadOverrides,
   };
   const signingInput = `${base64UrlJson(header)}.${base64UrlJson(payload)}`;
-  const signature = createSign("RSA-SHA256").update(signingInput).sign(privateKey);
+  const signature = createSign("RSA-SHA256").update(signingInput).sign(signingKey);
   return `${signingInput}.${base64Url(signature)}`;
 }
 
@@ -373,4 +543,13 @@ function base64Url(value) {
     .replace(/=/g, "")
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
+}
+
+function assertSecurityHeaders(response) {
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.match(response.headers.get("content-security-policy"), /default-src 'self'/);
+  assert.match(response.headers.get("content-security-policy"), /frame-ancestors 'none'/);
 }
