@@ -68,10 +68,7 @@ function renderNodeGroups(template, nodeGroupState) {
   return prunedTemplate.replace(NODE_GROUP_PATTERN, (_placeholder, rawGroup) => {
     const group = rawGroup.trim();
     const groupNodes = nodeGroupState.nodesByGroup.get(group);
-    if (groupNodes.length === 0) {
-      return "";
-    }
-    return `${group} = url-test, ${groupNodes.join(", ")}, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50`;
+    return groupNodes.join(", ");
   });
 }
 
@@ -114,9 +111,23 @@ function removeEmptyNodeGroupReferences(template, emptyGroups) {
       if (section !== "Proxy Group") {
         return line;
       }
+      if (definesEmptyNodeGroup(line, emptyGroups)) {
+        return "";
+      }
       return removeCommaSeparatedValues(line, emptyGroups);
     })
     .join("\n");
+}
+
+function definesEmptyNodeGroup(line, emptyGroups) {
+  const separatorIndex = line.indexOf("=");
+  if (separatorIndex === -1) {
+    return false;
+  }
+
+  const groupName = line.slice(0, separatorIndex).trim();
+  return emptyGroups.has(groupName)
+    && Array.from(line.matchAll(NODE_GROUP_PATTERN)).some((match) => match[1].trim() === groupName);
 }
 
 function renderRuleLines(rules, emptyGroups) {

@@ -38,9 +38,9 @@ test("renders Surge profile for matching tenant token", async () => {
   assert.match(body, /US-HOME-01 = trojan, us-home-01\.example\.com, 443, password=secret, sni=us-home-01\.example\.com/);
   assert.match(body, /🚀 Select = select, 🇺🇸 US, 🇯🇵 JP, 🇺🇸 US Home, ♻️ Auto, DIRECT/);
   assert.match(body, /🤖 AIProxy = select, 🇺🇸 US Home, 🇺🇸 US, 🇯🇵 JP, ♻️ Auto/);
-  assert.match(body, /🇺🇸 US = url-test, US-01, url=http:\/\/www\.gstatic\.com\/generate_204/);
-  assert.match(body, /🇯🇵 JP = url-test, JP-01, url=http:\/\/www\.gstatic\.com\/generate_204/);
-  assert.match(body, /🇺🇸 US Home = url-test, US-HOME-01, url=http:\/\/www\.gstatic\.com\/generate_204/);
+  assert.match(body, /🇺🇸 US = smart, US-01/);
+  assert.match(body, /🇯🇵 JP = smart, JP-01/);
+  assert.match(body, /🇺🇸 US Home = smart, US-HOME-01/);
   assert.doesNotMatch(body, /policy-regex-filter/);
   assert.doesNotMatch(body, /NODE_GROUP/);
   assert.match(body, /DOMAIN-SUFFIX,longbridge\.global,DIRECT/);
@@ -208,7 +208,7 @@ test("omits configured node groups that have no nodes", async () => {
   assert.match(body, /🚀 Select = select, 🇺🇸 US, ♻️ Auto, DIRECT/);
   assert.match(body, /🤖 AIProxy = select, 🇺🇸 US, ♻️ Auto/);
   assert.match(body, /🎥 GlobalMedia = select, 🇺🇸 US, ♻️ Auto/);
-  assert.match(body, /🇺🇸 US = url-test, US-01, url=http:\/\/www\.gstatic\.com\/generate_204/);
+  assert.match(body, /🇺🇸 US = smart, US-01/);
   assert.doesNotMatch(body, /🇯🇵 JP/);
   assert.doesNotMatch(body, /🇺🇸 US Home/);
   assert.doesNotMatch(body, /NODE_GROUP/);
