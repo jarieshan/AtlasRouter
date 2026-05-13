@@ -1,53 +1,62 @@
 import { HttpError } from "./errors.js";
 
-export function parseNodesText(value) {
-  if (!value) {
-    throw new HttpError(500, "NODES_TEXT is not configured");
+export function parseNodesConfig(value) {
+  if (!Array.isArray(value)) {
+    throw new HttpError(500, "router-config nodes must be a JSON array");
+  }
+  if (value.length === 0) {
+    throw new HttpError(500, "router-config nodes must contain at least one node");
   }
 
-  const nodes = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#"))
-    .map(parseNodeLine);
+  const nodeNames = new Set();
 
-  if (nodes.length === 0) {
-    throw new HttpError(500, "NODES_TEXT must contain at least one proxy line");
-  }
-
-  return nodes;
+  return value.map((node, index) => parseNodeConfig(node, index, nodeNames));
 }
 
 export function renderProxyLines(nodes) {
   return nodes.map((node) => node.line).join("\n");
 }
 
-function parseNodeLine(line) {
-  assertSingleLine(line);
-
-  const separatorIndex = line.indexOf("=");
-  if (separatorIndex <= 0 || separatorIndex === line.length - 1) {
-    throw new HttpError(500, "Each NODES_TEXT line must use Surge proxy syntax: name = type, server, port, ...");
+function parseNodeConfig(node, index, nodeNames) {
+  if (!node || typeof node !== "object" || Array.isArray(node)) {
+    throw new HttpError(500, `Node at index ${index} must be an object`);
   }
 
-  const name = line.slice(0, separatorIndex).trim();
-  const value = line.slice(separatorIndex + 1).trim();
+  const name = requiredString(node.name, `Node at index ${index} must include name`);
+  const group = requiredString(node.group, `Node ${name} must include group`);
+  const value = requiredString(node.value, `Node ${name} must include value`);
 
-  if (!name || !value) {
-    throw new HttpError(500, "Each NODES_TEXT line must include both name and proxy value");
-  }
+  assertSingleLine(name, `Node ${name} name must be a single line`);
+  assertSingleLine(group, `Node ${name} group must be a single line`);
+  assertSingleLine(value, `Node ${name} value must be a single line`);
   if (name.includes(",")) {
     throw new HttpError(500, "Node name cannot contain a comma");
   }
+  if (group.includes(",")) {
+    throw new HttpError(500, "Node group cannot contain a comma");
+  }
+  if (nodeNames.has(name)) {
+    throw new HttpError(500, `Duplicate node name: ${name}`);
+  }
+  nodeNames.add(name);
 
   return {
     name,
+    group,
+    value,
     line: `${name} = ${value}`,
   };
 }
 
-function assertSingleLine(value) {
+function requiredString(value, message) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new HttpError(500, message);
+  }
+  return value.trim();
+}
+
+function assertSingleLine(value, message) {
   if (/[\r\n]/.test(value)) {
-    throw new HttpError(500, "Proxy line must be a single line");
+    throw new HttpError(500, message);
   }
 }

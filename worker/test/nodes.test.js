@@ -1,29 +1,55 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseNodesText, renderProxyLines } from "../src/nodes.js";
+import { parseNodesConfig, renderProxyLines } from "../src/nodes.js";
 
-test("parses Surge proxy lines", () => {
-  const nodes = parseNodesText(`
-# comments are ignored
-US-01 美国 = trojan, us.example.com, 443, password=secret, sni=us.example.com
-JP-01 日本 = vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000
-`);
+test("parses KV node config", () => {
+  const nodes = parseNodesConfig(
+    [
+      {
+        name: "US-01",
+        group: "🇺🇸 US",
+        value: "trojan, us.example.com, 443, password=secret, sni=us.example.com",
+      },
+      {
+        name: "JP-01",
+        group: "🇯🇵 JP",
+        value: "vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000",
+      },
+    ],
+  );
 
-  assert.deepEqual(nodes.map((node) => node.name), ["US-01 美国", "JP-01 日本"]);
+  assert.deepEqual(nodes.map((node) => node.name), ["US-01", "JP-01"]);
+  assert.deepEqual(nodes.map((node) => node.group), ["🇺🇸 US", "🇯🇵 JP"]);
   assert.equal(
     renderProxyLines(nodes),
     [
-      "US-01 美国 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
-      "JP-01 日本 = vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000",
+      "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
+      "JP-01 = vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000",
     ].join("\n"),
   );
 });
 
-test("rejects empty node text", () => {
-  assert.throws(() => parseNodesText("# only comments"), /at least one proxy line/);
+test("rejects empty node config", () => {
+  assert.throws(() => parseNodesConfig([]), /at least one node/);
 });
 
-test("rejects invalid node lines", () => {
-  assert.throws(() => parseNodesText("not a surge proxy line"), /name = type/);
+test("rejects comma in node groups", () => {
+  assert.throws(
+    () => parseNodesConfig([{ name: "US-01", group: "bad,group", value: "trojan, us.example.com, 443" }]),
+    /Node group cannot contain a comma/,
+  );
+});
+
+test("rejects duplicate node names", () => {
+  assert.throws(
+    () =>
+      parseNodesConfig(
+        [
+          { name: "US-01", group: "🇺🇸 US", value: "trojan, us-1.example.com, 443" },
+          { name: "US-01", group: "🇺🇸 US", value: "trojan, us-2.example.com, 443" },
+        ],
+      ),
+    /Duplicate node name/,
+  );
 });

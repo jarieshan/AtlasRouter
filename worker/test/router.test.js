@@ -1,12 +1,24 @@
 import assert from "node:assert/strict";
+import { createSign, generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 
 import { handleRequest } from "../src/index.js";
 
-const env = {
-  SUBSCRIBE_TOKEN: "test-token",
-  NODES_TEXT: "US-01 美国 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
+const TEAM_DOMAIN = "https://team.cloudflareaccess.com";
+const ACCESS_AUD = "access-aud";
+const ADMIN_EMAIL = "admin@example.com";
+const ACCESS_KID = "test-key";
+const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const accessJwk = {
+  ...publicKey.export({ format: "jwk" }),
+  kid: ACCESS_KID,
+  alg: "RS256",
+  use: "sig",
 };
+
+const nodes = createNodes("01");
+const tenantNodes = createNodes("02");
+const env = createEnv();
 
 test("rejects unauthorized requests", async () => {
   const response = await handleRequest(new Request("https://atlas.example/surge"), env);
@@ -15,32 +27,208 @@ test("rejects unauthorized requests", async () => {
   assert.equal(await response.text(), "Unauthorized");
 });
 
-test("renders Surge profile with separate rules config", async () => {
+test("renders Surge profile for matching tenant token", async () => {
   const response = await handleRequest(new Request("https://atlas.example/surge?token=test-token"), env);
   const body = await response.text();
 
   assert.equal(response.status, 200);
   assert.match(body, /^#!MANAGED-CONFIG https:\/\/atlas\.example\/surge\?token=test-token/m);
-  assert.match(body, /US-01 美国 = trojan, us\.example\.com, 443, password=secret, sni=us\.example\.com/);
-  assert.match(body, /🇺🇸 Airport_US = url-test, include-all-proxies=true/);
+  assert.match(body, /US-01 = trojan, us-01\.example\.com, 443, password=secret, sni=us-01\.example\.com/);
+  assert.match(body, /JP-01 = trojan, jp-01\.example\.com, 443, password=secret, sni=jp-01\.example\.com/);
+  assert.match(body, /US-HOME-01 = trojan, us-home-01\.example\.com, 443, password=secret, sni=us-home-01\.example\.com/);
+  assert.match(body, /🚀 Select = select, 🇺🇸 US, 🇯🇵 JP, 🇺🇸 US Home, ♻️ Auto, DIRECT/);
+  assert.match(body, /🤖 AIProxy = select, 🇺🇸 US Home, 🇺🇸 US, 🇯🇵 JP, ♻️ Auto/);
+  assert.match(body, /🇺🇸 US = url-test, US-01, url=http:\/\/www\.gstatic\.com\/generate_204/);
+  assert.match(body, /🇯🇵 JP = url-test, JP-01, url=http:\/\/www\.gstatic\.com\/generate_204/);
+  assert.match(body, /🇺🇸 US Home = url-test, US-HOME-01, url=http:\/\/www\.gstatic\.com\/generate_204/);
+  assert.doesNotMatch(body, /policy-regex-filter/);
+  assert.doesNotMatch(body, /NODE_GROUP/);
   assert.match(body, /DOMAIN-SUFFIX,longbridge\.global,DIRECT/);
-  assert.match(body, /DOMAIN-SUFFIX,kaggle\.com,🇺🇸 Airport_US/);
+  assert.match(body, /DOMAIN-SUFFIX,kaggle\.com,🇺🇸 US/);
+  assert.match(body, /DOMAIN-SUFFIX,buyee\.jp,🇯🇵 JP/);
   assert.match(body, /RULE-SET,SYSTEM,DIRECT/);
   assert.match(body, /RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/OpenAI\/OpenAI\.list,🤖 AIProxy,update-interval=86400/);
-  assert.match(body, /FINAL,♻️ Auto/);
+  assert.match(body, /RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/Telegram\/Telegram\.list,🚀 Select,update-interval=86400/);
+  assert.match(body, /FINAL,🚀 Select/);
 });
 
-test("falls back regional rules when no matching region group exists", async () => {
-  const response = await handleRequest(new Request("https://atlas.example/surge?token=test-token"), {
-    ...env,
-    NODES_TEXT: "Generic-01 = trojan, generic.example.com, 443, password=secret",
-  });
+test("renders different nodes for another tenant token", async () => {
+  const response = await handleRequest(new Request("https://atlas.example/surge?token=tenant-token"), env);
   const body = await response.text();
 
   assert.equal(response.status, 200);
-  assert.doesNotMatch(body, /🇺🇸 Airport_US = url-test/);
-  assert.match(body, /DOMAIN-SUFFIX,kaggle\.com,♻️ Auto/);
-  assert.match(body, /DOMAIN-SUFFIX,buyee\.jp,♻️ Auto/);
+  assert.match(body, /US-02 = trojan, us-02\.example\.com, 443/);
+  assert.doesNotMatch(body, /US-01 = trojan/);
+});
+
+test("renders admin page without reading KV", async () => {
+  const response = await handleRequest(new Request("https://atlas.example/admin"), {});
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/html/);
+  assert.match(response.headers.get("content-security-policy"), /frame-ancestors 'none'/);
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.match(body, /AtlasRouter Admin/);
+  assert.doesNotMatch(body, /admin_token|Admin token|authorization/i);
+});
+
+test("rejects admin config without Cloudflare Access JWT", async () => {
+  const response = await handleRequest(new Request("https://atlas.example/admin/config"), env);
+
+  assert.equal(response.status, 403);
+  assert.equal(await response.text(), "Missing Cloudflare Access token");
+});
+
+test("rejects admin query token", async () => {
+  const response = await handleRequest(new Request("https://atlas.example/admin/config?admin_token=admin-token"), env);
+
+  assert.equal(response.status, 403);
+  assert.equal(await response.text(), "Missing Cloudflare Access token");
+});
+
+test("rejects Cloudflare Access JWT for non-admin email", async () => {
+  const response = await handleRequest(
+    new Request("https://atlas.example/admin/config", {
+      headers: accessHeaders({ email: "other@example.com" }),
+    }),
+    env,
+  );
+
+  assert.equal(response.status, 403);
+  assert.equal(await response.text(), "Forbidden");
+});
+
+test("returns admin config with Cloudflare Access JWT", async () => {
+  const response = await handleRequest(
+    new Request("https://atlas.example/admin/config", {
+      headers: accessHeaders(),
+    }),
+    env,
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.adminToken, undefined);
+  assert.deepEqual(body.profiles.map((profile) => profile.id), ["primary", "tenant"]);
+  assert.equal(body.profiles[0].nodes[0].line, undefined);
+});
+
+test("updates admin config with Cloudflare Access JWT", async () => {
+  const writableEnv = createEnv();
+  const nextConfig = createConfig({
+    profiles: [
+      {
+        id: "primary",
+        name: "Primary",
+        subscribeToken: "new-token",
+        nodes,
+      },
+    ],
+  });
+
+  const response = await handleRequest(
+    new Request("https://atlas.example/admin/config", {
+      method: "PUT",
+      headers: {
+        ...accessHeaders(),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(nextConfig),
+    }),
+    writableEnv,
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.adminToken, undefined);
+  assert.equal(body.profiles[0].subscribeToken, "new-token");
+  assert.deepEqual(JSON.parse(writableEnv.writtenValue), body);
+});
+
+test("creates admin config with Cloudflare Access JWT when KV key is missing", async () => {
+  const writableEnv = createEnv();
+  writableEnv.ATLAS_ROUTER.get = async () => {
+    assert.fail("PUT /admin/config should not read existing router-config");
+  };
+  const nextConfig = createConfig({
+    profiles: [
+      {
+        id: "primary",
+        name: "Primary",
+        subscribeToken: "new-token",
+        nodes,
+      },
+    ],
+  });
+
+  const response = await handleRequest(
+    new Request("https://atlas.example/admin/config", {
+      method: "PUT",
+      headers: {
+        ...accessHeaders(),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(nextConfig),
+    }),
+    writableEnv,
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(JSON.parse(writableEnv.writtenValue), body);
+});
+
+test("rejects missing nodes for a configured node group", async () => {
+  const response = await handleRequest(
+    new Request("https://atlas.example/surge?token=test-token"),
+    createEnv(createConfig({
+      profiles: [
+        {
+          id: "primary",
+          name: "Primary",
+          subscribeToken: "test-token",
+          nodes: [
+            {
+              name: "US-01",
+              group: "🇺🇸 US",
+              value: "trojan, us.example.com, 443, password=secret, sni=us.example.com",
+            },
+          ],
+        },
+      ],
+    })),
+  );
+
+  assert.equal(response.status, 500);
+  assert.equal(await response.text(), "Node group 🇯🇵 JP has no nodes");
+});
+
+test("rejects nodes that reference a group missing from template", async () => {
+  const response = await handleRequest(
+    new Request("https://atlas.example/surge?token=test-token"),
+    createEnv(createConfig({
+      profiles: [
+        {
+          id: "primary",
+          name: "Primary",
+          subscribeToken: "test-token",
+          nodes: [
+            ...nodes,
+            {
+              name: "HK-01",
+              group: "🇭🇰 HK",
+              value: "trojan, hk.example.com, 443, password=secret, sni=hk.example.com",
+            },
+          ],
+        },
+      ],
+    })),
+  );
+
+  assert.equal(response.status, 500);
+  assert.equal(await response.text(), "Node HK-01 references unknown node group: 🇭🇰 HK");
 });
 
 test("returns 404 for unknown route", async () => {
@@ -48,3 +236,105 @@ test("returns 404 for unknown route", async () => {
 
   assert.equal(response.status, 404);
 });
+
+function createNodes(suffix) {
+  return [
+    {
+      name: `US-${suffix}`,
+      group: "🇺🇸 US",
+      value: `trojan, us-${suffix}.example.com, 443, password=secret, sni=us-${suffix}.example.com`,
+    },
+    {
+      name: `JP-${suffix}`,
+      group: "🇯🇵 JP",
+      value: `trojan, jp-${suffix}.example.com, 443, password=secret, sni=jp-${suffix}.example.com`,
+    },
+    {
+      name: `US-HOME-${suffix}`,
+      group: "🇺🇸 US Home",
+      value: `trojan, us-home-${suffix}.example.com, 443, password=secret, sni=us-home-${suffix}.example.com`,
+    },
+  ];
+}
+
+function createConfig(overrides = {}) {
+  return {
+    profiles: [
+      {
+        id: "primary",
+        name: "Primary",
+        subscribeToken: "test-token",
+        nodes,
+      },
+      {
+        id: "tenant",
+        name: "Tenant",
+        subscribeToken: "tenant-token",
+        nodes: tenantNodes,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function createEnv(config = createConfig()) {
+  const env = {
+    ACCESS_TEAM_DOMAIN: TEAM_DOMAIN,
+    ACCESS_AUD,
+    ADMIN_EMAILS: ADMIN_EMAIL,
+    ACCESS_JWKS_JSON: JSON.stringify({ keys: [accessJwk] }),
+    ATLAS_ROUTER: {
+      async get(key, type) {
+        assert.equal(key, "router-config");
+        assert.equal(type, "json");
+        return config;
+      },
+      async put(key, value) {
+        assert.equal(key, "router-config");
+        env.writtenValue = value;
+      },
+    },
+  };
+  return env;
+}
+
+function accessHeaders(overrides = {}) {
+  return {
+    "cf-access-jwt-assertion": createAccessJwt({
+      email: ADMIN_EMAIL,
+      ...overrides,
+    }),
+  };
+}
+
+function createAccessJwt(overrides = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = {
+    alg: "RS256",
+    kid: ACCESS_KID,
+    typ: "JWT",
+  };
+  const payload = {
+    iss: TEAM_DOMAIN,
+    aud: ACCESS_AUD,
+    email: ADMIN_EMAIL,
+    exp: now + 3600,
+    nbf: now - 60,
+    ...overrides,
+  };
+  const signingInput = `${base64UrlJson(header)}.${base64UrlJson(payload)}`;
+  const signature = createSign("RSA-SHA256").update(signingInput).sign(privateKey);
+  return `${signingInput}.${base64Url(signature)}`;
+}
+
+function base64UrlJson(value) {
+  return base64Url(Buffer.from(JSON.stringify(value)));
+}
+
+function base64Url(value) {
+  return Buffer.from(value)
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}

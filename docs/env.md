@@ -1,36 +1,68 @@
 # Worker Env
 
-AtlasRouter 初版只需要两个 Worker Secrets：
+AtlasRouter 需要一个 KV namespace：
 
-- `SUBSCRIBE_TOKEN`：订阅访问 token。
-- `NODES_TEXT`：Surge 节点列表，一行一个节点。
+- `ATLAS_ROUTER`：Cloudflare KV namespace，存放租户订阅 token 和节点列表。
 
-GitHub 不保存部署 token 或节点信息。部署由 Cloudflare Git Integration 触发，运行时密钥只保存在 Cloudflare Worker Secrets 中。
+GitHub 不保存部署 token 或节点信息。部署由 Cloudflare Git Integration 触发，租户订阅 token 和节点信息保存在 `ATLAS_ROUTER` KV 中。KV 读权限视为订阅敏感配置读取权限。
 
-## NODES_TEXT
+管理页依赖 Cloudflare Access 保护 `/admin*`，Worker 会校验 Access 注入的 JWT。需要配置这些 Worker vars：
 
-`NODES_TEXT` 直接使用 Surge `[Proxy]` 中的节点行格式：
+- `ACCESS_TEAM_DOMAIN`：Cloudflare Access team domain，例如 `https://<team>.cloudflareaccess.com`。
+- `ACCESS_AUD`：Access application 的 Audience (AUD)。
+- `ADMIN_EMAILS`：允许管理配置的邮箱，多个邮箱用英文逗号分隔。
 
-```text
-US-01 美国 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com
-JP-01 日本 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com
-SG-01 新加坡 = trojan, sg.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=sg.example.com
-```
+## ATLAS_ROUTER
 
-可以添加空行和 `#` 注释，Worker 会忽略：
+KV 使用固定 key：
 
 ```text
-# 美国节点
-US-01 美国 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com
-
-# 日本节点
-JP-01 日本 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com
+router-config
 ```
 
-每一行必须是：
+值为 JSON 对象，包含 `profiles`。每个 profile 是一个租户配置：
+
+```json
+{
+  "profiles": [
+    {
+      "id": "primary",
+      "name": "Primary",
+      "subscribeToken": "REPLACE_WITH_SUBSCRIBE_TOKEN",
+      "nodes": [
+        {
+          "name": "US-01",
+          "group": "🇺🇸 US",
+          "value": "trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com"
+        },
+        {
+          "name": "JP-01",
+          "group": "🇯🇵 JP",
+          "value": "trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com"
+        },
+        {
+          "name": "US-HOME-01",
+          "group": "🇺🇸 US Home",
+          "value": "trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
+        }
+      ]
+    }
+  ]
+}
+```
+
+首次配置可以用 Wrangler 写入 `router-config`，也可以部署后访问 `/admin`，通过 Cloudflare Access 登录并粘贴完整 JSON 保存。
+
+当前模板声明的节点组：
+
+- `🇺🇸 US`
+- `🇯🇵 JP`
+- `🇺🇸 US Home`
+
+节点组和策略组顺序维护在 `surge/template.conf`。新增节点组时，在 `[Proxy Group]` 中引用新组并添加对应 `{{NODE_GROUP:<group>}}` 占位符，然后在 KV 节点里使用完全相同的 `group` 值。
+
+`value` 直接使用 Surge `[Proxy]` 中等号右侧的节点语法。最终输出会渲染为：
 
 ```text
-节点名称 = Surge 节点语法
+name = value
 ```
-
-区域策略组会根据节点名称动态生成。需要区域组时，节点名中保留 `US`、`美国`、`JP`、`日本`、`SG`、`新加坡`、`HK`、`香港` 等地区关键词。

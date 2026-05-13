@@ -4,18 +4,17 @@ export function getRequestToken(request) {
   return new URL(request.url).searchParams.get("token") ?? "";
 }
 
-export function requireAuthorized(request, env) {
-  const expected = env.SUBSCRIBE_TOKEN;
-  if (!expected) {
-    throw new HttpError(500, "SUBSCRIBE_TOKEN is not configured");
-  }
-
+export function findAuthorizedProfile(request, profiles) {
   const actual = getRequestToken(request);
-  if (!tokensEqual(actual, expected)) {
+  const profile = profiles.find((candidate) => tokensEqual(actual, candidate.subscribeToken));
+  if (!profile) {
     throw new HttpError(401, "Unauthorized");
   }
 
-  return actual;
+  return {
+    profile,
+    token: actual,
+  };
 }
 
 function tokensEqual(actual, expected) {

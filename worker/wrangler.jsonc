@@ -4,11 +4,16 @@
   "main": "src/index.js",
   "compatibility_date": "2026-05-12",
   "workers_dev": true,
-  "secrets": {
-    "required": [
-      "SUBSCRIBE_TOKEN",
-      "NODES_TEXT"
-    ]
+  "kv_namespaces": [
+    {
+      "binding": "ATLAS_ROUTER",
+      "id": "1dfdee1920e04fa18276c4c694a6f530"
+    }
+  ],
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "https://REPLACE_WITH_TEAM_NAME.cloudflareaccess.com",
+    "ACCESS_AUD": "REPLACE_WITH_ACCESS_APPLICATION_AUD",
+    "ADMIN_EMAILS": "you@example.com"
   },
   "observability": {
     "enabled": false,

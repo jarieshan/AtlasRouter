@@ -2,7 +2,7 @@
 
 AtlasRouter 是一个围绕 Surge APP 组织的代理分流套件仓库，目标是把分流规则、脚本、模块和订阅生成逻辑放在同一个可维护的工程里。
 
-订阅服务计划部署在 Cloudflare Workers 上。节点信息不写入仓库，而是通过 Cloudflare Worker 的环境变量或 Secrets 注入；Worker 再结合本仓库维护的规则与策略，生成 Surge 可订阅的最终配置。
+订阅服务计划部署在 Cloudflare Workers 上。节点信息不写入仓库，而是通过 Cloudflare KV 注入；Worker 再结合本仓库维护的规则与策略，生成 Surge 可订阅的最终配置。
 
 ## 当前状态
 
@@ -32,7 +32,7 @@ AtlasRouter 是一个围绕 Surge APP 组织的代理分流套件仓库，目标
 ```mermaid
 flowchart LR
   A["Cloudflare Worker 请求"] --> B["鉴权与路径解析"]
-  B --> C["读取 Worker 环境变量 / Secrets"]
+  B --> C["读取 Worker KV"]
   C --> D["加载节点信息"]
   D --> E["组合 Surge 模板、策略组、规则和模块引用"]
   E --> F["输出最终订阅内容"]
@@ -60,8 +60,8 @@ Worker 会在测试和部署前运行 `scripts/generate-assets.js`，把 `surge/
 
 实际变量名由 Worker 实现决定，但应遵守以下边界：
 
-- 敏感值使用 Cloudflare Secrets 或等价安全机制。
-- 非敏感配置可以使用 Worker 环境变量。
+- 订阅 token 和节点信息通过 Cloudflare KV 注入，KV 读权限视为订阅敏感配置读取权限。
+- 管理页由 Cloudflare Access 保护，Worker 只校验 Access JWT 和管理员邮箱白名单。
 - 本地开发时不要提交 `.dev.vars*`、`.env*` 或任何真实节点信息。
 - Worker 代码应从 `fetch(request, env, ctx)` 的 `env` 参数读取绑定，避免硬编码。
 
