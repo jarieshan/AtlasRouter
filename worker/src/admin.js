@@ -322,6 +322,8 @@ export function renderAdminPage() {
     .search-box input { padding-left: 36px; }
     .profile-list {
       display: grid;
+      grid-auto-rows: 84px;
+      align-content: start;
       border-top: 1px solid var(--border);
       min-height: 480px;
     }
@@ -330,7 +332,7 @@ export function renderAdminPage() {
       grid-template-columns: minmax(0, 1fr) 40px;
       align-items: center;
       gap: 10px;
-      min-height: 80px;
+      min-height: 0;
       border-bottom: 1px solid var(--border);
       background: #fff;
       padding: 0 12px 0 24px;
@@ -431,7 +433,7 @@ export function renderAdminPage() {
       align-items: flex-start;
       justify-content: space-between;
       gap: 18px;
-      padding: 26px 24px 16px;
+      padding: 22px 24px 12px;
       background: #fff;
     }
     .profile-title-line {
@@ -489,14 +491,14 @@ export function renderAdminPage() {
       background: #fff;
       margin-bottom: 20px;
     }
-    .account-card { padding: 16px; }
+    .account-card { padding: 14px; }
     .account-card .button-row { margin-top: 14px; }
     .mitm-card {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 16px;
       align-items: center;
-      padding: 16px 18px;
+      padding: 14px 18px;
     }
     .mitm-main {
       display: flex;
@@ -521,9 +523,10 @@ export function renderAdminPage() {
     .ca-state.ready::before { background: var(--success); box-shadow: 0 0 0 0 transparent; }
     .mitm-fields {
       display: grid;
-      grid-template-columns: 220px minmax(0, 1fr);
-      gap: 12px;
-      margin-top: 14px;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 12px 16px;
+      align-items: end;
+      margin-top: 10px;
     }
     .card-grid {
       display: grid;
@@ -571,7 +574,7 @@ export function renderAdminPage() {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin: 8px 0 10px;
+      margin: 6px 0 10px;
       color: var(--text);
       font-size: 16px;
       font-weight: 850;
@@ -615,11 +618,11 @@ export function renderAdminPage() {
     .node-head,
     .node-card {
       display: grid;
-      grid-template-columns: minmax(160px, .3fr) minmax(260px, 1fr) 116px;
-      gap: 70px;
+      grid-template-columns: minmax(160px, .3fr) minmax(260px, 1fr) 108px;
+      gap: 28px;
       align-items: center;
       border-bottom: 1px solid var(--border);
-      padding: 7px 22px;
+      padding: 7px 18px;
     }
     .node-head {
       min-height: 36px;
@@ -823,6 +826,7 @@ export function renderAdminPage() {
       warnings: [],
       profileSearch: "",
       profilePage: 0,
+      showProfileFields: false,
     };
 
     rootEl.addEventListener("click", handleClick);
@@ -845,6 +849,7 @@ export function renderAdminPage() {
         if (!response.ok) throw new Error(responseErrorMessage(response, text));
         state.profiles = normalizeProfiles(JSON.parse(text));
         state.selectedProfileIndex = 0;
+        state.showProfileFields = false;
         state.savedSnapshot = snapshotConfig();
         refreshValidation();
         renderAll();
@@ -996,6 +1001,7 @@ export function renderAdminPage() {
         ...profile,
       });
       state.selectedProfileIndex = state.profiles.length - 1;
+      state.showProfileFields = true;
       refreshValidation();
       renderAll();
       setBusy(false);
@@ -1004,6 +1010,7 @@ export function renderAdminPage() {
 
     function selectProfile(index) {
       state.selectedProfileIndex = index;
+      state.showProfileFields = false;
       renderAll();
     }
 
@@ -1028,6 +1035,7 @@ export function renderAdminPage() {
       }
       state.profiles.splice(state.selectedProfileIndex + 1, 0, copy);
       state.selectedProfileIndex += 1;
+      state.showProfileFields = true;
       refreshValidation();
       renderAll();
       setBusy(false);
@@ -1040,6 +1048,7 @@ export function renderAdminPage() {
       if (!confirm("删除用户 " + (profile.name || profile.id) + "？")) return;
       state.profiles.splice(state.selectedProfileIndex, 1);
       state.selectedProfileIndex = Math.min(state.selectedProfileIndex, state.profiles.length - 1);
+      state.showProfileFields = false;
       refreshValidation();
       renderAll();
       setStatus("已删除用户");
@@ -1133,6 +1142,9 @@ export function renderAdminPage() {
     }
 
     function focusProfileFields() {
+      state.showProfileFields = true;
+      renderProfileEditor();
+      updateStaticActionState();
       const firstField = profileEditorEl.querySelector("[data-profile-field]");
       if (firstField) firstField.focus();
     }
@@ -1306,19 +1318,21 @@ export function renderAdminPage() {
       fields.title.textContent = profile.name || profile.id || "Unnamed";
       fields.subtitle.textContent = "ID: " + (profile.id || "missing-id");
 
-      const account = el("section", "account-card");
-      const form = el("div", "card-grid");
-      form.append(field("用户 ID", input("text", profile.id, "profile-field", "id", { autocomplete: "off" })));
-      form.append(field("显示名称", input("text", profile.name, "profile-field", "name", { autocomplete: "off" })));
-      form.append(field("订阅 Token", input("password", profile.subscribeToken, "profile-field", "subscribeToken", { autocomplete: "new-password" })));
-      form.append(field("订阅路径", readonlyInput(subscriptionPath(profile)), "full"));
-      account.append(form);
+      if (state.showProfileFields) {
+        const account = el("section", "account-card");
+        const form = el("div", "card-grid");
+        form.append(field("用户 ID", input("text", profile.id, "profile-field", "id", { autocomplete: "off" })));
+        form.append(field("显示名称", input("text", profile.name, "profile-field", "name", { autocomplete: "off" })));
+        form.append(field("订阅 Token", input("password", profile.subscribeToken, "profile-field", "subscribeToken", { autocomplete: "new-password" })));
+        form.append(field("订阅路径", readonlyInput(subscriptionPath(profile)), "full"));
+        account.append(form);
 
-      const profileActions = el("div", "button-row");
-      profileActions.append(actionButton("复制用户", "duplicate-profile"));
-      profileActions.append(actionButton("删除用户", "delete-profile", state.profiles.length <= 1, "danger"));
-      account.append(profileActions);
-      profileEditorEl.append(account);
+        const profileActions = el("div", "button-row");
+        profileActions.append(actionButton("复制用户", "duplicate-profile"));
+        profileActions.append(actionButton("删除用户", "delete-profile", state.profiles.length <= 1, "danger"));
+        account.append(profileActions);
+        profileEditorEl.append(account);
+      }
 
       const mitmCard = el("section", "mitm-card");
       const mitmContent = el("div", "");
@@ -1327,7 +1341,7 @@ export function renderAdminPage() {
       mitmMain.append(textEl("span", "ca-state " + (profileHasCa(profile) ? "ready" : "missing"), caStatusText(profile.mitm)));
       const mitmForm = el("div", "mitm-fields");
       mitmForm.append(field("启用", checkbox("随订阅输出 MitM CA", profile.mitm.enabled)));
-      mitmForm.append(field("解密域名", input("text", profile.mitm.hostname, "mitm-field", "hostname", { autocomplete: "off" }), "full"));
+      mitmForm.append(field("解密域名", input("text", profile.mitm.hostname, "mitm-field", "hostname", { autocomplete: "off" })));
       mitmContent.append(mitmMain, mitmForm);
       const mitmActions = el("div", "button-row");
       mitmActions.append(actionButton("重新生成证书", "regenerate-ca", false, "subtle"));
