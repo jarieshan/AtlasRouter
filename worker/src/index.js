@@ -5,7 +5,7 @@ import { loadRouterConfig, saveRouterConfig, serializeRouterConfig } from "./con
 import { HttpError } from "./errors.js";
 import { generateMitmCertificate } from "./mitm-certificate.js";
 import { getModule, renderSurgeProfile } from "./render-surge.js";
-import { ADMIN_CERTIFICATE_PATH, ADMIN_CONFIG_PATH, ADMIN_PATH, SUBSCRIPTION_PATH } from "./routes.js";
+import { ADMIN_CERTIFICATE_PATH, ADMIN_CONFIG_PATH, ADMIN_PATH, LEGACY_SUBSCRIPTION_PATH, SUBSCRIPTION_PATH } from "./routes.js";
 
 const SECURITY_HEADERS = {
   "content-security-policy": "default-src 'self'; base-uri 'none'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
@@ -67,7 +67,7 @@ export async function handleRequest(request, env) {
     const config = await loadRouterConfig(env);
     const { profile, token } = findAuthorizedProfile(request, config.profiles);
 
-    if (url.pathname === SUBSCRIPTION_PATH) {
+    if (url.pathname === SUBSCRIPTION_PATH || url.pathname === LEGACY_SUBSCRIPTION_PATH) {
       return textResponse(renderSurgeProfile({ requestUrl: request.url, token, nodes: profile.nodes, mitm: profile.mitm }));
     }
 
@@ -90,6 +90,7 @@ function isServedPath(pathname, moduleName) {
     || pathname === ADMIN_CONFIG_PATH
     || pathname === ADMIN_CERTIFICATE_PATH
     || pathname === SUBSCRIPTION_PATH
+    || pathname === LEGACY_SUBSCRIPTION_PATH
     || moduleName !== null;
 }
 

@@ -10,47 +10,64 @@ const ADMIN_DENY_MESSAGES = new Set([
   "Unknown Cloudflare Access signing key",
   "Forbidden",
 ]);
+const SUBSCRIPTION_PATH = "/AtlasRouter";
+const LEGACY_SUBSCRIPTION_PATH = "/atlas-router";
+const ADMIN_PATH = `${SUBSCRIPTION_PATH}/admin`;
+const ADMIN_CONFIG_PATH = `${ADMIN_PATH}/config`;
+const ADMIN_CERTIFICATE_PATH = `${ADMIN_PATH}/certificates`;
 
 const { baseUrl, timeoutMs } = parseArgs(process.argv.slice(2));
 
 const checks = [
-  protectedAdmin("admin page", "GET", "/admin"),
-  protectedAdmin("admin config", "GET", "/admin/config"),
-  protectedAdmin("admin certificate generator", "GET", "/admin/certificates"),
-  protectedAdmin("admin page method probe", "POST", "/admin"),
-  protectedAdmin("admin config method probe", "DELETE", "/admin/config"),
-  protectedAdmin("admin certificate unauthenticated generate", "POST", "/admin/certificates", {
+  protectedAdmin("admin page", "GET", ADMIN_PATH),
+  protectedAdmin("admin config", "GET", ADMIN_CONFIG_PATH),
+  protectedAdmin("admin certificate generator", "GET", ADMIN_CERTIFICATE_PATH),
+  protectedAdmin("admin page method probe", "POST", ADMIN_PATH),
+  protectedAdmin("admin config method probe", "DELETE", ADMIN_CONFIG_PATH),
+  protectedAdmin("admin certificate unauthenticated generate", "POST", ADMIN_CERTIFICATE_PATH, {
     "content-type": "application/json",
   }, "{}"),
-  protectedAdmin("admin config unauthenticated write", "PUT", "/admin/config", {
+  protectedAdmin("admin config unauthenticated write", "PUT", ADMIN_CONFIG_PATH, {
     "content-type": "application/json",
   }, "{}"),
-  protectedAdmin("admin config CORS preflight", "OPTIONS", "/admin/config", {
+  protectedAdmin("admin config CORS preflight", "OPTIONS", ADMIN_CONFIG_PATH, {
     origin: "https://example.test",
     "access-control-request-method": "PUT",
   }),
-  protectedAdmin("admin query token ignored", "GET", "/admin?admin_token=admin-token"),
-  protectedAdmin("config query token ignored", "GET", "/admin/config?admin_token=admin-token"),
-  protectedAdmin("admin authorization ignored", "GET", "/admin", {
+  protectedAdmin("admin query token ignored", "GET", `${ADMIN_PATH}?admin_token=admin-token`),
+  protectedAdmin("config query token ignored", "GET", `${ADMIN_CONFIG_PATH}?admin_token=admin-token`),
+  protectedAdmin("admin authorization ignored", "GET", ADMIN_PATH, {
     authorization: "Bearer admin-token",
   }),
-  protectedAdmin("config authorization ignored", "GET", "/admin/config", {
+  protectedAdmin("config authorization ignored", "GET", ADMIN_CONFIG_PATH, {
     authorization: "Bearer admin-token",
   }),
-  protectedAdmin("admin fake Access JWT rejected", "GET", "/admin", {
+  protectedAdmin("admin fake Access JWT rejected", "GET", ADMIN_PATH, {
     "cf-access-jwt-assertion": "bogus",
   }),
-  protectedAdmin("config fake Access JWT rejected", "GET", "/admin/config", {
+  protectedAdmin("config fake Access JWT rejected", "GET", ADMIN_CONFIG_PATH, {
     "cf-access-jwt-assertion": "bogus",
   }),
-  protectedAdmin("admin trailing slash", "GET", "/admin/"),
-  protectedAdmin("config trailing slash", "GET", "/admin/config/"),
+  protectedAdmin("admin trailing slash", "GET", `${ADMIN_PATH}/`),
+  protectedAdmin("config trailing slash", "GET", `${ADMIN_CONFIG_PATH}/`),
+  notServedOrProtectedAdmin("old admin page", "GET", "/admin"),
+  notServedOrProtectedAdmin("old admin config", "GET", "/admin/config"),
+  notServedOrProtectedAdmin("old admin certificate generator", "POST", "/admin/certificates", {
+    "content-type": "application/json",
+  }, "{}"),
   retiredRoute("retired admin page", "/atlas"),
   retiredRoute("retired admin config", "/atlas/config"),
-  unauthorizedRoute("subscription without token", "/atlas-router"),
-  unauthorizedRoute("subscription invalid token", "/atlas-router?token=invalid-token"),
-  unauthorizedRoute("subscription admin token ignored", "/atlas-router?admin_token=admin-token"),
-  unauthorizedRoute("subscription fallback headers ignored", "/atlas-router", {
+  unauthorizedRoute("subscription without token", SUBSCRIPTION_PATH),
+  unauthorizedRoute("subscription invalid token", `${SUBSCRIPTION_PATH}?token=invalid-token`),
+  unauthorizedRoute("subscription admin token ignored", `${SUBSCRIPTION_PATH}?admin_token=admin-token`),
+  unauthorizedRoute("subscription fallback headers ignored", SUBSCRIPTION_PATH, {
+    authorization: "Bearer admin-token",
+    "cf-access-jwt-assertion": "bogus",
+  }),
+  unauthorizedRoute("legacy subscription without token", LEGACY_SUBSCRIPTION_PATH),
+  unauthorizedRoute("legacy subscription invalid token", `${LEGACY_SUBSCRIPTION_PATH}?token=invalid-token`),
+  unauthorizedRoute("legacy subscription admin token ignored", `${LEGACY_SUBSCRIPTION_PATH}?admin_token=admin-token`),
+  unauthorizedRoute("legacy subscription fallback headers ignored", LEGACY_SUBSCRIPTION_PATH, {
     authorization: "Bearer admin-token",
     "cf-access-jwt-assertion": "bogus",
   }),
@@ -156,6 +173,25 @@ function protectedAdmin(name, method, path, headers = {}, body = undefined) {
     headers,
     body,
     assert: assertProtectedAdmin,
+  };
+}
+
+function notServedOrProtectedAdmin(name, method, path, headers = {}, body = undefined) {
+  return {
+    name,
+    method,
+    path,
+    headers,
+    body,
+    assert(result) {
+      if (leaksProtectedContent(result.body)) {
+        return fail("response body appears to contain protected AtlasRouter content");
+      }
+      if (result.status === 404 && result.body.trim() === "Not Found") {
+        return pass();
+      }
+      return assertProtectedAdmin(result);
+    },
   };
 }
 

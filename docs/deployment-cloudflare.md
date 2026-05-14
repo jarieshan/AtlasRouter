@@ -77,8 +77,9 @@ npx wrangler kv key put --binding=ATLAS_ROUTER router-config "$(cat router-confi
 在 Cloudflare Zero Trust 中为管理页创建 Access application，保护 Worker 域名下的管理路径：
 
 ```text
-https://<worker-domain>/admin
-https://<worker-domain>/admin/config
+https://<worker-domain>/AtlasRouter/admin
+https://<worker-domain>/AtlasRouter/admin/config
+https://<worker-domain>/AtlasRouter/admin/certificates
 ```
 
 Access policy 只允许自己的账号访问。然后在 Worker 的 Settings -> Variables and Secrets 中配置：
@@ -94,7 +95,7 @@ ADMIN_EMAILS=you@example.com
 部署后也可以打开管理页，粘贴完整 JSON 并保存到 `router-config`：
 
 ```text
-https://<worker-domain>/admin
+https://<worker-domain>/AtlasRouter/admin
 ```
 
 通过 Cloudflare Access 登录后，管理页会读取或保存 `router-config`。Worker 不再接收管理 token，也不接受 URL 查询参数或 `Authorization: Bearer` 作为管理凭证。
