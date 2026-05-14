@@ -35,8 +35,8 @@ export function renderAdminPage() {
       --purple: #6d5dfc;
       --purple-soft: #f0efff;
       --focus: rgba(37, 99, 235, .18);
-      --shadow: 0 10px 26px rgba(15, 23, 42, .06);
-      --shadow-soft: 0 8px 18px rgba(15, 23, 42, .045);
+      --shadow: 0 10px 30px rgba(15, 23, 42, .05);
+      --shadow-soft: 0 6px 16px rgba(15, 23, 42, .035);
       background: var(--bg);
       color: var(--text);
     }
@@ -79,39 +79,22 @@ export function renderAdminPage() {
     button.subtle { color: var(--primary); border-color: var(--primary-border); background: #fff; }
     button.ghost { border-color: transparent; background: transparent; box-shadow: none; }
     button.ghost:hover:not(:disabled) { background: var(--primary-soft); border-color: var(--border); }
-    button.icon-only {
-      width: 34px;
-      min-width: 34px;
-      padding: 0;
-      color: #51617a;
+    button.compact {
+      min-height: 30px;
+      border-radius: 7px;
+      padding: 0 10px;
+      font-size: 12px;
     }
-    button.icon-only .button-label { display: none; }
-    button::before {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 16px;
-      height: 16px;
-      font-size: 16px;
-      line-height: 1;
-      color: currentColor;
+    button.text-danger {
+      border-color: transparent;
+      background: transparent;
+      color: var(--danger);
+      box-shadow: none;
     }
-    button[data-action="save"]::before { content: "▣"; }
-    button[data-action="load"]::before { content: "↻"; }
-    button[data-action="add-profile"]::before,
-    button[data-action="add-group"]::before,
-    button[data-action="add-node"]::before { content: "+"; font-size: 18px; font-weight: 500; }
-    button[data-action="copy-url"]::before,
-    button[data-action="copy-profile-url"]::before,
-    button[data-action="copy-id"]::before,
-    button[data-action="copy-ca"]::before,
-    button[data-action="copy-node"]::before { content: "▣"; font-size: 13px; }
-    button[data-action="regenerate-ca"]::before { content: "↻"; }
-    button[data-action="delete-profile"]::before,
-    button[data-action="delete-group"]::before,
-    button[data-action="delete-node"]::before { content: "⌫"; font-size: 14px; }
-    button[data-action="focus-profile-fields"]::before { content: "✎"; }
-    button[data-page-action]::before { content: none; }
+    button.text-danger:hover:not(:disabled) {
+      border-color: #ffb8c0;
+      background: var(--danger-soft);
+    }
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: .95em;
@@ -122,7 +105,7 @@ export function renderAdminPage() {
       margin: 12px auto;
       border: 1px solid var(--border);
       border-radius: 14px;
-      background: rgba(255, 255, 255, .72);
+      background: #fff;
       box-shadow: var(--shadow);
       overflow: hidden;
     }
@@ -226,63 +209,63 @@ export function renderAdminPage() {
     .status-pill.error::before { background: var(--danger); box-shadow: 0 0 0 7px #ffe5e9; }
     .status-pill.success { border-color: var(--success-border); background: var(--success-soft); color: #13843f; }
     .status-pill.success::before { background: var(--success); box-shadow: 0 0 0 7px #dff8e8; }
-    .content { padding: 24px; }
+    .content { padding: 22px; }
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 24px;
+      gap: 16px;
       margin-bottom: 18px;
     }
     .metric {
       display: flex;
       align-items: center;
-      gap: 18px;
+      gap: 14px;
       min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       background: var(--surface);
-      padding: 18px 20px;
+      padding: 14px 16px;
       box-shadow: var(--shadow-soft);
     }
     .metric-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 54px;
-      height: 54px;
-      border-radius: 999px;
-      background: var(--primary-soft);
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: transparent;
       color: var(--primary);
       flex: 0 0 auto;
     }
-    .metric-icon svg { width: 27px; height: 27px; stroke: currentColor; stroke-width: 2.3; fill: none; }
-    .metric.ca .metric-icon { background: var(--success-soft); color: var(--success); }
-    .metric.groups .metric-icon { background: var(--purple-soft); color: var(--purple); }
-    .metric.nodes .metric-icon { background: #eef4ff; color: var(--primary); }
+    .metric-icon svg { width: 26px; height: 26px; stroke: currentColor; stroke-width: 2.2; fill: none; }
+    .metric.ca .metric-icon { color: var(--success); }
+    .metric.groups .metric-icon { color: var(--purple); }
+    .metric.nodes .metric-icon { color: var(--primary); }
     .metric span {
       display: block;
       margin-bottom: 5px;
       color: #64728a;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
     }
     .metric strong {
       display: block;
       color: #111827;
-      font-size: 26px;
+      font-size: 24px;
       line-height: 1;
       letter-spacing: 0;
     }
     .workspace {
       display: grid;
-      grid-template-columns: 414px minmax(0, 1fr);
-      gap: 20px;
+      grid-template-columns: 360px minmax(0, 1fr);
+      gap: 18px;
       align-items: start;
     }
     .panel {
       min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       background: var(--surface);
       overflow: hidden;
       box-shadow: var(--shadow-soft);
@@ -292,16 +275,16 @@ export function renderAdminPage() {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 22px 22px 12px;
+      padding: 18px 18px 12px;
       background: #fff;
     }
     .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
-    .panel-body { padding: 0 24px 18px; }
+    .panel-body { padding: 0 20px 18px; }
     .user-tools {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 16px;
-      padding: 0 22px 16px;
+      gap: 10px;
+      padding: 0 18px 14px;
     }
     .search-box {
       position: relative;
@@ -322,24 +305,23 @@ export function renderAdminPage() {
     .search-box input { padding-left: 36px; }
     .profile-list {
       display: grid;
-      grid-auto-rows: 84px;
+      grid-auto-rows: 72px;
       align-content: start;
       border-top: 1px solid var(--border);
-      min-height: 480px;
     }
     .profile-item {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 40px;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 10px;
       min-height: 0;
       border-bottom: 1px solid var(--border);
       background: #fff;
-      padding: 0 12px 0 24px;
+      padding: 0 14px 0 18px;
     }
     .profile-item.active {
       background: #f5f9ff;
-      box-shadow: inset 4px 0 0 var(--primary);
+      box-shadow: inset 3px 0 0 var(--primary);
     }
     .profile-main {
       display: block;
@@ -359,14 +341,14 @@ export function renderAdminPage() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 8px;
       min-width: 0;
     }
     .profile-name {
       flex: 1 1 auto;
       overflow: hidden;
       color: var(--text);
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 800;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -389,10 +371,10 @@ export function renderAdminPage() {
     .profile-badge {
       display: inline-flex;
       align-items: center;
-      min-height: 26px;
+      min-height: 24px;
       border: 1px solid var(--success-border);
       border-radius: 6px;
-      padding: 0 9px;
+      padding: 0 8px;
       background: var(--success-soft);
       color: #15803d;
       font-size: 12px;
@@ -411,8 +393,8 @@ export function renderAdminPage() {
       align-items: center;
       justify-content: center;
       gap: 12px;
-      min-height: 72px;
-      padding: 14px;
+      min-height: 58px;
+      padding: 12px;
     }
     .profile-pager button {
       width: 32px;
@@ -427,13 +409,13 @@ export function renderAdminPage() {
       background: #fff;
       box-shadow: 0 4px 12px rgba(37, 99, 235, .12);
     }
-    .editor-panel { min-height: 760px; }
+    .editor-panel { min-height: 0; }
     .editor-head {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 18px;
-      padding: 22px 24px 12px;
+      padding: 20px 20px 12px;
       background: #fff;
     }
     .profile-title-line {
@@ -444,7 +426,7 @@ export function renderAdminPage() {
     }
     .profile-title-line h2 {
       overflow: hidden;
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 850;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -487,9 +469,9 @@ export function renderAdminPage() {
     .account-card,
     .mitm-card {
       border: 1px solid var(--border);
-      border-radius: 9px;
+      border-radius: 8px;
       background: #fff;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
     .account-card { padding: 14px; }
     .account-card .button-row { margin-top: 14px; }
@@ -498,7 +480,7 @@ export function renderAdminPage() {
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 16px;
       align-items: center;
-      padding: 14px 18px;
+      padding: 14px 16px;
     }
     .mitm-main {
       display: flex;
@@ -574,31 +556,30 @@ export function renderAdminPage() {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin: 6px 0 10px;
+      margin: 2px 0 10px;
       color: var(--text);
       font-size: 16px;
       font-weight: 850;
     }
-    .group-stack { display: grid; gap: 14px; border: 0; border-radius: 0; }
+    .group-stack { display: grid; gap: 12px; border: 0; border-radius: 0; }
     .group-card {
       border: 1px solid var(--border);
-      border-radius: 9px;
+      border-radius: 8px;
       overflow: hidden;
       background: var(--surface);
     }
     .group-heading {
       display: grid;
-      grid-template-columns: minmax(220px, .36fr) minmax(90px, 1fr) auto;
-      gap: 16px;
+      grid-template-columns: minmax(220px, .32fr) minmax(90px, 1fr) auto;
+      gap: 14px;
       align-items: center;
       border-bottom: 1px solid var(--border);
-      padding: 10px 12px;
+      padding: 8px 12px;
       background: var(--surface-soft);
     }
     .group-title-row {
       display: grid;
-      grid-template-columns: 18px minmax(0, 1fr);
-      gap: 10px;
+      grid-template-columns: minmax(0, 1fr);
       align-items: center;
     }
     .drag-handle {
@@ -618,11 +599,11 @@ export function renderAdminPage() {
     .node-head,
     .node-card {
       display: grid;
-      grid-template-columns: minmax(160px, .3fr) minmax(260px, 1fr) 108px;
-      gap: 28px;
+      grid-template-columns: minmax(190px, .32fr) minmax(320px, 1fr) 104px;
+      gap: 16px;
       align-items: center;
       border-bottom: 1px solid var(--border);
-      padding: 7px 18px;
+      padding: 7px 14px;
     }
     .node-head {
       min-height: 36px;
@@ -631,10 +612,13 @@ export function renderAdminPage() {
       font-size: 13px;
       font-weight: 800;
     }
-    .node-card { min-height: 39px; background: #fff; }
+    .node-card { min-height: 44px; background: #fff; }
     .node-card .field label { display: none; }
-    .node-card textarea { resize: none; }
-    .node-actions { justify-content: flex-start; gap: 8px; }
+    .node-card input[data-node-field="value"] {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+    .node-actions { justify-content: flex-end; gap: 6px; }
     .add-node-row {
       padding: 8px 16px;
       background: #fff;
@@ -768,11 +752,11 @@ export function renderAdminPage() {
             <div>
               <div class="profile-title-line">
                 <h2 id="profile-title">用户配置</h2>
-                <button type="button" class="icon-only" data-action="focus-profile-fields" aria-label="编辑用户信息" title="编辑用户信息"></button>
+                <button type="button" class="compact" data-action="focus-profile-fields" aria-label="编辑用户信息" title="编辑用户信息">编辑</button>
               </div>
               <div class="id-row">
                 <span class="id-chip" id="profile-subtitle">加载后选择一个用户。</span>
-                <button type="button" class="icon-only" data-action="copy-id" aria-label="复制用户 ID" title="复制用户 ID" disabled></button>
+                <button type="button" class="compact" data-action="copy-id" aria-label="复制用户 ID" title="复制用户 ID" disabled>复制 ID</button>
               </div>
             </div>
             <div class="editor-actions">
@@ -1256,7 +1240,7 @@ export function renderAdminPage() {
 
         const meta = textEl("div", "profile-meta", "ID: " + (profile.id || "missing-id"));
         main.append(row, meta);
-        item.append(main, actionButton("复制订阅链接", "copy-profile-url", !profile.subscribeToken.trim(), "icon-only", { profileIndex: index }));
+        item.append(main, actionButton("复制", "copy-profile-url", !profile.subscribeToken.trim(), "compact", { profileIndex: index }));
         profileListEl.append(item);
       }
 
@@ -1371,7 +1355,6 @@ export function renderAdminPage() {
       const card = el("section", "group-card");
       const heading = el("div", "group-heading");
       const titleRow = el("div", "group-title-row");
-      titleRow.append(textEl("span", "drag-handle", "⋮"));
       const groupInput = document.createElement("input");
       groupInput.value = group.name;
       groupInput.dataset.groupField = "name";
@@ -1380,7 +1363,7 @@ export function renderAdminPage() {
       titleRow.append(groupInput);
 
       const actions = el("div", "top-actions");
-      actions.append(actionButton("删除分组", "delete-group", false, "danger icon-only", { group: group.name }));
+      actions.append(actionButton("删除组", "delete-group", false, "text-danger compact", { group: group.name }));
       heading.append(titleRow, textEl("span", "group-count", String(group.nodes.length) + " 个节点"), actions);
       card.append(heading);
 
@@ -1404,11 +1387,10 @@ export function renderAdminPage() {
     function renderNode(node, index) {
       const card = el("div", "node-card");
       card.append(field("节点名", input("text", node.name, "node-field", "name", { nodeIndex: index, autocomplete: "off" })));
-      card.append(field("Surge 参数", textarea(node.value, "node-field", "value", { nodeIndex: index })));
+      card.append(field("Surge 参数", input("text", node.value, "node-field", "value", { nodeIndex: index, autocomplete: "off" })));
       const actions = el("div", "node-actions");
-      actions.append(textEl("span", "drag-handle", "⋮"));
-      actions.append(actionButton("复制节点", "copy-node", false, "icon-only", { nodeIndex: index }));
-      actions.append(actionButton("删除节点", "delete-node", false, "danger icon-only", { nodeIndex: index }));
+      actions.append(actionButton("复制", "copy-node", false, "compact", { nodeIndex: index }));
+      actions.append(actionButton("删除", "delete-node", false, "text-danger compact", { nodeIndex: index }));
       card.append(actions);
       return card;
     }
