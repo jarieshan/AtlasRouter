@@ -170,7 +170,6 @@ export function renderAdminPage() {
     .top-actions,
     .editor-actions,
     .button-row,
-    .node-actions,
     .pager {
       display: flex;
       align-items: center;
@@ -336,11 +335,22 @@ export function renderAdminPage() {
       box-shadow: none;
     }
     .profile-main::before { content: none; }
-    .profile-main:hover:not(:disabled) { background: transparent; color: var(--text); }
+    .profile-main:hover:not(:disabled) {
+      border-color: transparent;
+      background: transparent;
+      color: var(--text);
+      box-shadow: none;
+    }
     .profile-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+    .profile-identity {
+      display: flex;
+      align-items: baseline;
       gap: 8px;
       min-width: 0;
     }
@@ -353,19 +363,18 @@ export function renderAdminPage() {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .profile-id-inline {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .profile-count {
       color: #5d6d85;
       font-size: 13px;
       font-weight: 700;
-      white-space: nowrap;
-    }
-    .profile-meta {
-      margin-top: 6px;
-      overflow: hidden;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.35;
-      text-overflow: ellipsis;
       white-space: nowrap;
     }
     .profile-badge {
@@ -423,6 +432,7 @@ export function renderAdminPage() {
       align-items: center;
       gap: 12px;
       min-width: 0;
+      flex-wrap: wrap;
     }
     .profile-title-line h2 {
       overflow: hidden;
@@ -430,12 +440,6 @@ export function renderAdminPage() {
       font-weight: 850;
       text-overflow: ellipsis;
       white-space: nowrap;
-    }
-    .id-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 12px;
     }
     .id-chip {
       display: inline-flex;
@@ -476,8 +480,8 @@ export function renderAdminPage() {
     .account-card { padding: 14px; }
     .account-card .button-row { margin-top: 14px; }
     .mitm-card {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      display: flex;
+      justify-content: space-between;
       gap: 16px;
       align-items: center;
       padding: 14px 16px;
@@ -503,12 +507,13 @@ export function renderAdminPage() {
     }
     .ca-state.missing::before { background: var(--warning); box-shadow: 0 0 0 0 transparent; }
     .ca-state.ready::before { background: var(--success); box-shadow: 0 0 0 0 transparent; }
-    .mitm-fields {
-      display: grid;
-      grid-template-columns: 180px minmax(0, 1fr);
-      gap: 12px 16px;
-      align-items: end;
-      margin-top: 10px;
+    .cert-name {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .card-grid {
       display: grid;
@@ -532,22 +537,12 @@ export function renderAdminPage() {
       color: var(--text);
     }
     input { min-height: 34px; padding: 0 10px; }
-    input[type="checkbox"] { width: 16px; min-height: 0; height: 16px; padding: 0; }
     textarea {
       min-height: 34px;
       resize: vertical;
       padding: 8px 10px;
       font: 13px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       tab-size: 2;
-    }
-    .check-control {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 38px;
-      color: var(--text);
-      font-size: 13px;
-      font-weight: 600;
     }
     .subtle-input { color: var(--muted); }
     .button-row { flex-wrap: wrap; margin-top: 0; }
@@ -561,74 +556,23 @@ export function renderAdminPage() {
       font-size: 16px;
       font-weight: 850;
     }
-    .group-stack { display: grid; gap: 12px; border: 0; border-radius: 0; }
-    .group-card {
+    .json-card {
       border: 1px solid var(--border);
       border-radius: 8px;
-      overflow: hidden;
-      background: var(--surface);
+      background: #fff;
+      padding: 12px;
     }
-    .group-heading {
-      display: grid;
-      grid-template-columns: minmax(220px, .32fr) minmax(90px, 1fr) auto;
-      gap: 14px;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      padding: 8px 12px;
-      background: var(--surface-soft);
-    }
-    .group-title-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      align-items: center;
-    }
-    .drag-handle {
-      color: var(--muted);
-      font-size: 18px;
-      line-height: 1;
-      text-align: center;
-      cursor: default;
-      user-select: none;
-    }
-    .group-count {
-      color: #718096;
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .node-table { display: grid; }
-    .node-head,
-    .node-card {
-      display: grid;
-      grid-template-columns: minmax(190px, .32fr) minmax(320px, 1fr) 104px;
-      gap: 16px;
-      align-items: center;
-      border-bottom: 1px solid var(--border);
-      padding: 7px 14px;
-    }
-    .node-head {
-      min-height: 36px;
-      background: #fbfcff;
-      color: #485a73;
-      font-size: 13px;
-      font-weight: 800;
-    }
-    .node-card { min-height: 44px; background: #fff; }
-    .node-card .field label { display: none; }
-    .node-card input[data-node-field="value"] {
+    .json-editor {
+      min-height: 360px;
+      resize: vertical;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 12px;
+      line-height: 1.5;
+      white-space: pre;
+      overflow: auto;
     }
-    .node-actions { justify-content: flex-end; gap: 6px; }
-    .add-node-row {
-      padding: 8px 16px;
-      background: #fff;
-    }
-    .add-node-row button {
-      width: 100%;
-      border-style: dashed;
-      color: var(--primary);
-      background: #fff;
-    }
+    .json-editor.invalid { border-color: #ff8a98; background: #fff8f9; }
+    .json-error { margin-top: 8px; color: var(--danger); font-size: 13px; font-weight: 700; }
     .empty {
       border: 1px dashed var(--border-strong);
       border-radius: 9px;
@@ -665,9 +609,7 @@ export function renderAdminPage() {
       .content { padding: 16px; }
       .app-actions, .top-actions, .editor-actions { justify-content: stretch; }
       .app-actions > *, .top-actions button, .editor-actions button { flex: 1 1 130px; }
-      .summary-grid, .card-grid, .mitm-card, .mitm-fields, .group-heading, .node-head, .node-card, .user-tools { grid-template-columns: 1fr; }
-      .node-head { display: none; }
-      .node-card { gap: 8px; padding: 12px; }
+      .summary-grid, .card-grid, .mitm-card, .user-tools { grid-template-columns: 1fr; }
       .profile-title-line h2 { white-space: normal; }
     }
   </style>
@@ -752,10 +694,8 @@ export function renderAdminPage() {
             <div>
               <div class="profile-title-line">
                 <h2 id="profile-title">用户配置</h2>
-                <button type="button" class="compact" data-action="focus-profile-fields" aria-label="编辑用户信息" title="编辑用户信息">编辑</button>
-              </div>
-              <div class="id-row">
                 <span class="id-chip" id="profile-subtitle">加载后选择一个用户。</span>
+                <button type="button" class="compact" data-action="focus-profile-fields" aria-label="编辑用户信息" title="编辑用户信息">编辑</button>
                 <button type="button" class="compact" data-action="copy-id" aria-label="复制用户 ID" title="复制用户 ID" disabled>复制 ID</button>
               </div>
             </div>
@@ -811,11 +751,13 @@ export function renderAdminPage() {
       profileSearch: "",
       profilePage: 0,
       showProfileFields: false,
+      nodeJsonDraft: "",
+      nodeJsonProfileIndex: -1,
+      nodeJsonError: "",
     };
 
     rootEl.addEventListener("click", handleClick);
     rootEl.addEventListener("input", handleInput);
-    rootEl.addEventListener("change", handleChange);
     window.addEventListener("beforeunload", (event) => {
       if (!isDirty()) return;
       event.preventDefault();
@@ -834,6 +776,7 @@ export function renderAdminPage() {
         state.profiles = normalizeProfiles(JSON.parse(text));
         state.selectedProfileIndex = 0;
         state.showProfileFields = false;
+        clearNodeJsonDraft();
         state.savedSnapshot = snapshotConfig();
         refreshValidation();
         renderAll();
@@ -873,6 +816,7 @@ export function renderAdminPage() {
         if (state.selectedProfileIndex >= state.profiles.length) {
           state.selectedProfileIndex = Math.max(0, state.profiles.length - 1);
         }
+        clearNodeJsonDraft();
         state.savedSnapshot = snapshotConfig();
         refreshValidation();
         renderAll();
@@ -899,14 +843,9 @@ export function renderAdminPage() {
       if (action === "copy-url") return copySelectedUrl();
       if (action === "copy-profile-url") return copyProfileUrl(Number(target.dataset.profileIndex));
       if (action === "copy-id") return copySelectedId();
-      if (action === "copy-ca") return copySelectedCertificate();
-      if (action === "copy-node") return copyNode(Number(target.dataset.nodeIndex));
       if (action === "focus-profile-fields") return focusProfileFields();
       if (action === "regenerate-ca") return regenerateSelectedCertificate();
-      if (action === "add-group") return addGroup();
-      if (action === "add-node") return addNode(target.dataset.group);
-      if (action === "delete-group") return deleteGroup(target.dataset.group);
-      if (action === "delete-node") return deleteNode(Number(target.dataset.nodeIndex));
+      if (action === "delete-ca") return deleteSelectedCertificate();
     }
 
     function handleInput(event) {
@@ -926,75 +865,35 @@ export function renderAdminPage() {
         fields.subtitle.textContent = "ID: " + (profile.id || "missing-id");
         renderProfiles();
       }
-      if (target.matches("[data-mitm-field]")) {
-        const profile = selectedProfile();
-        if (!profile) return;
-        profile.mitm[target.dataset.mitmField] = target.value;
-        refreshDerived();
-      }
-      if (target.matches("[data-node-field]")) {
-        const profile = selectedProfile();
-        const node = profile && profile.nodes[Number(target.dataset.nodeIndex)];
-        if (!node) return;
-        node[target.dataset.nodeField] = target.value;
-        refreshDerived();
-      }
-      if (target.matches("[data-group-field]")) {
-        const profile = selectedProfile();
-        if (!profile) return;
-        const previous = target.dataset.group;
-        for (const node of profile.nodes) {
-          if (node.group === previous) node.group = target.value;
-        }
-        target.dataset.group = target.value;
-        refreshDerived();
+      if (target.matches("[data-nodes-json]")) {
+        updateNodesFromJson(target.value);
       }
     }
 
-    function handleChange(event) {
-      if (event.target.matches("[data-mitm-toggle]")) {
-        const profile = selectedProfile();
-        if (!profile) return;
-        profile.mitm.enabled = event.target.checked;
-        refreshDerived();
-      }
-      if (event.target.matches("[data-group-field]")) {
-        renderAll();
-      }
-    }
-
-    async function addProfile() {
+    function addProfile() {
       const nextNumber = state.profiles.length + 1;
       const profile = {
         id: uniqueProfileId("user-" + nextNumber),
         name: "User " + nextNumber,
         subscribeToken: "",
-        mitm: blankMitm(true),
+        mitm: blankMitm(false),
         nodes: [blankNode(firstAvailableGroup())],
       };
-      setBusy(true);
-      setStatus("正在生成 MitM CA");
-      try {
-        profile.mitm = await createMitmCertificate(profile);
-      } catch (error) {
-        setStatus(error.message, "error");
-        setBusy(false);
-        return;
-      }
       state.profiles.push({
         ...profile,
       });
       state.selectedProfileIndex = state.profiles.length - 1;
       state.showProfileFields = true;
+      clearNodeJsonDraft();
       refreshValidation();
       renderAll();
-      setBusy(false);
-      setStatus("已新增用户并生成 CA", "success");
+      setStatus("已新增用户，请补全配置", "success");
     }
 
     function selectProfile(index) {
       state.selectedProfileIndex = index;
       state.showProfileFields = false;
+      clearNodeJsonDraft();
       renderAll();
     }
 
@@ -1020,6 +919,7 @@ export function renderAdminPage() {
       state.profiles.splice(state.selectedProfileIndex + 1, 0, copy);
       state.selectedProfileIndex += 1;
       state.showProfileFields = true;
+      clearNodeJsonDraft();
       refreshValidation();
       renderAll();
       setBusy(false);
@@ -1033,47 +933,10 @@ export function renderAdminPage() {
       state.profiles.splice(state.selectedProfileIndex, 1);
       state.selectedProfileIndex = Math.min(state.selectedProfileIndex, state.profiles.length - 1);
       state.showProfileFields = false;
+      clearNodeJsonDraft();
       refreshValidation();
       renderAll();
       setStatus("已删除用户");
-    }
-
-    function addGroup() {
-      const profile = selectedProfile();
-      if (!profile) return;
-      profile.nodes.push(blankNode(firstAvailableGroup(profile)));
-      refreshValidation();
-      renderAll();
-      setStatus("已新增分组");
-    }
-
-    function addNode(group) {
-      const profile = selectedProfile();
-      if (!profile) return;
-      profile.nodes.push(blankNode(group || firstAvailableGroup(profile)));
-      refreshValidation();
-      renderAll();
-      setStatus("已新增节点");
-    }
-
-    function deleteGroup(group) {
-      const profile = selectedProfile();
-      if (!profile) return;
-      const count = profile.nodes.filter((node) => node.group === group).length;
-      if (!confirm("删除分组 " + group + " 及其中 " + count + " 个节点？")) return;
-      profile.nodes = profile.nodes.filter((node) => node.group !== group);
-      refreshValidation();
-      renderAll();
-      setStatus("已删除分组");
-    }
-
-    function deleteNode(index) {
-      const profile = selectedProfile();
-      if (!profile || !profile.nodes[index]) return;
-      profile.nodes.splice(index, 1);
-      refreshValidation();
-      renderAll();
-      setStatus("已删除节点");
     }
 
     async function copySelectedUrl() {
@@ -1102,29 +965,6 @@ export function renderAdminPage() {
       }
     }
 
-    async function copySelectedCertificate() {
-      const profile = selectedProfile();
-      if (!profile || !profile.mitm.caCertificate.trim()) return;
-      try {
-        await copyText(profile.mitm.caCertificate.trim() + "\\n");
-        setStatus("CA 证书已复制", "success");
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
-    async function copyNode(index) {
-      const profile = selectedProfile();
-      const node = profile && profile.nodes[index];
-      if (!node) return;
-      try {
-        await copyText((node.name.trim() ? node.name.trim() + " = " : "") + node.value.trim());
-        setStatus("节点信息已复制", "success");
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
     function focusProfileFields() {
       state.showProfileFields = true;
       renderProfileEditor();
@@ -1145,7 +985,8 @@ export function renderAdminPage() {
       setBusy(true);
       setStatus("正在重新生成 MitM CA");
       try {
-        profile.mitm = await createMitmCertificate(profile, profile.mitm);
+        const previousMitm = profileHasCa(profile) ? profile.mitm : blankMitm(true);
+        profile.mitm = await createMitmCertificate(profile, previousMitm);
         refreshValidation();
         renderAll();
         setStatus("MitM CA 已重新生成", "success");
@@ -1154,6 +995,16 @@ export function renderAdminPage() {
       } finally {
         setBusy(false);
       }
+    }
+
+    function deleteSelectedCertificate() {
+      const profile = selectedProfile();
+      if (!profile || !profileHasCa(profile)) return;
+      if (!confirm("删除 " + caDisplayName(profile.mitm) + "？")) return;
+      profile.mitm = blankMitm(false);
+      refreshValidation();
+      renderAll();
+      setStatus("MitM CA 已删除");
     }
 
     async function createMitmCertificate(profile, previousMitm = blankMitm(true)) {
@@ -1234,12 +1085,14 @@ export function renderAdminPage() {
         main.dataset.profileIndex = String(index);
 
         const row = el("div", "profile-row");
-        row.append(textEl("span", "profile-name", profile.name || profile.id || "Unnamed"));
+        const identity = el("span", "profile-identity");
+        identity.append(textEl("span", "profile-name", profile.name || profile.id || "Unnamed"));
+        identity.append(textEl("span", "profile-id-inline", profile.id || "missing-id"));
+        row.append(identity);
         row.append(textEl("span", "profile-badge" + (profileHasCa(profile) ? "" : " missing"), profileHasCa(profile) ? "CA 已配置" : "CA 未配置"));
         row.append(textEl("span", "profile-count", String(profile.nodes.length) + " 个节点"));
 
-        const meta = textEl("div", "profile-meta", "ID: " + (profile.id || "missing-id"));
-        main.append(row, meta);
+        main.append(row);
         item.append(main, actionButton("复制", "copy-profile-url", !profile.subscribeToken.trim(), "compact", { profileIndex: index }));
         profileListEl.append(item);
       }
@@ -1319,80 +1172,78 @@ export function renderAdminPage() {
       }
 
       const mitmCard = el("section", "mitm-card");
-      const mitmContent = el("div", "");
       const mitmMain = el("div", "mitm-main");
       mitmMain.append(textEl("strong", "", "MitM CA"));
-      mitmMain.append(textEl("span", "ca-state " + (profileHasCa(profile) ? "ready" : "missing"), caStatusText(profile.mitm)));
-      const mitmForm = el("div", "mitm-fields");
-      mitmForm.append(field("启用", checkbox("随订阅输出 MitM CA", profile.mitm.enabled)));
-      mitmForm.append(field("解密域名", input("text", profile.mitm.hostname, "mitm-field", "hostname", { autocomplete: "off" })));
-      mitmContent.append(mitmMain, mitmForm);
+      mitmMain.append(textEl("span", "ca-state " + (profileHasCa(profile) ? "ready" : "missing"), caStatusText(profile)));
+      mitmMain.append(textEl("span", "cert-name", caDisplayName(profile.mitm)));
       const mitmActions = el("div", "button-row");
-      mitmActions.append(actionButton("重新生成证书", "regenerate-ca", false, "subtle"));
-      mitmActions.append(actionButton("复制 CA", "copy-ca", !profile.mitm.caCertificate.trim(), "subtle"));
-      mitmCard.append(mitmContent, mitmActions);
+      mitmActions.append(actionButton(profileHasCa(profile) ? "重新生成证书" : "生成证书", "regenerate-ca", false, "subtle"));
+      mitmActions.append(actionButton("删除", "delete-ca", !profileHasCa(profile), "text-danger"));
+      mitmCard.append(mitmMain, mitmActions);
       profileEditorEl.append(mitmCard);
 
       const groupsTitle = el("div", "section-title");
-      groupsTitle.append(textEl("span", "", "节点组"));
-      groupsTitle.append(actionButton("新增分组", "add-group"));
+      groupsTitle.append(textEl("span", "", "节点组 JSON"));
       profileEditorEl.append(groupsTitle);
 
-      const groups = groupedNodes(profile);
-      const stack = el("div", "group-stack");
-      if (groups.length === 0) {
-        stack.append(emptyState("当前用户没有节点"));
-      } else {
-        for (const group of groups) {
-          stack.append(renderGroup(group));
+      const jsonCard = el("section", "json-card");
+      const jsonEditor = document.createElement("textarea");
+      jsonEditor.className = "json-editor" + (hasCurrentNodeJsonError() ? " invalid" : "");
+      jsonEditor.value = nodesJsonValue(profile);
+      jsonEditor.dataset.nodesJson = "true";
+      jsonEditor.spellcheck = false;
+      jsonEditor.setAttribute("aria-label", "节点组 JSON");
+      jsonCard.append(jsonEditor);
+      if (hasCurrentNodeJsonError()) {
+        jsonCard.append(textEl("div", "json-error", "JSON 无效: " + state.nodeJsonError));
+      }
+      profileEditorEl.append(jsonCard);
+    }
+
+    function updateNodesFromJson(value) {
+      const profile = selectedProfile();
+      if (!profile) return;
+      state.nodeJsonDraft = value;
+      state.nodeJsonProfileIndex = state.selectedProfileIndex;
+      try {
+        profile.nodes = parseNodesJson(value);
+        clearNodeJsonDraft();
+      } catch (error) {
+        state.nodeJsonError = error.message;
+      }
+      refreshDerived();
+    }
+
+    function parseNodesJson(value) {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) throw new Error("必须是节点数组");
+      return parsed.map((node, index) => {
+        if (!node || typeof node !== "object" || Array.isArray(node)) {
+          throw new Error("第 " + (index + 1) + " 项必须是对象");
         }
-      }
-      profileEditorEl.append(stack);
-      profileEditorEl.append(knownGroupsDatalist());
+        return normalizeNode(node);
+      });
     }
 
-    function renderGroup(group) {
-      const card = el("section", "group-card");
-      const heading = el("div", "group-heading");
-      const titleRow = el("div", "group-title-row");
-      const groupInput = document.createElement("input");
-      groupInput.value = group.name;
-      groupInput.dataset.groupField = "name";
-      groupInput.dataset.group = group.name;
-      groupInput.setAttribute("list", "known-groups");
-      titleRow.append(groupInput);
-
-      const actions = el("div", "top-actions");
-      actions.append(actionButton("删除组", "delete-group", false, "text-danger compact", { group: group.name }));
-      heading.append(titleRow, textEl("span", "group-count", String(group.nodes.length) + " 个节点"), actions);
-      card.append(heading);
-
-      const nodes = el("div", "node-table");
-      const tableHead = el("div", "node-head");
-      tableHead.append(textEl("span", "", "节点名称"));
-      tableHead.append(textEl("span", "", "节点信息"));
-      tableHead.append(textEl("span", "", "操作"));
-      nodes.append(tableHead);
-      for (const nodeRef of group.nodes) {
-        nodes.append(renderNode(nodeRef.node, nodeRef.index));
+    function nodesJsonValue(profile) {
+      if (state.nodeJsonProfileIndex === state.selectedProfileIndex) {
+        return state.nodeJsonDraft;
       }
-      card.append(nodes);
-      const addRow = el("div", "add-node-row");
-      addRow.append(actionButton("添加节点", "add-node", false, "", { group: group.name }));
-      card.append(addRow);
-
-      return card;
+      return JSON.stringify(profile.nodes.map((node) => ({
+        group: node.group,
+        name: node.name,
+        value: node.value,
+      })), null, 2);
     }
 
-    function renderNode(node, index) {
-      const card = el("div", "node-card");
-      card.append(field("节点名", input("text", node.name, "node-field", "name", { nodeIndex: index, autocomplete: "off" })));
-      card.append(field("Surge 参数", input("text", node.value, "node-field", "value", { nodeIndex: index, autocomplete: "off" })));
-      const actions = el("div", "node-actions");
-      actions.append(actionButton("复制", "copy-node", false, "compact", { nodeIndex: index }));
-      actions.append(actionButton("删除", "delete-node", false, "text-danger compact", { nodeIndex: index }));
-      card.append(actions);
-      return card;
+    function hasCurrentNodeJsonError() {
+      return state.nodeJsonProfileIndex === state.selectedProfileIndex && !!state.nodeJsonError;
+    }
+
+    function clearNodeJsonDraft() {
+      state.nodeJsonDraft = "";
+      state.nodeJsonProfileIndex = -1;
+      state.nodeJsonError = "";
     }
 
     function refreshDerived() {
@@ -1406,7 +1257,9 @@ export function renderAdminPage() {
 
     function refreshValidation() {
       const report = validateProfiles(state.profiles);
-      state.errors = report.errors;
+      state.errors = hasCurrentNodeJsonError()
+        ? ["节点组 JSON 无效: " + state.nodeJsonError, ...report.errors]
+        : report.errors;
       state.warnings = report.warnings;
     }
 
@@ -1611,14 +1464,12 @@ export function renderAdminPage() {
     }
 
     function caDisplayName(mitm) {
-      if (!mitm.caP12) return "未生成";
+      if (!mitm.caP12) return "无证书";
       return mitm.caId ? "AtlasRouter CA " + mitm.caId : "已生成";
     }
 
-    function caStatusText(mitm) {
-      const name = caDisplayName(mitm);
-      if (name === "未生成") return "未配置";
-      return mitm.enabled ? name + "，自动启用" : name + "，未启用";
+    function caStatusText(profile) {
+      return profileHasCa(profile) ? "已配置" : "未配置";
     }
 
     function profileHasCa(profile) {
@@ -1672,7 +1523,7 @@ export function renderAdminPage() {
     }
 
     function isDirty() {
-      return state.savedSnapshot !== "" && snapshotConfig() !== state.savedSnapshot;
+      return state.savedSnapshot !== "" && (state.nodeJsonProfileIndex !== -1 || snapshotConfig() !== state.savedSnapshot);
     }
 
     function subscriptionPath(profile) {
@@ -1729,19 +1580,8 @@ export function renderAdminPage() {
       control.type = type;
       control.value = value;
       control.setAttribute("data-" + dataKind, dataField);
-      if (extra.nodeIndex != null) control.dataset.nodeIndex = String(extra.nodeIndex);
       if (extra.autocomplete) control.autocomplete = extra.autocomplete;
       return control;
-    }
-
-    function checkbox(labelText, checked) {
-      const wrapper = el("label", "check-control");
-      const control = document.createElement("input");
-      control.type = "checkbox";
-      control.checked = checked;
-      control.dataset.mitmToggle = "enabled";
-      wrapper.append(control, document.createTextNode(labelText));
-      return wrapper;
     }
 
     function readonlyInput(value) {
@@ -1750,25 +1590,6 @@ export function renderAdminPage() {
       control.readOnly = true;
       control.className = "subtle-input";
       return control;
-    }
-
-    function textarea(value, dataKind, dataField, extra = {}) {
-      const control = document.createElement("textarea");
-      control.value = value;
-      control.setAttribute("data-" + dataKind, dataField);
-      if (extra.nodeIndex != null) control.dataset.nodeIndex = String(extra.nodeIndex);
-      return control;
-    }
-
-    function knownGroupsDatalist() {
-      const datalist = document.createElement("datalist");
-      datalist.id = "known-groups";
-      for (const groupName of DEFAULT_GROUPS) {
-        const option = document.createElement("option");
-        option.value = groupName;
-        datalist.append(option);
-      }
-      return datalist;
     }
 
     function actionButton(label, action, disabled = false, tone = "", extra = {}) {
@@ -1797,8 +1618,12 @@ export function renderAdminPage() {
 
     async function copyText(value) {
       if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(value);
-        return;
+        try {
+          await navigator.clipboard.writeText(value);
+          return;
+        } catch {
+          // Fall back to the textarea path below for local previews and stricter browser policies.
+        }
       }
       const helper = document.createElement("textarea");
       helper.value = value;
@@ -1806,7 +1631,9 @@ export function renderAdminPage() {
       helper.style.position = "fixed";
       helper.style.top = "-1000px";
       document.body.append(helper);
+      helper.focus();
       helper.select();
+      helper.setSelectionRange(0, helper.value.length);
       const ok = document.execCommand("copy");
       helper.remove();
       if (!ok) throw new Error("复制失败");
