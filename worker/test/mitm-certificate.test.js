@@ -15,7 +15,7 @@ test("generates a parseable MitM CA p12", async () => {
 
   assert.equal(mitm.enabled, true);
   assert.equal(mitm.hostname, "");
-  assert.match(mitm.caId, /^[0-9a-f]{8}$/);
+  assert.match(mitm.caId, /^[0-9A-F]{8}$/);
   assert.equal(mitm.caPassphrase.length, 48);
   assert.equal(keyBags.length, 1);
   assert.equal(certBags.length, 1);

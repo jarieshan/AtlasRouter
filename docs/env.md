@@ -46,7 +46,7 @@ router-config
       "mitm": {
         "enabled": true,
         "hostname": "api.example.com, *.example.com",
-        "caId": "REPLACE_WITH_CA_ID",
+        "caId": "1A2B3C4D",
         "caP12": "REPLACE_WITH_BASE64_P12",
         "caPassphrase": "REPLACE_WITH_P12_PASSPHRASE",
         "caCertificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"

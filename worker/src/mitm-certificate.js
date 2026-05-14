@@ -5,7 +5,7 @@ const CA_ID_BYTES = 4;
 const RSA_PUBLIC_EXPONENT = new Uint8Array([0x01, 0x00, 0x01]);
 
 export async function generateMitmCertificate() {
-  const caId = randomHex(CA_ID_BYTES);
+  const caId = randomHex(CA_ID_BYTES).toUpperCase();
   const commonName = `AtlasRouter CA ${caId}`;
   const passphrase = randomHex(24);
   const keys = await generateRsaKeys();
