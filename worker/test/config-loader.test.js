@@ -9,6 +9,13 @@ const validNodes = [
     line: "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
   },
 ];
+const validMitm = {
+  enabled: true,
+  hostname: "api.example.com, *.example.com",
+  caP12: "QUJDRA==",
+  caPassphrase: "secret-passphrase",
+  caCertificate: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+};
 
 test("loads router config from KV", async () => {
   const config = await loadRouterConfig(createEnv(createConfig()));
@@ -32,6 +39,22 @@ test("loads legacy single-profile router config", () => {
       },
     ],
   });
+});
+
+test("loads and serializes per-profile MitM config", () => {
+  const config = parseRouterConfig({
+    profiles: [
+      {
+        id: "primary",
+        name: "Primary",
+        subscribeToken: "test-token",
+        mitm: validMitm,
+        nodes: validNodes,
+      },
+    ],
+  });
+
+  assert.deepEqual(serializeRouterConfig(config).profiles[0].mitm, validMitm);
 });
 
 test("rejects missing KV binding", async () => {
@@ -80,6 +103,24 @@ test("rejects duplicate profile tokens", () => {
         ],
       }),
     /Duplicate subscribeToken/,
+  );
+});
+
+test("rejects incomplete enabled MitM config", () => {
+  assert.throws(
+    () =>
+      parseRouterConfig({
+        profiles: [
+          {
+            id: "primary",
+            name: "Primary",
+            subscribeToken: "test-token",
+            mitm: { enabled: true, caP12: "", caPassphrase: "" },
+            nodes: validNodes,
+          },
+        ],
+      }),
+    /mitm requires caP12 and caPassphrase/,
   );
 });
 

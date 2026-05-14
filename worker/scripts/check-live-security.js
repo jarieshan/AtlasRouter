@@ -16,8 +16,12 @@ const { baseUrl, timeoutMs } = parseArgs(process.argv.slice(2));
 const checks = [
   protectedAdmin("admin page", "GET", "/admin"),
   protectedAdmin("admin config", "GET", "/admin/config"),
+  protectedAdmin("admin certificate generator", "GET", "/admin/certificates"),
   protectedAdmin("admin page method probe", "POST", "/admin"),
   protectedAdmin("admin config method probe", "DELETE", "/admin/config"),
+  protectedAdmin("admin certificate unauthenticated generate", "POST", "/admin/certificates", {
+    "content-type": "application/json",
+  }, "{}"),
   protectedAdmin("admin config unauthenticated write", "PUT", "/admin/config", {
     "content-type": "application/json",
   }, "{}"),
@@ -256,7 +260,7 @@ function locationHost(location) {
 }
 
 function leaksProtectedContent(body) {
-  return /AtlasRouter Admin|#!MANAGED-CONFIG|\[Proxy\]|"profiles"|"subscribeToken"|"nodes"/.test(body);
+  return /AtlasRouter Admin|#!MANAGED-CONFIG|\[Proxy\]|"profiles"|"subscribeToken"|"nodes"|"caP12"|"caPassphrase"/.test(body);
 }
 
 function summarizeBody(body) {

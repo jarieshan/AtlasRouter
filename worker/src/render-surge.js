@@ -4,19 +4,39 @@ import { renderProxyLines } from "./nodes.js";
 import { SUBSCRIPTION_PATH } from "./routes.js";
 
 const NODE_GROUP_PATTERN = /{{NODE_GROUP:([^}\r\n]+)}}/g;
-const FALLBACK_POLICY = "🚀 Select";
+const FALLBACK_POLICY = "🚀 Proxy";
 
-export function renderSurgeProfile({ requestUrl, token, nodes }) {
+export function renderSurgeProfile({ requestUrl, token, nodes, mitm = null }) {
   const nodeGroupState = getNodeGroupState(ASSETS.template, nodes);
   const template = renderNodeGroups(ASSETS.template, nodeGroupState);
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildUrl(requestUrl, SUBSCRIPTION_PATH, token)} interval=86400 strict=false`,
+    MITM_LINES: renderMitmLines(mitm),
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token),
     PROXY_LINES: renderProxyLines(nodes),
     RULE_LINES: renderRuleLines(ASSETS.rules, nodeGroupState.emptyGroups),
   };
 
   return replaceTemplate(template, replacements);
+}
+
+function renderMitmLines(mitm) {
+  if (!mitm || !mitm.enabled) {
+    return "";
+  }
+
+  const lines = [
+    "[MITM]",
+    "enable = true",
+    `ca-p12 = ${mitm.caP12}`,
+    `ca-passphrase = ${mitm.caPassphrase}`,
+  ];
+
+  if (mitm.hostname) {
+    lines.push(`hostname = ${mitm.hostname}`);
+  }
+
+  return lines.join("\n");
 }
 
 export function getModule(name) {

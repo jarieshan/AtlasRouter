@@ -38,7 +38,7 @@ test("renders Surge profile for matching tenant token", async () => {
   assert.match(body, /US-HOME-01 = trojan, us-home-01\.example\.com, 443, password=secret, sni=us-home-01\.example\.com/);
   assert.match(body, /^dns-server = 223\.5\.5\.5, 119\.29\.29\.29, system$/m);
   assert.match(body, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query,https:\/\/dns\.google\/dns-query,https:\/\/223\.5\.5\.5\/dns-query$/m);
-  assert.match(body, /🚀 Select = select, 🇺🇸 US, 🇯🇵 JP, 🇺🇸 US Home, ♻️ Auto, DIRECT/);
+  assert.match(body, /🚀 Proxy = select, 🇺🇸 US, 🇯🇵 JP, 🇺🇸 US Home, ♻️ Auto, DIRECT/);
   assert.match(body, /🤖 AIProxy = select, 🇺🇸 US Home, 🇺🇸 US, 🇯🇵 JP, ♻️ Auto/);
   assert.match(body, /🇺🇸 US = smart, US-01/);
   assert.match(body, /🇯🇵 JP = smart, JP-01/);
@@ -49,8 +49,8 @@ test("renders Surge profile for matching tenant token", async () => {
   assert.match(body, /DOMAIN-SUFFIX,kaggle\.com,🇺🇸 US/);
   assert.match(body, /RULE-SET,SYSTEM,DIRECT/);
   assert.match(body, /RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/OpenAI\/OpenAI\.list,🤖 AIProxy,update-interval=86400/);
-  assert.match(body, /RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/Telegram\/Telegram\.list,🚀 Select,update-interval=86400/);
-  assert.match(body, /FINAL,🚀 Select/);
+  assert.match(body, /RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/Telegram\/Telegram\.list,🚀 Proxy,update-interval=86400/);
+  assert.match(body, /FINAL,🚀 Proxy/);
 });
 
 test("renders different nodes for another tenant token", async () => {
@@ -60,6 +60,59 @@ test("renders different nodes for another tenant token", async () => {
   assert.equal(response.status, 200);
   assert.match(body, /US-02 = trojan, us-02\.example\.com, 443/);
   assert.doesNotMatch(body, /US-01 = trojan/);
+});
+
+test("renders per-profile MitM CA config", async () => {
+  const response = await handleRequest(
+    new Request("https://atlas.example/atlas-router?token=test-token"),
+    createEnv(createConfig({
+      profiles: [
+        {
+          id: "primary",
+          name: "Primary",
+          subscribeToken: "test-token",
+          mitm: {
+            enabled: true,
+            hostname: "api.example.com, *.example.com",
+            caP12: "QUJDRA==",
+            caPassphrase: "secret-passphrase",
+            caCertificate: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+          },
+          nodes,
+        },
+      ],
+    })),
+  );
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(body, /\[MITM\]/);
+  assert.match(body, /^enable = true$/m);
+  assert.match(body, /^ca-p12 = QUJDRA==$/m);
+  assert.match(body, /^ca-passphrase = secret-passphrase$/m);
+  assert.match(body, /^hostname = api\.example\.com, \*\.example\.com$/m);
+});
+
+test("generates admin MitM certificates with Cloudflare Access JWT", async () => {
+  const response = await handleRequest(
+    new Request("https://atlas.example/admin/certificates", {
+      method: "POST",
+      headers: {
+        ...accessHeaders(),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ id: "primary", name: "Primary" }),
+    }),
+    env,
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.mitm.enabled, true);
+  assert.equal(body.mitm.hostname, "");
+  assert.match(body.mitm.caP12, /^[A-Za-z0-9+/=]+$/);
+  assert.equal(body.mitm.caPassphrase.length, 48);
+  assert.match(body.mitm.caCertificate, /^-----BEGIN CERTIFICATE-----/);
 });
 
 test("rejects admin page without Cloudflare Access JWT", async () => {
@@ -134,6 +187,7 @@ test("requires Access before admin method handling", async () => {
   for (const request of [
     new Request("https://atlas.example/admin", { method: "POST" }),
     new Request("https://atlas.example/admin/config", { method: "DELETE" }),
+    new Request("https://atlas.example/admin/certificates", { method: "GET" }),
   ]) {
     const response = await handleRequest(request, env);
     assert.equal(response.status, 403);
@@ -147,6 +201,10 @@ test("requires Access before admin method handling", async () => {
     }),
     new Request("https://atlas.example/admin/config", {
       method: "DELETE",
+      headers: accessHeaders(),
+    }),
+    new Request("https://atlas.example/admin/certificates", {
+      method: "GET",
       headers: accessHeaders(),
     }),
   ]) {
@@ -392,7 +450,7 @@ test("omits configured node groups that have no nodes", async () => {
 
   assert.equal(response.status, 200);
   assert.match(body, /US-01 = trojan, us\.example\.com, 443/);
-  assert.match(body, /🚀 Select = select, 🇺🇸 US, ♻️ Auto, DIRECT/);
+  assert.match(body, /🚀 Proxy = select, 🇺🇸 US, ♻️ Auto, DIRECT/);
   assert.match(body, /🤖 AIProxy = select, 🇺🇸 US, ♻️ Auto/);
   assert.match(body, /🎥 GlobalMedia = select, 🇺🇸 US, ♻️ Auto/);
   assert.match(body, /🇺🇸 US = smart, US-01/);

@@ -3,8 +3,9 @@ import { requireAccessAdmin } from "./access-auth.js";
 import { findAuthorizedProfile } from "./auth.js";
 import { loadRouterConfig, saveRouterConfig, serializeRouterConfig } from "./config-loader.js";
 import { HttpError } from "./errors.js";
+import { generateMitmCertificate } from "./mitm-certificate.js";
 import { getModule, renderSurgeProfile } from "./render-surge.js";
-import { ADMIN_CONFIG_PATH, ADMIN_PATH, SUBSCRIPTION_PATH } from "./routes.js";
+import { ADMIN_CERTIFICATE_PATH, ADMIN_CONFIG_PATH, ADMIN_PATH, SUBSCRIPTION_PATH } from "./routes.js";
 
 const SECURITY_HEADERS = {
   "content-security-policy": "default-src 'self'; base-uri 'none'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
@@ -55,6 +56,10 @@ export async function handleRequest(request, env) {
       return await handleAdminConfigRequest(request, env);
     }
 
+    if (url.pathname === ADMIN_CERTIFICATE_PATH) {
+      return await handleAdminCertificateRequest(request, env);
+    }
+
     if (request.method !== "GET") {
       return textResponse("Method Not Allowed", 405);
     }
@@ -63,7 +68,7 @@ export async function handleRequest(request, env) {
     const { profile, token } = findAuthorizedProfile(request, config.profiles);
 
     if (url.pathname === SUBSCRIPTION_PATH) {
-      return textResponse(renderSurgeProfile({ requestUrl: request.url, token, nodes: profile.nodes }));
+      return textResponse(renderSurgeProfile({ requestUrl: request.url, token, nodes: profile.nodes, mitm: profile.mitm }));
     }
 
     if (moduleName !== null) {
@@ -83,6 +88,7 @@ export async function handleRequest(request, env) {
 function isServedPath(pathname, moduleName) {
   return pathname === ADMIN_PATH
     || pathname === ADMIN_CONFIG_PATH
+    || pathname === ADMIN_CERTIFICATE_PATH
     || pathname === SUBSCRIPTION_PATH
     || moduleName !== null;
 }
@@ -116,6 +122,23 @@ async function handleAdminConfigRequest(request, env) {
   const nextConfig = await readJson(request);
   const savedConfig = await saveRouterConfig(env, nextConfig);
   return jsonResponse(serializeRouterConfig(savedConfig));
+}
+
+async function handleAdminCertificateRequest(request, env) {
+  await requireAccessAdmin(request, env);
+
+  if (request.method !== "POST") {
+    return textResponse("Method Not Allowed", 405);
+  }
+
+  const input = await readJson(request);
+  const label = typeof input.name === "string" && input.name.trim()
+    ? input.name
+    : typeof input.id === "string" && input.id.trim()
+      ? input.id
+      : "AtlasRouter";
+
+  return jsonResponse({ mitm: generateMitmCertificate(label) });
 }
 
 function lastPathSegment(pathname) {

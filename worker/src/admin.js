@@ -1,4 +1,4 @@
-import { ADMIN_CONFIG_PATH, SUBSCRIPTION_PATH } from "./routes.js";
+import { ADMIN_CERTIFICATE_PATH, ADMIN_CONFIG_PATH, SUBSCRIPTION_PATH } from "./routes.js";
 
 export function renderAdminPage() {
   return `<!doctype html>
@@ -221,12 +221,22 @@ export function renderAdminPage() {
       color: var(--text);
     }
     input { min-height: 38px; padding: 0 11px; }
+    input[type="checkbox"] { width: 16px; min-height: 0; height: 16px; padding: 0; }
     textarea {
       min-height: 74px;
       resize: vertical;
       padding: 10px;
       font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       tab-size: 2;
+    }
+    .check-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
     }
     .subtle-input { color: var(--muted); }
     .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -387,6 +397,7 @@ export function renderAdminPage() {
   </main>
 
   <script>
+    const ADMIN_CERTIFICATE_PATH = ${JSON.stringify(ADMIN_CERTIFICATE_PATH)};
     const ADMIN_CONFIG_PATH = ${JSON.stringify(ADMIN_CONFIG_PATH)};
     const SUBSCRIPTION_PATH = ${JSON.stringify(SUBSCRIPTION_PATH)};
     const DEFAULT_GROUPS = ["🇺🇸 US", "🇯🇵 JP", "🇺🇸 US Home"];
@@ -498,6 +509,8 @@ export function renderAdminPage() {
       if (action === "duplicate-profile") return duplicateProfile();
       if (action === "delete-profile") return deleteProfile();
       if (action === "copy-url") return copySelectedUrl();
+      if (action === "copy-ca") return copySelectedCertificate();
+      if (action === "regenerate-ca") return regenerateSelectedCertificate();
       if (action === "add-group") return addGroup();
       if (action === "add-node") return addNode(target.dataset.group);
       if (action === "delete-group") return deleteGroup(target.dataset.group);
@@ -510,6 +523,12 @@ export function renderAdminPage() {
         const profile = selectedProfile();
         if (!profile) return;
         profile[target.dataset.profileField] = target.value;
+        refreshDerived();
+      }
+      if (target.matches("[data-mitm-field]")) {
+        const profile = selectedProfile();
+        if (!profile) return;
+        profile.mitm[target.dataset.mitmField] = target.value;
         refreshDerived();
       }
       if (target.matches("[data-node-field]")) {
@@ -532,23 +551,43 @@ export function renderAdminPage() {
     }
 
     function handleChange(event) {
+      if (event.target.matches("[data-mitm-toggle]")) {
+        const profile = selectedProfile();
+        if (!profile) return;
+        profile.mitm.enabled = event.target.checked;
+        refreshDerived();
+      }
       if (event.target.matches("[data-group-field]")) {
         renderAll();
       }
     }
 
-    function addProfile() {
+    async function addProfile() {
       const nextNumber = state.profiles.length + 1;
-      state.profiles.push({
+      const profile = {
         id: uniqueProfileId("user-" + nextNumber),
         name: "User " + nextNumber,
         subscribeToken: "",
+        mitm: blankMitm(true),
         nodes: [blankNode(firstAvailableGroup())],
+      };
+      setBusy(true);
+      setStatus("正在生成 MitM CA");
+      try {
+        profile.mitm = await createMitmCertificate(profile);
+      } catch (error) {
+        setStatus(error.message, "error");
+        setBusy(false);
+        return;
+      }
+      state.profiles.push({
+        ...profile,
       });
       state.selectedProfileIndex = state.profiles.length - 1;
       refreshValidation();
       renderAll();
-      setStatus("已新增用户");
+      setBusy(false);
+      setStatus("已新增用户并生成 CA", "success");
     }
 
     function selectProfile(index) {
@@ -556,20 +595,31 @@ export function renderAdminPage() {
       renderAll();
     }
 
-    function duplicateProfile() {
+    async function duplicateProfile() {
       const profile = selectedProfile();
       if (!profile) return;
+      setBusy(true);
+      setStatus("正在生成 MitM CA");
       const copy = {
         id: uniqueProfileId(profile.id + "-copy"),
         name: profile.name + " Copy",
         subscribeToken: "",
+        mitm: blankMitm(profile.mitm.enabled),
         nodes: profile.nodes.map((node) => ({ ...node })),
       };
+      try {
+        copy.mitm = await createMitmCertificate(copy, copy.mitm);
+      } catch (error) {
+        setStatus(error.message, "error");
+        setBusy(false);
+        return;
+      }
       state.profiles.splice(state.selectedProfileIndex + 1, 0, copy);
       state.selectedProfileIndex += 1;
       refreshValidation();
       renderAll();
-      setStatus("已复制用户");
+      setBusy(false);
+      setStatus("已复制用户并生成 CA", "success");
     }
 
     function deleteProfile() {
@@ -632,6 +682,51 @@ export function renderAdminPage() {
       } catch (error) {
         setStatus(error.message, "error");
       }
+    }
+
+    async function copySelectedCertificate() {
+      const profile = selectedProfile();
+      if (!profile || !profile.mitm.caCertificate.trim()) return;
+      try {
+        await copyText(profile.mitm.caCertificate.trim() + "\\n");
+        setStatus("CA 证书已复制", "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function regenerateSelectedCertificate() {
+      const profile = selectedProfile();
+      if (!profile) return;
+      if (profile.mitm.caCertificate && !confirm("重新生成 CA 后，需要在设备上安装并信任新证书。继续？")) return;
+      setBusy(true);
+      setStatus("正在重新生成 MitM CA");
+      try {
+        profile.mitm = await createMitmCertificate(profile, profile.mitm);
+        refreshValidation();
+        renderAll();
+        setStatus("MitM CA 已重新生成", "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function createMitmCertificate(profile, previousMitm = blankMitm(true)) {
+      const response = await fetch(ADMIN_CERTIFICATE_PATH, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: profile.id, name: profile.name }),
+      });
+      const text = await response.text();
+      if (!response.ok) throw new Error(text || response.statusText);
+      const data = JSON.parse(text);
+      return {
+        ...normalizeMitm(data.mitm),
+        enabled: previousMitm.enabled !== false,
+        hostname: previousMitm.hostname || "",
+      };
     }
 
     function renderAll() {
@@ -730,6 +825,21 @@ export function renderAdminPage() {
       profileActions.append(actionButton("删除用户", "delete-profile", state.profiles.length <= 1, "danger"));
       profileEditorEl.append(profileActions);
 
+      const mitmTitle = el("div", "section-title");
+      mitmTitle.append(textEl("span", "", "MitM CA"));
+      mitmTitle.append(actionButton("重新生成 CA", "regenerate-ca"));
+      profileEditorEl.append(mitmTitle);
+
+      const mitmForm = el("div", "card-grid");
+      mitmForm.append(field("启用", checkbox("随订阅输出 MitM CA", profile.mitm.enabled)));
+      mitmForm.append(field("CA 状态", readonlyInput(profile.mitm.caP12 ? "已生成" : "未生成")));
+      mitmForm.append(field("解密域名", input("text", profile.mitm.hostname, "mitm-field", "hostname", { autocomplete: "off" }), "full"));
+      profileEditorEl.append(mitmForm);
+
+      const mitmActions = el("div", "button-row");
+      mitmActions.append(actionButton("复制 CA 证书", "copy-ca", !profile.mitm.caCertificate.trim()));
+      profileEditorEl.append(mitmActions);
+
       const groupsTitle = el("div", "section-title");
       groupsTitle.append(textEl("span", "", "节点分组"));
       groupsTitle.append(actionButton("新增分组", "add-group"));
@@ -821,6 +931,15 @@ export function renderAdminPage() {
           if (tokens.has(profile.subscribeToken.trim())) errors.push(label + " 的订阅 Token 与其他用户重复");
           tokens.add(profile.subscribeToken.trim());
         }
+        checkSingleLine(profile.mitm.hostname, label + " 的 MitM 解密域名", errors);
+        checkSingleLine(profile.mitm.caP12, label + " 的 MitM caP12", errors);
+        checkSingleLine(profile.mitm.caPassphrase, label + " 的 MitM caPassphrase", errors);
+        if (profile.mitm.enabled && (!profile.mitm.caP12.trim() || !profile.mitm.caPassphrase.trim())) {
+          errors.push(label + " 启用 MitM 时需要 CA 证书");
+        }
+        if (profile.mitm.caP12.trim() && !/^[A-Za-z0-9+/=]+$/.test(profile.mitm.caP12.trim())) {
+          errors.push(label + " 的 MitM caP12 必须是 base64");
+        }
         if (profile.nodes.length === 0) {
           errors.push(label + " 至少需要一个节点");
           return;
@@ -865,10 +984,22 @@ export function renderAdminPage() {
         id: stringValue(profile && profile.id) || "user-" + (index + 1),
         name: stringValue(profile && profile.name) || "User " + (index + 1),
         subscribeToken: stringValue(profile && profile.subscribeToken),
+        mitm: normalizeMitm(profile && profile.mitm),
         nodes: Array.isArray(profile && profile.nodes)
           ? profile.nodes.map(normalizeNode)
           : [],
       }));
+    }
+
+    function normalizeMitm(mitm) {
+      if (!mitm || typeof mitm !== "object" || Array.isArray(mitm)) return blankMitm();
+      return {
+        enabled: mitm.enabled === true,
+        hostname: stringValue(mitm.hostname),
+        caP12: stringValue(mitm.caP12),
+        caPassphrase: stringValue(mitm.caPassphrase),
+        caCertificate: stringValue(mitm.caCertificate),
+      };
     }
 
     function normalizeNode(node) {
@@ -897,12 +1028,31 @@ export function renderAdminPage() {
           id: profile.id.trim(),
           name: profile.name.trim(),
           subscribeToken: profile.subscribeToken.trim(),
+          ...(hasMitm(profile.mitm) ? {
+            mitm: {
+              enabled: profile.mitm.enabled,
+              hostname: profile.mitm.hostname.trim(),
+              caP12: profile.mitm.caP12.trim(),
+              caPassphrase: profile.mitm.caPassphrase.trim(),
+              caCertificate: profile.mitm.caCertificate.trim(),
+            },
+          } : {}),
           nodes: profile.nodes.map((node) => ({
             group: node.group.trim(),
             line: node.name.trim() + " = " + node.value.trim(),
           })),
         })),
       };
+    }
+
+    function hasMitm(mitm) {
+      return !!mitm && (
+        mitm.enabled
+        || mitm.hostname.trim()
+        || mitm.caP12.trim()
+        || mitm.caPassphrase.trim()
+        || mitm.caCertificate.trim()
+      );
     }
 
     function snapshotConfig() {
@@ -941,6 +1091,16 @@ export function renderAdminPage() {
 
     function blankNode(group) {
       return { group, name: "", value: "" };
+    }
+
+    function blankMitm(enabled = false) {
+      return {
+        enabled,
+        hostname: "",
+        caP12: "",
+        caPassphrase: "",
+        caCertificate: "",
+      };
     }
 
     function uniqueProfileId(base) {
@@ -1030,6 +1190,16 @@ export function renderAdminPage() {
       if (extra.nodeIndex != null) control.dataset.nodeIndex = String(extra.nodeIndex);
       if (extra.autocomplete) control.autocomplete = extra.autocomplete;
       return control;
+    }
+
+    function checkbox(labelText, checked) {
+      const wrapper = el("label", "check-control");
+      const control = document.createElement("input");
+      control.type = "checkbox";
+      control.checked = checked;
+      control.dataset.mitmToggle = "enabled";
+      wrapper.append(control, document.createTextNode(labelText));
+      return wrapper;
     }
 
     function readonlyInput(value) {
