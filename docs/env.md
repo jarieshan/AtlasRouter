@@ -46,6 +46,7 @@ router-config
       "mitm": {
         "enabled": true,
         "hostname": "api.example.com, *.example.com",
+        "caId": "REPLACE_WITH_CA_ID",
         "caP12": "REPLACE_WITH_BASE64_P12",
         "caPassphrase": "REPLACE_WITH_P12_PASSPHRASE",
         "caCertificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
@@ -57,7 +58,7 @@ router-config
 
 首次配置可以用 Wrangler 写入 `router-config`，也可以部署后访问 `/admin`，通过 Cloudflare Access 登录并粘贴完整 JSON 保存。
 
-`mitm` 是可选字段。通过 `/admin` 新增或复制用户时，Worker 会为该用户生成独立 CA，并保存在对应 profile 的 `mitm` 中。订阅始终包含 `[MITM]`；没有 CA 或未启用时输出 `enable = false`，有 CA 且启用时才把 `caP12` 和 `caPassphrase` 渲染为 Surge 的 `ca-p12` 和 `ca-passphrase`。`hostname` 为空时不会默认解密具体域名，可后续在管理页填写或用 Surge 模块追加。
+`mitm` 是可选字段。通过 `/admin` 新增或复制用户时，Worker 会为该用户生成独立 CA，证书名称为 `AtlasRouter CA <caId>`，并保存在对应 profile 的 `mitm` 中。订阅始终包含 `[MITM]`；没有 CA 或未启用时输出 `enable = false`，有 CA 且启用时才把 `caP12` 和 `caPassphrase` 渲染为 Surge 的 `ca-p12` 和 `ca-passphrase`。`hostname` 为空时不会默认解密具体域名，可后续在管理页填写或用 Surge 模块追加。
 
 `caP12` 和 `caPassphrase` 等同于该用户 MitM CA 的私钥材料。不要把包含真实 `mitm` 的 `router-config` 写进 Git、文档、截图或日志。怀疑泄露时，应该在管理页重新生成 CA，并在设备上移除旧 CA 信任后安装新 CA。
 

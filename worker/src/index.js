@@ -131,14 +131,9 @@ async function handleAdminCertificateRequest(request, env) {
     return textResponse("Method Not Allowed", 405);
   }
 
-  const input = await readJson(request);
-  const label = typeof input.name === "string" && input.name.trim()
-    ? input.name
-    : typeof input.id === "string" && input.id.trim()
-      ? input.id
-      : "AtlasRouter";
+  await readJson(request);
 
-  return jsonResponse({ mitm: await generateMitmCertificate(label) });
+  return jsonResponse({ mitm: await generateMitmCertificate() });
 }
 
 function lastPathSegment(pathname) {

@@ -832,7 +832,7 @@ export function renderAdminPage() {
 
       const mitmForm = el("div", "card-grid");
       mitmForm.append(field("启用", checkbox("随订阅输出 MitM CA", profile.mitm.enabled)));
-      mitmForm.append(field("CA 状态", readonlyInput(profile.mitm.caP12 ? "已生成" : "未生成")));
+      mitmForm.append(field("CA 状态", readonlyInput(caDisplayName(profile.mitm))));
       mitmForm.append(field("解密域名", input("text", profile.mitm.hostname, "mitm-field", "hostname", { autocomplete: "off" }), "full"));
       profileEditorEl.append(mitmForm);
 
@@ -996,6 +996,7 @@ export function renderAdminPage() {
       return {
         enabled: mitm.enabled === true,
         hostname: stringValue(mitm.hostname),
+        caId: stringValue(mitm.caId),
         caP12: stringValue(mitm.caP12),
         caPassphrase: stringValue(mitm.caPassphrase),
         caCertificate: stringValue(mitm.caCertificate),
@@ -1032,6 +1033,7 @@ export function renderAdminPage() {
             mitm: {
               enabled: profile.mitm.enabled,
               hostname: profile.mitm.hostname.trim(),
+              caId: profile.mitm.caId.trim(),
               caP12: profile.mitm.caP12.trim(),
               caPassphrase: profile.mitm.caPassphrase.trim(),
               caCertificate: profile.mitm.caCertificate.trim(),
@@ -1049,6 +1051,7 @@ export function renderAdminPage() {
       return !!mitm && (
         mitm.enabled
         || mitm.hostname.trim()
+        || mitm.caId.trim()
         || mitm.caP12.trim()
         || mitm.caPassphrase.trim()
         || mitm.caCertificate.trim()
@@ -1097,10 +1100,16 @@ export function renderAdminPage() {
       return {
         enabled,
         hostname: "",
+        caId: "",
         caP12: "",
         caPassphrase: "",
         caCertificate: "",
       };
+    }
+
+    function caDisplayName(mitm) {
+      if (!mitm.caP12) return "未生成";
+      return mitm.caId ? "AtlasRouter CA " + mitm.caId : "已生成";
     }
 
     function uniqueProfileId(base) {

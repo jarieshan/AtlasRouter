@@ -113,6 +113,7 @@ test("generates admin MitM certificates with Cloudflare Access JWT", async () =>
   assert.equal(response.status, 200);
   assert.equal(body.mitm.enabled, true);
   assert.equal(body.mitm.hostname, "");
+  assert.match(body.mitm.caId, /^[0-9a-f]{8}$/);
   assert.match(body.mitm.caP12, /^[A-Za-z0-9+/=]+$/);
   assert.equal(body.mitm.caPassphrase.length, 48);
   assert.match(body.mitm.caCertificate, /^-----BEGIN CERTIFICATE-----/);

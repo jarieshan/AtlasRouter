@@ -1,11 +1,12 @@
 import forge from "node-forge";
 
 const CERT_VALIDITY_YEARS = 5;
+const CA_ID_BYTES = 4;
 const RSA_PUBLIC_EXPONENT = new Uint8Array([0x01, 0x00, 0x01]);
 
-export async function generateMitmCertificate(label = "AtlasRouter") {
-  const safeLabel = singleLine(label).slice(0, 80) || "AtlasRouter";
-  const commonName = `${safeLabel} MITM CA`;
+export async function generateMitmCertificate() {
+  const caId = randomHex(CA_ID_BYTES);
+  const commonName = `AtlasRouter CA ${caId}`;
   const passphrase = randomHex(24);
   const keys = await generateRsaKeys();
   const certificate = forge.pki.createCertificate();
@@ -45,6 +46,7 @@ export async function generateMitmCertificate(label = "AtlasRouter") {
   return {
     enabled: true,
     hostname: "",
+    caId,
     caP12: forge.util.encode64(p12Bytes).replace(/\s+/g, ""),
     caPassphrase: passphrase,
     caCertificate: forge.pki.certificateToPem(certificate).trimEnd(),
@@ -101,8 +103,4 @@ function randomSerialNumber() {
     bytes[15] = 1;
   }
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function singleLine(value) {
-  return String(value ?? "").replace(/[\r\n]+/g, " ").trim();
 }

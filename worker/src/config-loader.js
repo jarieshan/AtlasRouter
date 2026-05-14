@@ -116,6 +116,7 @@ function serializeProfile(profile) {
     output.mitm = {
       enabled: profile.mitm.enabled,
       hostname: profile.mitm.hostname,
+      caId: profile.mitm.caId,
       caP12: profile.mitm.caP12,
       caPassphrase: profile.mitm.caPassphrase,
       caCertificate: profile.mitm.caCertificate,
@@ -135,11 +136,13 @@ function parseMitmConfig(value, profileId) {
 
   const enabled = value.enabled === true;
   const hostname = optionalString(value.hostname, `Profile ${profileId} mitm hostname must be a string`);
+  const caId = optionalString(value.caId, `Profile ${profileId} mitm caId must be a string`);
   const caP12 = optionalString(value.caP12, `Profile ${profileId} mitm caP12 must be a string`);
   const caPassphrase = optionalString(value.caPassphrase, `Profile ${profileId} mitm caPassphrase must be a string`);
   const caCertificate = optionalString(value.caCertificate, `Profile ${profileId} mitm caCertificate must be a string`);
 
   assertSingleLine(hostname, `Profile ${profileId} mitm hostname must be a single line`);
+  assertSingleLine(caId, `Profile ${profileId} mitm caId must be a single line`);
   assertSingleLine(caP12, `Profile ${profileId} mitm caP12 must be a single line`);
   assertSingleLine(caPassphrase, `Profile ${profileId} mitm caPassphrase must be a single line`);
   if (caP12 && !/^[A-Za-z0-9+/=]+$/.test(caP12)) {
@@ -155,6 +158,7 @@ function parseMitmConfig(value, profileId) {
   return {
     enabled,
     hostname,
+    caId,
     caP12,
     caPassphrase,
     caCertificate,

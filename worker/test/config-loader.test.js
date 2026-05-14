@@ -12,6 +12,7 @@ const validNodes = [
 const validMitm = {
   enabled: true,
   hostname: "api.example.com, *.example.com",
+  caId: "1a2b3c4d",
   caP12: "QUJDRA==",
   caPassphrase: "secret-passphrase",
   caCertificate: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
