@@ -38,6 +38,9 @@ test("renders Surge profile for matching tenant token", async () => {
   assert.match(body, /US-HOME-01 = trojan, us-home-01\.example\.com, 443, password=secret, sni=us-home-01\.example\.com/);
   assert.match(body, /^dns-server = 223\.5\.5\.5, 119\.29\.29\.29, system$/m);
   assert.match(body, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query,https:\/\/dns\.google\/dns-query,https:\/\/223\.5\.5\.5\/dns-query$/m);
+  assert.match(body, /\[MITM\]\nenable = false/);
+  assert.doesNotMatch(body, /^ca-p12 = /m);
+  assert.doesNotMatch(body, /^ca-passphrase = /m);
   assert.match(body, /🚀 Proxy = select, 🇺🇸 US, 🇯🇵 JP, 🇺🇸 US Home, ♻️ Auto, DIRECT/);
   assert.match(body, /🤖 AIProxy = select, 🇺🇸 US Home, 🇺🇸 US, 🇯🇵 JP, ♻️ Auto/);
   assert.match(body, /🇺🇸 US = smart, US-01/);

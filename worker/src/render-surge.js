@@ -21,12 +21,11 @@ export function renderSurgeProfile({ requestUrl, token, nodes, mitm = null }) {
 }
 
 function renderMitmLines(mitm) {
-  if (!mitm || !mitm.enabled) {
-    return "";
+  if (!mitm || !mitm.enabled || !mitm.caP12 || !mitm.caPassphrase) {
+    return "enable = false";
   }
 
   const lines = [
-    "[MITM]",
     "enable = true",
     `ca-p12 = ${mitm.caP12}`,
     `ca-passphrase = ${mitm.caPassphrase}`,
