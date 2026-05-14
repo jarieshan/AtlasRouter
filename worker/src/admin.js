@@ -444,7 +444,7 @@ export function renderAdminPage() {
       try {
         const response = await fetch(ADMIN_CONFIG_PATH);
         const text = await response.text();
-        if (!response.ok) throw new Error(text || response.statusText);
+        if (!response.ok) throw new Error(responseErrorMessage(response, text));
         state.profiles = normalizeProfiles(JSON.parse(text));
         state.selectedProfileIndex = 0;
         state.savedSnapshot = snapshotConfig();
@@ -481,7 +481,7 @@ export function renderAdminPage() {
           body: JSON.stringify(buildConfig()),
         });
         const text = await response.text();
-        if (!response.ok) throw new Error(text || response.statusText);
+        if (!response.ok) throw new Error(responseErrorMessage(response, text));
         state.profiles = normalizeProfiles(JSON.parse(text));
         if (state.selectedProfileIndex >= state.profiles.length) {
           state.selectedProfileIndex = Math.max(0, state.profiles.length - 1);
@@ -720,7 +720,7 @@ export function renderAdminPage() {
         body: JSON.stringify({ id: profile.id, name: profile.name }),
       });
       const text = await response.text();
-      if (!response.ok) throw new Error(text || response.statusText);
+      if (!response.ok) throw new Error(responseErrorMessage(response, text));
       const data = JSON.parse(text);
       return {
         ...normalizeMitm(data.mitm),
@@ -1133,6 +1133,12 @@ export function renderAdminPage() {
     function setStatus(message, tone) {
       statusEl.textContent = message;
       statusEl.className = "status-pill" + (tone ? " " + tone : "");
+    }
+
+    function responseErrorMessage(response, text) {
+      const title = text.match(/<title>([^<]+)<\\/title>/i);
+      if (title) return title[1].replace(/\\s+/g, " ").trim();
+      return text || response.statusText || "HTTP " + response.status;
     }
 
     function isDirty() {

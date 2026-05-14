@@ -138,7 +138,7 @@ async function handleAdminCertificateRequest(request, env) {
       ? input.id
       : "AtlasRouter";
 
-  return jsonResponse({ mitm: generateMitmCertificate(label) });
+  return jsonResponse({ mitm: await generateMitmCertificate(label) });
 }
 
 function lastPathSegment(pathname) {
