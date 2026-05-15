@@ -1,5 +1,23 @@
 import { ADMIN_CERTIFICATE_PATH, ADMIN_CONFIG_PATH, SUBSCRIPTION_PATH } from "./routes.js";
 
+const ADMIN_ICONS = {
+  braces: '<svg viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-4a2 2 0 0 1 2-2 2 2 0 0 1-2-2V7a2 2 0 0 0-2-2h-1"/></svg>',
+  copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  link: '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-15.3-6.4L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 15.3 6.4L21 16"/><path d="M16 16h5v5"/></svg>',
+  save: '<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>',
+  shield: '<svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"/><path d="m9 12 2 2 4-5"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+  users: '<svg viewBox="0 0 24 24"><path d="M16 19v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 19v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+};
+
+function renderIcon(name, className = "button-icon") {
+  return ADMIN_ICONS[name] ? `<span class="${className}" aria-hidden="true">${ADMIN_ICONS[name]}</span>` : "";
+}
+
 export function renderAdminPage() {
   return `<!doctype html>
 <html lang="zh-CN">
@@ -85,6 +103,12 @@ export function renderAdminPage() {
       padding: 0 10px;
       font-size: 12px;
     }
+    button.icon-only {
+      width: 34px;
+      min-width: 34px;
+      padding: 0;
+    }
+    button.icon-only .button-label { display: none; }
     button.text-danger {
       border-color: transparent;
       background: transparent;
@@ -176,6 +200,36 @@ export function renderAdminPage() {
       gap: 10px;
     }
     .app-actions { justify-content: flex-end; flex-wrap: wrap; }
+    .button-icon,
+    .section-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      line-height: 1;
+    }
+    .button-icon svg,
+    .section-icon svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 2.1;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+    .section-icon {
+      margin-right: 8px;
+      color: var(--primary);
+    }
+    .section-heading,
+    .inline-heading,
+    .section-title-main {
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .inline-heading { gap: 8px; }
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -279,11 +333,27 @@ export function renderAdminPage() {
     }
     .panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
     .panel-body { padding: 0 20px 18px; }
+    .user-panel-heading {
+      padding-bottom: 14px;
+    }
+    .user-panel-heading h2 {
+      display: flex;
+      align-items: center;
+      flex: 0 0 auto;
+      height: 34px;
+      line-height: 34px;
+    }
+    .user-panel-heading .section-heading {
+      height: 34px;
+      min-height: 34px;
+      transform: translateY(-2px);
+    }
     .user-tools {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
-      padding: 0 18px 14px;
+      grid-template-columns: minmax(120px, 1fr) auto;
+      gap: 8px;
+      flex: 1 1 auto;
+      min-width: 0;
     }
     .search-box {
       position: relative;
@@ -301,31 +371,47 @@ export function renderAdminPage() {
       line-height: 1;
       pointer-events: none;
     }
-    .search-box input { padding-left: 36px; }
+    .search-box input {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 34px;
+      padding: 1px 10px 0 36px;
+      padding-block: 1px 0;
+      padding-inline: 36px 10px;
+      line-height: 34px;
+    }
+    .user-tools input,
+    .user-tools button {
+      height: 34px;
+      min-height: 34px;
+    }
+    .user-tools button { padding: 0 10px; }
     .profile-list {
       display: grid;
-      grid-auto-rows: 72px;
+      grid-auto-rows: minmax(52px, auto);
       align-content: start;
       border-top: 1px solid var(--border);
     }
     .profile-item {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) 34px;
       align-items: center;
       gap: 10px;
       min-height: 0;
       border-bottom: 1px solid var(--border);
       background: #fff;
-      padding: 0 14px 0 18px;
+      padding: 8px 14px 8px 18px;
     }
     .profile-item.active {
       background: #f5f9ff;
       box-shadow: inset 3px 0 0 var(--primary);
     }
     .profile-main {
-      display: block;
+      display: flex;
+      align-items: center;
       width: 100%;
-      height: auto;
+      min-width: 0;
+      height: 100%;
       border-color: transparent;
       border-radius: 8px;
       background: transparent;
@@ -344,14 +430,13 @@ export function renderAdminPage() {
     .profile-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
+      gap: 10px;
+      width: 100%;
       min-width: 0;
     }
     .profile-identity {
       display: flex;
-      align-items: baseline;
-      gap: 8px;
+      align-items: center;
       min-width: 0;
     }
     .profile-name {
@@ -363,30 +448,16 @@ export function renderAdminPage() {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .profile-id-inline {
-      overflow: hidden;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .profile-count {
-      color: #5d6d85;
-      font-size: 13px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
     .profile-badge {
       display: inline-flex;
       align-items: center;
-      min-height: 24px;
+      min-height: 22px;
       border: 1px solid var(--success-border);
-      border-radius: 6px;
-      padding: 0 8px;
+      border-radius: 999px;
+      padding: 0 7px;
       background: var(--success-soft);
       color: #15803d;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 800;
       white-space: nowrap;
     }
@@ -395,8 +466,8 @@ export function renderAdminPage() {
       background: var(--warning-soft);
       color: #c55d00;
     }
-    .profile-badge,
-    .profile-count { flex: 0 0 auto; }
+    .profile-badge { flex: 0 0 auto; }
+    .profile-copy-button { justify-self: end; }
     .profile-pager {
       display: flex;
       align-items: center;
@@ -421,12 +492,13 @@ export function renderAdminPage() {
     .editor-panel { min-height: 0; }
     .editor-head {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
       gap: 18px;
       padding: 20px 20px 12px;
       background: #fff;
     }
+    .editor-head > div:first-child { min-width: 0; }
     .profile-title-line {
       display: flex;
       align-items: center;
@@ -453,7 +525,13 @@ export function renderAdminPage() {
       font-size: 13px;
       font-weight: 700;
     }
-    .editor-actions { flex-wrap: wrap; justify-content: flex-end; }
+    .editor-actions {
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .editor-actions button { min-height: 34px; }
     .validation {
       display: none;
       margin-bottom: 14px;
@@ -470,8 +548,12 @@ export function renderAdminPage() {
     .validation.error { border-color: #fecdd3; border-left-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
     .validation.warning { border-color: #fde68a; border-left-color: var(--warning); background: var(--warning-soft); color: var(--warning); }
     .validation ul { margin: 6px 0 0 18px; padding: 0; }
-    .account-card,
-    .mitm-card {
+    .profile-section-divider {
+      margin: 4px 0 10px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .account-card {
       border: 1px solid var(--border);
       border-radius: 8px;
       background: #fff;
@@ -481,21 +563,52 @@ export function renderAdminPage() {
     .account-card .button-row { margin-top: 14px; }
     .mitm-card {
       display: flex;
-      justify-content: space-between;
-      gap: 16px;
       align-items: center;
-      padding: 14px 16px;
+      gap: 10px;
+      margin: 0 0 16px;
+      padding: 0 0 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .mitm-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      color: var(--primary);
+    }
+    .mitm-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2.1;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
     }
     .mitm-main {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
       min-width: 0;
       flex-wrap: wrap;
     }
     .mitm-main strong {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 850;
+      line-height: 32px;
+    }
+    .mitm-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+    .mitm-card .button-row {
+      flex: 0 0 auto;
+      margin-left: auto;
     }
     .ca-state {
       display: inline-flex;
@@ -557,10 +670,8 @@ export function renderAdminPage() {
       font-weight: 850;
     }
     .json-card {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: #fff;
-      padding: 12px;
+      display: grid;
+      gap: 8px;
     }
     .json-editor {
       min-height: 360px;
@@ -573,6 +684,27 @@ export function renderAdminPage() {
     }
     .json-editor.invalid { border-color: #ff8a98; background: #fff8f9; }
     .json-error { margin-top: 8px; color: var(--danger); font-size: 13px; font-weight: 700; }
+    .manual-copy {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      width: min(720px, calc(100% - 32px));
+      border: 1px solid var(--primary-border);
+      border-radius: 9px;
+      background: #fff;
+      padding: 10px;
+      box-shadow: var(--shadow);
+      transform: translateX(-50%);
+    }
+    .manual-copy textarea {
+      min-height: 40px;
+      max-height: 86px;
+      resize: none;
+    }
     .empty {
       border: 1px dashed var(--border-strong);
       border-radius: 9px;
@@ -605,12 +737,17 @@ export function renderAdminPage() {
     @media (max-width: 760px) {
       .shell { width: 100%; min-height: 100vh; margin: 0; border-radius: 0; border-left: 0; border-right: 0; }
       .app-bar, .editor-head, .panel-heading { align-items: stretch; flex-direction: column; }
+      .user-panel-heading { align-items: center; flex-direction: row; }
       .brand-title { align-items: flex-start; flex-direction: column; gap: 2px; }
       .content { padding: 16px; }
       .app-actions, .top-actions, .editor-actions { justify-content: stretch; }
       .app-actions > *, .top-actions button, .editor-actions button { flex: 1 1 130px; }
-      .summary-grid, .card-grid, .mitm-card, .user-tools { grid-template-columns: 1fr; }
+      .summary-grid, .card-grid { grid-template-columns: 1fr; }
+      .user-tools { grid-template-columns: minmax(0, 1fr) auto; }
+      .mitm-card { align-items: flex-start; flex-wrap: wrap; }
+      .mitm-card .button-row { margin-left: 28px; justify-content: flex-start; }
       .profile-title-line h2 { white-space: normal; }
+      .manual-copy { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -626,8 +763,8 @@ export function renderAdminPage() {
       </div>
       <div class="app-actions">
         <div class="dirty" id="dirty-state">未加载</div>
-        <button type="button" data-action="load">重新加载</button>
-        <button type="button" data-action="save" class="primary" disabled>保存更改</button>
+        <button type="button" data-action="load">${renderIcon("refresh")}<span>重新加载</span></button>
+        <button type="button" data-action="save" class="primary" disabled>${renderIcon("save")}<span>保存更改</span></button>
         <div class="status-pill" id="status" role="status">准备加载配置</div>
       </div>
     </header>
@@ -674,14 +811,14 @@ export function renderAdminPage() {
 
       <section class="workspace">
         <aside class="panel" aria-label="用户列表">
-          <div class="panel-heading">
-            <h2>用户</h2>
-          </div>
-          <div class="user-tools">
-            <label class="search-box">
-              <input id="profile-search" type="search" data-profile-filter placeholder="搜索用户名或 ID" autocomplete="off">
-            </label>
-            <button type="button" data-action="add-profile">新建用户</button>
+          <div class="panel-heading user-panel-heading">
+            <h2><span class="section-heading">${renderIcon("users", "section-icon")}<span>用户</span></span></h2>
+            <div class="user-tools">
+              <label class="search-box">
+                <input id="profile-search" type="text" role="searchbox" data-profile-filter placeholder="搜索用户" autocomplete="off">
+              </label>
+              <button type="button" data-action="add-profile">${renderIcon("plus")}<span>新建用户</span></button>
+            </div>
           </div>
           <div class="profile-list" id="profile-list">
             <div class="empty">尚未加载配置</div>
@@ -695,12 +832,12 @@ export function renderAdminPage() {
               <div class="profile-title-line">
                 <h2 id="profile-title">用户配置</h2>
                 <span class="id-chip" id="profile-subtitle">加载后选择一个用户。</span>
-                <button type="button" class="compact" data-action="focus-profile-fields" aria-label="编辑用户信息" title="编辑用户信息">编辑</button>
-                <button type="button" class="compact" data-action="copy-id" aria-label="复制用户 ID" title="复制用户 ID" disabled>复制 ID</button>
               </div>
             </div>
             <div class="editor-actions">
-              <button type="button" data-action="copy-url" class="subtle" disabled>复制订阅链接</button>
+              <button type="button" class="compact" data-action="focus-profile-fields" aria-label="编辑用户信息" title="编辑用户信息">${renderIcon("edit")}<span>编辑</span></button>
+              <button type="button" class="compact" data-action="duplicate-profile" aria-label="复制当前用户" title="复制当前用户" disabled>${renderIcon("copy")}<span>复制用户</span></button>
+              <button type="button" data-action="copy-url" class="subtle" disabled>${renderIcon("link")}<span>复制订阅链接</span></button>
             </div>
           </div>
           <div class="panel-body">
@@ -717,6 +854,7 @@ export function renderAdminPage() {
   <script>
     const ADMIN_CERTIFICATE_PATH = ${JSON.stringify(ADMIN_CERTIFICATE_PATH)};
     const ADMIN_CONFIG_PATH = ${JSON.stringify(ADMIN_CONFIG_PATH)};
+    const ICON_SVGS = ${JSON.stringify(ADMIN_ICONS)};
     const SUBSCRIPTION_PATH = ${JSON.stringify(SUBSCRIPTION_PATH)};
     const DEFAULT_GROUPS = ["🇺🇸 US", "🇯🇵 JP", "🇺🇸 US Home"];
     const rootEl = document.getElementById("admin-root");
@@ -737,7 +875,7 @@ export function renderAdminPage() {
       subtitle: document.getElementById("profile-subtitle"),
       dirtyState: document.getElementById("dirty-state"),
       copyUrlButton: document.querySelector('[data-action="copy-url"]'),
-      copyIdButton: document.querySelector('[data-action="copy-id"]'),
+      duplicateProfileButton: document.querySelector('[data-action="duplicate-profile"]'),
       editButton: document.querySelector('[data-action="focus-profile-fields"]'),
     };
 
@@ -842,7 +980,7 @@ export function renderAdminPage() {
       if (action === "delete-profile") return deleteProfile();
       if (action === "copy-url") return copySelectedUrl();
       if (action === "copy-profile-url") return copyProfileUrl(Number(target.dataset.profileIndex));
-      if (action === "copy-id") return copySelectedId();
+      if (action === "close-copy-fallback") return closeCopyFallback();
       if (action === "focus-profile-fields") return focusProfileFields();
       if (action === "regenerate-ca") return regenerateSelectedCertificate();
       if (action === "delete-ca") return deleteSelectedCertificate();
@@ -947,19 +1085,8 @@ export function renderAdminPage() {
       const profile = state.profiles[index];
       if (!profile || !profile.subscribeToken.trim()) return;
       try {
-        await copyText(subscriptionUrl(profile));
-        setStatus("订阅地址已复制", "success");
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
-    async function copySelectedId() {
-      const profile = selectedProfile();
-      if (!profile || !profile.id.trim()) return;
-      try {
-        await copyText(profile.id.trim());
-        setStatus("用户 ID 已复制", "success");
+        const copied = await copyText(subscriptionUrl(profile));
+        setStatus(copied ? "订阅地址已复制" : "已选中订阅地址", "success");
       } catch (error) {
         setStatus(error.message, "error");
       }
@@ -1087,13 +1214,13 @@ export function renderAdminPage() {
         const row = el("div", "profile-row");
         const identity = el("span", "profile-identity");
         identity.append(textEl("span", "profile-name", profile.name || profile.id || "Unnamed"));
-        identity.append(textEl("span", "profile-id-inline", profile.id || "missing-id"));
+        const caBadge = textEl("span", "profile-badge" + (profileHasCa(profile) ? "" : " missing"), "CA");
+        caBadge.title = profileHasCa(profile) ? "CA 已配置" : "CA 未配置";
         row.append(identity);
-        row.append(textEl("span", "profile-badge" + (profileHasCa(profile) ? "" : " missing"), profileHasCa(profile) ? "CA 已配置" : "CA 未配置"));
-        row.append(textEl("span", "profile-count", String(profile.nodes.length) + " 个节点"));
+        row.append(caBadge);
 
         main.append(row);
-        item.append(main, actionButton("复制", "copy-profile-url", !profile.subscribeToken.trim(), "compact", { profileIndex: index }));
+        item.append(main, actionButton("复制订阅链接", "copy-profile-url", !profile.subscribeToken.trim(), "compact icon-only profile-copy-button", { profileIndex: index }));
         profileListEl.append(item);
       }
 
@@ -1165,25 +1292,34 @@ export function renderAdminPage() {
         account.append(form);
 
         const profileActions = el("div", "button-row");
-        profileActions.append(actionButton("复制用户", "duplicate-profile"));
         profileActions.append(actionButton("删除用户", "delete-profile", state.profiles.length <= 1, "danger"));
         account.append(profileActions);
         profileEditorEl.append(account);
       }
 
+      const mitmDivider = el("div", "profile-section-divider");
+      mitmDivider.setAttribute("aria-hidden", "true");
+      profileEditorEl.append(mitmDivider);
+
       const mitmCard = el("section", "mitm-card");
+      const mitmIcon = iconElement("shield", "mitm-icon");
       const mitmMain = el("div", "mitm-main");
       mitmMain.append(textEl("strong", "", "MitM CA"));
-      mitmMain.append(textEl("span", "ca-state " + (profileHasCa(profile) ? "ready" : "missing"), caStatusText(profile)));
-      mitmMain.append(textEl("span", "cert-name", caDisplayName(profile.mitm)));
+      const mitmStatus = el("div", "mitm-status");
+      mitmStatus.append(textEl("span", "ca-state " + (profileHasCa(profile) ? "ready" : "missing"), caStatusText(profile)));
+      mitmStatus.append(textEl("span", "cert-name", caDisplayName(profile.mitm)));
+      mitmMain.append(mitmStatus);
       const mitmActions = el("div", "button-row");
       mitmActions.append(actionButton(profileHasCa(profile) ? "重新生成证书" : "生成证书", "regenerate-ca", false, "subtle"));
       mitmActions.append(actionButton("删除", "delete-ca", !profileHasCa(profile), "text-danger"));
-      mitmCard.append(mitmMain, mitmActions);
+      mitmCard.append(mitmIcon, mitmMain, mitmActions);
       profileEditorEl.append(mitmCard);
 
       const groupsTitle = el("div", "section-title");
-      groupsTitle.append(textEl("span", "", "节点组 JSON"));
+      const groupsTitleMain = el("span", "section-title-main");
+      groupsTitleMain.append(iconElement("braces", "section-icon"));
+      groupsTitleMain.append(textEl("span", "", "节点组 JSON"));
+      groupsTitle.append(groupsTitleMain);
       profileEditorEl.append(groupsTitle);
 
       const jsonCard = el("section", "json-card");
@@ -1498,7 +1634,7 @@ export function renderAdminPage() {
     function updateStaticActionState() {
       const profile = selectedProfile();
       if (fields.copyUrlButton) fields.copyUrlButton.disabled = state.busy || !profile || !profile.subscribeToken.trim();
-      if (fields.copyIdButton) fields.copyIdButton.disabled = state.busy || !profile || !profile.id.trim();
+      if (fields.duplicateProfileButton) fields.duplicateProfileButton.disabled = state.busy || !profile;
       if (fields.editButton) fields.editButton.disabled = state.busy || !profile;
       document.querySelector('[data-action="load"]').disabled = state.busy;
       document.querySelector('[data-action="add-profile"]').disabled = state.busy;
@@ -1597,6 +1733,8 @@ export function renderAdminPage() {
       button.type = "button";
       button.dataset.action = action;
       if (tone) button.className = tone;
+      const iconName = actionIconName(action);
+      if (iconName) button.append(iconElement(iconName));
       button.append(textEl("span", "button-label", label));
       if (button.classList.contains("icon-only")) {
         button.title = label;
@@ -1609,6 +1747,26 @@ export function renderAdminPage() {
       return button;
     }
 
+    function iconElement(name, className = "button-icon") {
+      const icon = el("span", className);
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = ICON_SVGS[name] || "";
+      return icon;
+    }
+
+    function actionIconName(action) {
+      return {
+        "copy-profile-url": "link",
+        "copy-url": "link",
+        "focus-profile-fields": "edit",
+        "duplicate-profile": "copy",
+        "delete-profile": "trash",
+        "regenerate-ca": "shield",
+        "delete-ca": "trash",
+        "close-copy-fallback": "x",
+      }[action] || "";
+    }
+
     function emptyState(message) {
       const empty = document.createElement("div");
       empty.className = "empty";
@@ -1617,14 +1775,23 @@ export function renderAdminPage() {
     }
 
     async function copyText(value) {
-      if (navigator.clipboard && window.isSecureContext) {
+      closeCopyFallback();
+      if (typeof navigator !== "undefined" && navigator.clipboard && window.isSecureContext) {
         try {
           await navigator.clipboard.writeText(value);
-          return;
+          return true;
         } catch {
           // Fall back to the textarea path below for local previews and stricter browser policies.
         }
       }
+      if (copyWithSelection(value)) {
+        return true;
+      }
+      showCopyFallback(value);
+      return false;
+    }
+
+    function copyWithSelection(value) {
       const helper = document.createElement("textarea");
       helper.value = value;
       helper.setAttribute("readonly", "");
@@ -1636,7 +1803,26 @@ export function renderAdminPage() {
       helper.setSelectionRange(0, helper.value.length);
       const ok = document.execCommand("copy");
       helper.remove();
-      if (!ok) throw new Error("复制失败");
+      return ok;
+    }
+
+    function showCopyFallback(value) {
+      const panel = el("div", "manual-copy");
+      panel.id = "manual-copy";
+      const control = document.createElement("textarea");
+      control.value = value;
+      control.readOnly = true;
+      control.setAttribute("aria-label", "待复制内容");
+      panel.append(control, actionButton("关闭", "close-copy-fallback", false, "compact"));
+      rootEl.append(panel);
+      control.focus();
+      control.select();
+      control.setSelectionRange(0, control.value.length);
+    }
+
+    function closeCopyFallback() {
+      const panel = document.getElementById("manual-copy");
+      if (panel) panel.remove();
     }
   </script>
 </body>
