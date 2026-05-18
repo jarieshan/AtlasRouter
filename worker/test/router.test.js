@@ -35,17 +35,17 @@ test("renders Surge profile for matching tenant token", async () => {
   assert.match(body, /^#!MANAGED-CONFIG https:\/\/atlas\.example\/AtlasRouter\?token=test-token/m);
   assert.match(body, /US-01 = trojan, us-01\.example\.com, 443, password=secret, sni=us-01\.example\.com/);
   assert.match(body, /JP-01 = trojan, jp-01\.example\.com, 443, password=secret, sni=jp-01\.example\.com/);
-  assert.match(body, /US-HOME-01 = trojan, us-home-01\.example\.com, 443, password=secret, sni=us-home-01\.example\.com/);
+  assert.match(body, /US-ISP-01 = trojan, us-isp-01\.example\.com, 443, password=secret, sni=us-isp-01\.example\.com/);
   assert.match(body, /^dns-server = 223\.5\.5\.5, 119\.29\.29\.29, system$/m);
-  assert.match(body, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query,https:\/\/dns\.google\/dns-query,https:\/\/223\.5\.5\.5\/dns-query$/m);
+  assert.match(body, /^# encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query,https:\/\/dns\.google\/dns-query,https:\/\/223\.5\.5\.5\/dns-query$/m);
   assert.match(body, /\[MITM\]\nenable = false/);
   assert.doesNotMatch(body, /^ca-p12 = /m);
   assert.doesNotMatch(body, /^ca-passphrase = /m);
-  assert.match(body, /🚀 Proxy = select, 🇺🇸 US, 🇯🇵 JP, 🇺🇸 US Home, ♻️ Auto, DIRECT/);
-  assert.match(body, /🤖 AIProxy = select, 🇺🇸 US Home, 🇺🇸 US, 🇯🇵 JP, ♻️ Auto/);
-  assert.match(body, /🇺🇸 US = smart, US-01/);
-  assert.match(body, /🇯🇵 JP = smart, JP-01/);
-  assert.match(body, /🇺🇸 US Home = smart, US-HOME-01/);
+  assert.match(body, /🚀 Proxy = select, 🇺🇸 US, 🇯🇵 JP, 🇺🇸🏠 US ISP, ♻️ Auto, 💎 Select, DIRECT/);
+  assert.match(body, /🤖 AIProxy = select, 🇺🇸🏠 US ISP, 🇺🇸 US, 🇯🇵 JP, ♻️ Auto, 💎 Select/);
+  assert.match(body, /🇺🇸 US = smart, hidden=true, US-01/);
+  assert.match(body, /🇯🇵 JP = smart, hidden=true, JP-01/);
+  assert.match(body, /🇺🇸🏠 US ISP = smart, hidden=true, US-ISP-01/);
   assert.doesNotMatch(body, /policy-regex-filter/);
   assert.doesNotMatch(body, /NODE_GROUP/);
   assert.match(body, /DOMAIN-SUFFIX,longbridge\.global,DIRECT/);
@@ -155,6 +155,7 @@ test("renders admin page with Cloudflare Access JWT without reading KV", async (
   assert.equal(response.headers.get("referrer-policy"), "no-referrer");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.match(body, /AtlasRouter Admin/);
+  assert.match(body, /const DEFAULT_GROUPS = \["🇺🇸 US","🇯🇵 JP","🇺🇸🏠 US ISP"\];/);
   assert.doesNotMatch(body, /admin_token|Admin token|authorization/i);
 });
 
@@ -465,12 +466,12 @@ test("omits configured node groups that have no nodes", async () => {
 
   assert.equal(response.status, 200);
   assert.match(body, /US-01 = trojan, us\.example\.com, 443/);
-  assert.match(body, /🚀 Proxy = select, 🇺🇸 US, ♻️ Auto, DIRECT/);
-  assert.match(body, /🤖 AIProxy = select, 🇺🇸 US, ♻️ Auto/);
-  assert.match(body, /🎥 GlobalMedia = select, 🇺🇸 US, ♻️ Auto/);
-  assert.match(body, /🇺🇸 US = smart, US-01/);
+  assert.match(body, /🚀 Proxy = select, 🇺🇸 US, ♻️ Auto, 💎 Select, DIRECT/);
+  assert.match(body, /🤖 AIProxy = select, 🇺🇸 US, ♻️ Auto, 💎 Select/);
+  assert.match(body, /🎥 GlobalMedia = select, 🇺🇸 US, ♻️ Auto, 💎 Select/);
+  assert.match(body, /🇺🇸 US = smart, hidden=true, US-01/);
   assert.doesNotMatch(body, /🇯🇵 JP/);
-  assert.doesNotMatch(body, /🇺🇸 US Home/);
+  assert.doesNotMatch(body, /🇺🇸🏠 US ISP/);
   assert.doesNotMatch(body, /NODE_GROUP/);
 });
 
@@ -529,8 +530,8 @@ function createNodes(suffix) {
       line: `JP-${suffix} = trojan, jp-${suffix}.example.com, 443, password=secret, sni=jp-${suffix}.example.com`,
     },
     {
-      group: "🇺🇸 US Home",
-      line: `US-HOME-${suffix} = trojan, us-home-${suffix}.example.com, 443, password=secret, sni=us-home-${suffix}.example.com`,
+      group: "🇺🇸🏠 US ISP",
+      line: `US-ISP-${suffix} = trojan, us-isp-${suffix}.example.com, 443, password=secret, sni=us-isp-${suffix}.example.com`,
     },
   ];
 }

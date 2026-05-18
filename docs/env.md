@@ -43,9 +43,9 @@ router-config
           ]
         },
         {
-          "group": "🇺🇸 US Home",
+          "group": "🇺🇸🏠 US ISP",
           "value": [
-            "US-HOME-01 = trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
+            "US-ISP-01 = trojan, us-isp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-isp.example.com"
           ]
         }
       ],
@@ -72,7 +72,7 @@ router-config
 
 - `🇺🇸 US`
 - `🇯🇵 JP`
-- `🇺🇸 US Home`
+- `🇺🇸🏠 US ISP`
 
 节点组和策略组顺序维护在 `surge/template.conf`。新增节点组时，在 `[Proxy Group]` 中引用新组并添加对应策略组行，例如 `🇭🇰 HK = smart, {{NODE_GROUP:🇭🇰 HK}}`，然后在 KV 节点里使用完全相同的 `group` 值。
 

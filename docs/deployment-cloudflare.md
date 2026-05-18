@@ -61,9 +61,9 @@ npx wrangler kv namespace create ATLAS_ROUTER
           ]
         },
         {
-          "group": "🇺🇸 US Home",
+          "group": "🇺🇸🏠 US ISP",
           "value": [
-            "US-HOME-01 = trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
+            "US-ISP-01 = trojan, us-isp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-isp.example.com"
           ]
         }
       ]
