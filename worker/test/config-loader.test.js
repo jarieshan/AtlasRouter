@@ -3,12 +3,12 @@ import test from "node:test";
 
 import { loadRouterConfig, parseRouterConfig, saveRouterConfig, serializeRouterConfig } from "../src/config-loader.js";
 
-const validNodes = [
-  {
-    group: "🇺🇸 US",
-    line: "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
-  },
-];
+const validNodes = {
+  group: "🇺🇸 US",
+  value: [
+    "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
+  ],
+};
 const validMitm = {
   enabled: true,
   hostname: "api.example.com, *.example.com",

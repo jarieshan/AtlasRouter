@@ -1,16 +1,30 @@
 import { HttpError } from "./errors.js";
 
 export function parseNodesConfig(value) {
-  if (!Array.isArray(value)) {
-    throw new HttpError(500, "router-config nodes must be a JSON array");
-  }
-  if (value.length === 0) {
+  const entries = expandNodesConfig(value);
+  if (entries.length === 0) {
     throw new HttpError(500, "router-config nodes must contain at least one node");
   }
 
   const nodeNames = new Set();
 
-  return value.map((node, index) => parseNodeConfig(node, index, nodeNames));
+  return entries.map((node, index) => parseNodeConfig(node, index, nodeNames));
+}
+
+export function serializeNodesConfig(nodes) {
+  const groups = [];
+  const byName = new Map();
+  for (const node of nodes) {
+    let group = byName.get(node.group);
+    if (!group) {
+      group = { group: node.group, value: [] };
+      byName.set(node.group, group);
+      groups.push(group);
+    }
+    group.value.push(node.line);
+  }
+
+  return groups.length === 1 ? groups[0] : groups;
 }
 
 export function renderProxyLines(nodes) {
@@ -47,6 +61,34 @@ function parseNodeConfig(node, index, nodeNames) {
     value,
     line,
   };
+}
+
+function expandNodesConfig(value) {
+  if (Array.isArray(value)) {
+    return value.flatMap((node, index) => expandNodeEntry(node, index));
+  }
+  if (!value || typeof value !== "object") {
+    throw new HttpError(500, "router-config nodes must be a node group object or JSON array");
+  }
+  return expandNodeEntry(value, 0);
+}
+
+function expandNodeEntry(node, index) {
+  if (!node || typeof node !== "object" || Array.isArray(node)) {
+    throw new HttpError(500, `Node at index ${index} must be an object`);
+  }
+  if (!Array.isArray(node.value)) {
+    return [node];
+  }
+  if (node.name != null || node.line != null) {
+    throw new HttpError(500, `Node group at index ${index} must use value array without name or line`);
+  }
+  if (node.value.length === 0) {
+    throw new HttpError(500, `Node group at index ${index} must contain at least one node`);
+  }
+
+  const group = requiredString(node.group, `Node group at index ${index} must include group`);
+  return node.value.map((line) => ({ group, line }));
 }
 
 function parseNodeLine(node, index) {

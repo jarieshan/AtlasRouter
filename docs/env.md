@@ -32,15 +32,21 @@ router-config
       "nodes": [
         {
           "group": "🇺🇸 US",
-          "line": "US-01 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com"
+          "value": [
+            "US-01 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com"
+          ]
         },
         {
           "group": "🇯🇵 JP",
-          "line": "JP-01 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com"
+          "value": [
+            "JP-01 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com"
+          ]
         },
         {
           "group": "🇺🇸 US Home",
-          "line": "US-HOME-01 = trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
+          "value": [
+            "US-HOME-01 = trojan, us-home.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-home.example.com"
+          ]
         }
       ],
       "mitm": {
@@ -72,7 +78,7 @@ router-config
 
 某个 profile 没有某个模板节点组的节点时，Worker 会在该 profile 的订阅输出中移除该显式节点组，并从逗号分隔的策略组列表里移除对应引用。`surge/rules.list` 中直接引用空节点组的自定义规则会回退到 `🚀 Proxy`。
 
-`line` 直接使用 Surge `[Proxy]` 中的完整节点行。Worker 会自动从等号左侧拆出节点名，并把节点名放进对应节点组。旧的 `{ "name": "...", "group": "...", "value": "..." }` 格式仍可读取，但保存时会规范化为 `line`。
+`value` 直接使用 Surge `[Proxy]` 中的完整节点行数组。Worker 会自动从等号左侧拆出节点名，并把节点名放进对应节点组。只有一个节点组时，`nodes` 也可以直接写成 `{ "group": "...", "value": ["..."] }`。旧的 `{ "group": "...", "line": "..." }` 和 `{ "name": "...", "group": "...", "value": "..." }` 格式仍可读取，但保存时会规范化为节点组 `value` 数组。
 
 ```text
 节点名 = Surge 节点语法

@@ -314,8 +314,8 @@ test("returns admin config with Cloudflare Access JWT", async () => {
   assert.equal(body.adminToken, undefined);
   assert.deepEqual(body.profiles.map((profile) => profile.id), ["primary", "tenant"]);
   assert.equal(body.profiles[0].nodes[0].name, undefined);
-  assert.equal(body.profiles[0].nodes[0].value, undefined);
-  assert.match(body.profiles[0].nodes[0].line, /^US-01 = trojan/);
+  assert.equal(body.profiles[0].nodes[0].line, undefined);
+  assert.match(body.profiles[0].nodes[0].value[0], /^US-01 = trojan/);
 });
 
 test("sets security headers on sensitive and denied responses", async () => {

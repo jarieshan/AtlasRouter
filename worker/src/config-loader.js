@@ -1,5 +1,5 @@
 import { HttpError } from "./errors.js";
-import { parseNodesConfig } from "./nodes.js";
+import { parseNodesConfig, serializeNodesConfig } from "./nodes.js";
 
 export const ROUTER_CONFIG_KV_KEY = "router-config";
 
@@ -106,10 +106,7 @@ function serializeProfile(profile) {
     id: profile.id,
     name: profile.name,
     subscribeToken: profile.subscribeToken,
-    nodes: profile.nodes.map((node) => ({
-      group: node.group,
-      line: node.line,
-    })),
+    nodes: serializeNodesConfig(profile.nodes),
   };
 
   if (profile.mitm) {

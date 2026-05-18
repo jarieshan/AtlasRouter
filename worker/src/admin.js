@@ -1352,24 +1352,17 @@ export function renderAdminPage() {
 
     function parseNodesJson(value) {
       const parsed = JSON.parse(value);
-      if (!Array.isArray(parsed)) throw new Error("必须是节点数组");
-      return parsed.map((node, index) => {
-        if (!node || typeof node !== "object" || Array.isArray(node)) {
-          throw new Error("第 " + (index + 1) + " 项必须是对象");
-        }
-        return normalizeNode(node);
-      });
+      if (!Array.isArray(parsed) && (!parsed || typeof parsed !== "object")) {
+        throw new Error("必须是节点组对象或节点组数组");
+      }
+      return normalizeNodes(parsed);
     }
 
     function nodesJsonValue(profile) {
       if (state.nodeJsonProfileIndex === state.selectedProfileIndex) {
         return state.nodeJsonDraft;
       }
-      return JSON.stringify(profile.nodes.map((node) => ({
-        group: node.group,
-        name: node.name,
-        value: node.value,
-      })), null, 2);
+      return JSON.stringify(serializeNodes(profile.nodes), null, 2);
     }
 
     function hasCurrentNodeJsonError() {
@@ -1477,9 +1470,7 @@ export function renderAdminPage() {
         name: stringValue(profile && profile.name) || "User " + (index + 1),
         subscribeToken: stringValue(profile && profile.subscribeToken),
         mitm: normalizeMitm(profile && profile.mitm),
-        nodes: Array.isArray(profile && profile.nodes)
-          ? profile.nodes.map(normalizeNode)
-          : [],
+        nodes: normalizeNodes(profile && profile.nodes),
       }));
     }
 
@@ -1515,6 +1506,42 @@ export function renderAdminPage() {
       };
     }
 
+    function normalizeNodes(nodes) {
+      if (Array.isArray(nodes)) {
+        return nodes.flatMap((node, index) => normalizeNodeEntry(node, index));
+      }
+      if (!nodes || typeof nodes !== "object") return [];
+      return normalizeNodeEntry(nodes, 0);
+    }
+
+    function normalizeNodeEntry(node, index) {
+      if (!node || typeof node !== "object" || Array.isArray(node)) {
+        throw new Error("第 " + (index + 1) + " 项必须是对象");
+      }
+      if (!Array.isArray(node.value)) {
+        return [normalizeNode(node)];
+      }
+
+      const group = stringValue(node.group);
+      return node.value.map((line) => normalizeNode({ group, line }));
+    }
+
+    function serializeNodes(nodes) {
+      const groups = [];
+      const byName = new Map();
+      nodes.forEach((node) => {
+        const groupName = node.group.trim();
+        let group = byName.get(groupName);
+        if (!group) {
+          group = { group: groupName, value: [] };
+          byName.set(groupName, group);
+          groups.push(group);
+        }
+        group.value.push(node.name.trim() + " = " + node.value.trim());
+      });
+      return groups.length === 1 ? groups[0] : groups;
+    }
+
     function buildConfig() {
       return {
         profiles: state.profiles.map((profile) => ({
@@ -1531,10 +1558,7 @@ export function renderAdminPage() {
               caCertificate: profile.mitm.caCertificate.trim(),
             },
           } : {}),
-          nodes: profile.nodes.map((node) => ({
-            group: node.group.trim(),
-            line: node.name.trim() + " = " + node.value.trim(),
-          })),
+          nodes: serializeNodes(profile.nodes),
         })),
       };
     }

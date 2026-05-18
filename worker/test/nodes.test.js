@@ -1,9 +1,51 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseNodesConfig, renderProxyLines } from "../src/nodes.js";
+import { parseNodesConfig, renderProxyLines, serializeNodesConfig } from "../src/nodes.js";
 
-test("parses KV node config", () => {
+test("parses grouped node object config", () => {
+  const nodes = parseNodesConfig({
+    group: "🇺🇸 US",
+    value: [
+      "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
+      "US-02 = trojan, us-2.example.com, 443, password=secret, sni=us-2.example.com",
+    ],
+  });
+
+  assert.deepEqual(nodes.map((node) => node.name), ["US-01", "US-02"]);
+  assert.deepEqual(nodes.map((node) => node.group), ["🇺🇸 US", "🇺🇸 US"]);
+});
+
+test("parses grouped node array config", () => {
+  const nodes = parseNodesConfig(
+    [
+      {
+        group: "🇺🇸 US",
+        value: [
+          "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
+        ],
+      },
+      {
+        group: "🇯🇵 JP",
+        value: [
+          "JP-01 = vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000",
+        ],
+      },
+    ],
+  );
+
+  assert.deepEqual(nodes.map((node) => node.name), ["US-01", "JP-01"]);
+  assert.deepEqual(nodes.map((node) => node.group), ["🇺🇸 US", "🇯🇵 JP"]);
+  assert.equal(
+    renderProxyLines(nodes),
+    [
+      "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
+      "JP-01 = vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000",
+    ].join("\n"),
+  );
+});
+
+test("parses legacy KV node config", () => {
   const nodes = parseNodesConfig(
     [
       {
@@ -26,6 +68,24 @@ test("parses KV node config", () => {
       "JP-01 = vmess, jp.example.com, 443, username=00000000-0000-4000-8000-000000000000",
     ].join("\n"),
   );
+});
+
+test("serializes node config by group", () => {
+  const nodes = parseNodesConfig({
+    group: "🇺🇸 US",
+    value: [
+      "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
+      "US-02 = trojan, us-2.example.com, 443, password=secret, sni=us-2.example.com",
+    ],
+  });
+
+  assert.deepEqual(serializeNodesConfig(nodes), {
+    group: "🇺🇸 US",
+    value: [
+      "US-01 = trojan, us.example.com, 443, password=secret, sni=us.example.com",
+      "US-02 = trojan, us-2.example.com, 443, password=secret, sni=us-2.example.com",
+    ],
+  });
 });
 
 test("parses legacy name/value node config", () => {
