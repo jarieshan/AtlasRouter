@@ -28,7 +28,7 @@ test("subscription controls customize copied URLs and retain choices across toke
   assert.match(html, /Surge Mac 仅开启系统代理，关闭增强模式；iOA需设置为全局模式/);
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
     document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element },
-    URL, confirm: () => true,
+    URL, location: { href: "https://atlas.example/" }, confirm: () => true,
     navigator: { clipboard: { writeText: async (value) => { copied = value; } } },
     fetch: async (path, options) => {
       calls.push({ path, options });
@@ -68,6 +68,34 @@ test("subscription controls customize copied URLs and retain choices across toke
   tencentOa.checked = false;
   tencentOa.onchange();
   assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}`);
+});
+
+test("development account calls, copied links and token rotation stay on develop", async () => {
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  fields.get("#subscription-client").value = "surge";
+  let copied;
+  let calls = 0;
+  vm.runInNewContext(renderAccountPage().match(/<script>([\s\S]*?)<\/script>/)[1], {
+    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element },
+    URL, location: { href: "https://atlas.example/?dev=1" }, confirm: () => true,
+    navigator: { clipboard: { writeText: async (value) => { copied = value; } } },
+    fetch: async (path, options) => {
+      calls += 1;
+      const url = new URL(path, "https://atlas.example");
+      assert.equal(url.searchParams.get("dev"), "1");
+      assert.equal(url.pathname, calls === 1 ? ACCOUNT_PROFILE_PATH : ACCOUNT_TOKEN_PATH);
+      assert.equal(options.method, calls === 1 ? "GET" : "POST");
+      return Response.json({ email: "member@example.com", status: "active", groups: [],
+        subscriptionUrl: `https://atlas.example/AtlasRouter?token=test-${calls}&dev=1` });
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  fields.get("#subscription-client").value = "clash";
+  fields.get("#subscription-client").onchange();
+  await fields.get("#rotate").onclick();
+  await fields.get("#copy").onclick();
+  assert.equal(copied, "https://atlas.example/AtlasRouter?token=test-2&dev=1&client=clash");
+  assert.equal(calls, 2);
 });
 
 test("page previews keep all interactions in memory and reset on a new page load", async () => {

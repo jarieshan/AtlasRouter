@@ -12,7 +12,7 @@ function element(tagName) {
   };
 }
 
-async function portal(respond, { initialState = { nodes: [], users: [], revision: 3 }, confirm = () => true } = {}) {
+async function portal(respond, { initialState = { nodes: [], users: [], revision: 3 }, confirm = () => true, development = false } = {}) {
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
   const fields = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
   const details = { open: false };
@@ -26,10 +26,11 @@ async function portal(respond, { initialState = { nodes: [], users: [], revision
   const html = renderAccountPage({ isAdmin: true, adminRoutes: routes });
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   vm.runInNewContext(scripts.at(-1)[1], {
-    confirm,
+    confirm, URL, location: { href: `https://atlas.example/${development ? "?dev=1" : ""}` },
     document: { getElementById: () => root, createElement: element },
     fetch: async (path, options) => {
       calls.push({ path, options });
+      path = new URL(path, "https://atlas.example").pathname;
       if (path === routes.state) return Response.json(initialState);
       assert.ok([routes.import, routes.nodes].includes(path));
       return respond(path, options);
@@ -54,6 +55,14 @@ function inventory() {
 function deleteButton(fields, index = 0) {
   return fields.get("#nodes").children[index].children.at(-1).children[0];
 }
+
+test("development management reads and mutations retain the branch selector", async () => {
+  const { fields, calls } = await portal(() => Response.json({ nodes: [], added: 0, duplicates: 0, warnings: [] }), { development: true });
+  fields.get("#import").value = "https://subscription.example.com/node";
+  await fields.get("#append").onclick();
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every(({ path }) => new URL(path, "https://atlas.example").searchParams.get("dev") === "1"));
+});
 
 test("the import button converts before updating the draft, shows warnings and prevents concurrent edits", async () => {
   let finish;

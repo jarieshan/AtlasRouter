@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, createSign, generateKeyPairSync } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -10,6 +10,7 @@ import { applyMigrations, migrations } from "../test-helpers/migrations.js";
 import { allocateNodes, parsePoolNodes, userGroups } from "../src/node-pool.js";
 import { readSubscriptionState } from "../src/subscription-db.js";
 import { splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
+import { compileBranches } from "../scripts/build-branches.js";
 import {
   ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
 } from "../src/routes.js";
@@ -146,6 +147,56 @@ test("development uses independent identities, tokens and node data with geometr
   const productionMembers = orderedSmartMembers(await (await request(production, productionAccount.subscriptionUrl)).text(), "🇺🇸USA-ISP");
   assert.equal(productionMembers.length, 3);
   assert.deepEqual(await readSubscriptionState({ DB: await production.getD1Database("DB") }), before);
+});
+
+test("one Worker preserves dev across real subscription, module, rule and account links", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "atlas-one-worker-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const script = await compileBranches({ master: path.resolve(".wrangler/test-dist/index.js"),
+    develop: path.resolve(".wrangler/test-dist/index.js") }, directory);
+  const devSlug = "fedcba9876543210fedcba9876543210";
+  const devRoutes = getAdminRoutes({ ADMIN_API_SLUG: devSlug });
+  const mf = new Miniflare(convertV4MiniflareOptions({ name: "single-router", modules: true,
+    script: await readFile(script, "utf8"), compatibilityDate: "2026-05-12",
+    d1Databases: { DB: "production", DEV_DB: "development" },
+    bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
+      ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG,
+      DEV_ADMIN_EMAILS: "devadmin@example.com", DEV_ADMIN_API_SLUG: devSlug, DEV_SMART_PRIORITY_SCHEME: "geometric-3" },
+  }));
+  t.after(() => mf.dispose());
+  const productionDb = await mf.getD1Database("DB");
+  await applyMigrations(productionDb);
+  await applyMigrations(await mf.getD1Database("DEV_DB"));
+  await save(mf);
+  const production = await account(mf);
+  const before = await readSubscriptionState({ DB: productionDb });
+  assert.equal((await request(mf, `${devRoutes.state}?dev=1`, { subject: "admin" })).status, 403);
+  assert.equal((await request(mf, POOL_STATE_PATH, { subject: "devadmin" })).status, 403);
+  await json(await request(mf, `${devRoutes.nodes}?dev=1`, { subject: "devadmin", method: "PUT",
+    body: { revision: 0, nodes: nodes(5) } }));
+  const development = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?dev=1`, { subject: "alice" }));
+  const developmentUrl = new URL(development.subscriptionUrl);
+  assert.equal(developmentUrl.searchParams.get("dev"), "1");
+  assert.equal(new URL(production.subscriptionUrl).searchParams.has("dev"), false);
+  assert.equal((await request(mf, `${production.subscriptionUrl}&dev=1`)).status, 401);
+  const noSelector = new URL(development.subscriptionUrl);
+  noSelector.searchParams.delete("dev");
+  assert.equal((await request(mf, noSelector.toString())).status, 401);
+  const surge = await (await request(mf, development.subscriptionUrl)).text();
+  orderedSmartMembers(surge, "🇺🇸USA-ISP", [1, 3, 9, 27, 81]);
+  const urls = [...surge.matchAll(/https:\/\/atlas\.example\/AtlasRouter[^\s,"]+/g)].map(([url]) => new URL(url));
+  assert.ok(urls.length > 3);
+  assert.ok(urls.every((url) => url.searchParams.get("dev") === "1"));
+  const module = urls.find((url) => url.pathname.includes("/modules/"));
+  assert.ok(module);
+  assert.equal((await request(mf, module.toString())).status, 200);
+  const clash = parseYaml(await (await request(mf, `${development.subscriptionUrl}&client=clash`)).text());
+  const providers = Object.values(clash["rule-providers"]);
+  assert.ok(providers.some((provider) => provider.format === "yaml"));
+  assert.ok(providers.every((provider) => new URL(provider.url).searchParams.get("dev") === "1"));
+  assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?dev=1`)).status, 401);
+  assert.equal((await request(mf, "/missing?dev=1")).status, 404);
+  assert.deepEqual(await readSubscriptionState({ DB: productionDb }), before);
 });
 
 test("Access guards member and admin pages, validates claims, methods and paths", async (t) => {

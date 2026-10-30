@@ -252,7 +252,9 @@ const clientHelpers = String.raw`
       }
       throw new Error("页面预览不调用正式数据接口。");
     }
-    const response = await fetch(path, {
+    const url = new URL(path, location.href);
+    if (new URL(location.href).searchParams.get("dev") === "1") url.searchParams.set("dev", "1");
+    const response = await fetch(url.pathname + url.search, {
       method, credentials: "same-origin", cache: "no-store",
       headers: body === undefined ? {} : { "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),

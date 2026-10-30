@@ -6,6 +6,7 @@ import { magicRuleUrl } from "./magic-rules.js";
 import { appendTencentOaSkipProxy } from "./tencent-oa.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority } from "./surge-format.js";
+import { inheritBranch } from "./branch-query.js";
 
 const FALLBACK_POLICY = "Proxy";
 const REGION_ORDER = { US: 0, HK: 1, SG: 2, JP: 3 };
@@ -100,7 +101,7 @@ function buildUrl(requestUrl, pathname, token) {
   url.search = "";
   url.hash = "";
   url.searchParams.set("token", token);
-  return url.toString();
+  return inheritBranch(url, requestUrl).toString();
 }
 
 function replaceTemplate(template, replacements) {

@@ -1,76 +1,50 @@
 # Cloudflare Deployment
 
-首次部署顺序：创建 D1 → 在 Cloudflare 连接 GitHub 并配置 Workers Builds → 首次构建部署 Worker 和域名 → 配置 Access 与 Worker 运行参数 → 登录验收。本地手动部署也保留为维护入口。
+目标是一个 `atlas-router` Worker、一个域名、两份 Git 分支代码和两个 D1 数据库。Cloudflare Workers Builds 直接监听 GitHub 的 `master`、`develop` 推送；GitHub Actions 只验证代码，不触发部署，也不需要 Cloudflare Secrets。
 
-Cloudflare Workers Builds 直接监听 GitHub 分支推送：`develop` → 开发 Worker 和独立 D1，`master` → 生产订阅服务。每个 Worker 在 Cloudflare 构建中验证后部署。GitHub Actions 只做 PR 和分支验证，不触发部署，也不需要部署 Secrets；检查工作流在 [worker.yml](../.github/workflows/worker.yml)。
-
-| Git 分支 | Worker / 域名 | D1 |
+| 请求 | 执行的代码 | D1 binding / 数据库 |
 | --- | --- | --- |
-| `develop` | `atlas-router-dev` / `atlasrouter-dev.zslab.ai` | `atlas-router-dev` |
-| `master` | `atlas-router` / `atlasrouter.zslab.ai` | `atlas-router` |
+| 无 `dev` 参数，或 `dev=0` | `master` | `DB` / `atlas-router` |
+| `dev=1` | `develop` | `DEV_DB` / `atlas-router-dev` |
 
-这是两个独立 Worker，不是同一个 Worker 的预览分支。先接通开发环境；开发验收通过、准备发布生产时，再将代码合入 `master` 并连接生产 Worker。
+网页也按相同参数选择环境：正式入口 `/`，开发入口 `/?dev=1`。开发订阅使用 `/AtlasRouter?token=<dev-token>&dev=1`。参数不会绕过鉴权，生产 token 不能访问开发库，开发 token 也不能访问生产库。重复或非法 `dev` 参数返回 400。
 
-两端分别配置 Access 应用、AUD、管理员 Secret 和节点。开发库不复制生产用户、订阅 token、节点凭据或分配关系。需要先在开发管理页单独录入测试节点，才能用开发订阅进行真实线路测试。
+**接入状态：**单 Worker 分发、独立 D1 和不同分支转换代码已在本地 workerd 验证，尚未启用线上双分支部署。接入时发现现有 `master` 仍是旧 KV/手动订阅版本，与线上 D1 应用不一致；必须先将它对齐到经过核对的线上源码基线，再加入分支入口协议，不能直接用旧 `master` 覆盖线上。当前 Cloudflare 凭据调用 Builds API 返回 403，GitHub 连接及双分支触发器还需在 Cloudflare 配置。仓库中的配置文件不会自行创建触发器。
 
-在 `worker/` 目录使用统一部署入口；也可在仓库根目录为以下命令加上 `--prefix worker`：
+## 1. 构建与存储
 
-| 命令 | 范围 |
-| --- | --- |
-| `npm run deploy` | 迁移生产 D1、轮换生产管理路径并发布 `atlas-router` |
-| `npm run deploy -- --dry-run` | 检查生产配置与构建，不执行远程迁移或发布 |
-| `npm run deploy:router` | `deploy` 的别名，包含生产迁移和管理路径轮换 |
-| `npm run deploy:dev` | 仅迁移开发 D1、轮换开发管理路径并发布 `atlas-router-dev` |
-| `npm run build:dev` | 检查开发配置与构建，不迁移或发布 |
-
-开发、生产环境分别使用自己的 Wrangler 配置，每次命令只部署所选环境。任一步失败会终止命令；迁移失败时不会发布 Worker 或轮换管理路径。
-
-开发配置独立保存在 [wrangler.dev.jsonc](../worker/wrangler.dev.jsonc)。开发部署脚本先检查 Worker 名称、域名和 D1 ID 与生产不同，再为迁移和发布显式传入开发配置。开发环境设置 `SMART_PRIORITY_SCHEME=geometric-3`，按个人主备顺序试验 1、3、9、27、81… 的 Smart 权重；Clash 仍转换为同顺序 fallback。这不提供连续失败次数或固定出口 IP 的保证。
-
-## 1. Worker 和存储
-
-使用 Node.js 24：
+使用 Node.js 24，在 `worker/` 目录执行：
 
 ```sh
-cd worker
 npm ci
 npm test
+npm run build:branches
+npm run deploy:branches -- --dry-run
 ```
 
-`wrangler.jsonc` 定义：
+`build:branches` 获取两个远程分支的确定提交，各自在临时目录安装锁定依赖、生成静态资产并运行测试，再分别编译 `src/index.js`。因此两个分支可以使用不同的订阅转换实现、模板和依赖。最后将两份模块和公共入口打包成一个 Worker；请求时按参数加载对应模块。`references/` 不参与构建。
 
-- Worker 名称 `atlas-router`。
-- `DB` D1 binding，数据库名 `atlas-router`，保存用户、节点池和分配关系。
-- `database_id` 必须与实际使用的 D1 数据库一致；切换 Cloudflare 账号或数据库时也要更新。
-- 不再使用 `SUBSCRIPTIONS` Durable Object 或 `ATLAS_ROUTER` KV binding。
-- `workers_dev: false`、`preview_urls: false`，对外访问使用 `routes` 中的 Custom Domain：`atlasrouter.zslab.ai`。
+`build:branches -- --local` 改用本地已提交的 `master` / `develop`，不会包含工作区未提交改动。两个分支都必须保留 `worker/branch-runtime.json`、D1 迁移和 `fetch(request, env, ctx)` 接口；该文件声明应用支持 D1 和 `dev` 参数的完整传播。缺失协议可以构建检查，但不能部署。
 
-`zslab.ai` 需为目标 Cloudflare 账号下已激活的 Zone。部署时 Wrangler 会绑定 `atlasrouter.zslab.ai`，由 Cloudflare 创建 DNS 记录和 HTTPS 证书；无需另建指向 `workers.dev` 的 CNAME。同名已有 CNAME 会与 Custom Domain 冲突，需先确认其用途再调整。域名机制见 [Cloudflare Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)。
+产物在被 Git 忽略的 `.wrangler/branches/`：包括组合入口、两个提交 SHA、构建校验信息及各自 SQL 迁移快照。构建失败不会覆盖之前成功的产物。部署使用 [wrangler.branches.jsonc](../worker/wrangler.branches.jsonc)，本地单分支开发和测试继续使用 `wrangler.jsonc`。
 
-```sh
-npx wrangler login
-npx wrangler d1 create atlas-router
-```
+- `DB` 和 `DEV_DB` 必须绑定不同 D1 ID。开发节点、用户、token 和分配关系独立保存，不复制生产数据。
+- 应用运行时只看到所选分支的绑定；开发环境的 `DEV_*` 去掉前缀后传入。开发配置缺失不会借用生产配置。
+- 两个分支各自的 `worker/migrations/` 是对应数据库的迁移来源。历史迁移不改写；当前使用关系表，不能回退到依赖旧 `configs` 表的版本。
+- Worker 使用 `atlasrouter.zslab.ai` Custom Domain，关闭 `workers.dev` 和预览 URL。域名需属于已激活的 Zone，见 [Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)。
 
-把创建结果中的 `database_id` 填入 `worker/wrangler.jsonc` 的 `d1_databases[0].database_id`，保留 binding 名 `DB`。迁移按编号执行：`0001_configs.sql` 保留为历史迁移，[0002_relational.sql](../worker/migrations/0002_relational.sql) 创建关系表并删除旧 `configs` 表；历史迁移不改写，当前运行时只使用节点池相关表。新库无需导入数据，账号和节点由页面初始化。
+| 命令 | 用途 |
+| --- | --- |
+| `npm test` | 单元测试、构建检查和本地 workerd/D1 集成测试 |
+| `npm run dev` | 迁移本地库并开发当前工作区代码 |
+| `npm run build:branches` | 获取、验证并组合两个远程分支，不发布 |
+| `npm run deploy:branches -- --dry-run` | 检查组合产物，不迁移或发布 |
+| `npm run deploy -- --branch develop` | 构建两份代码，迁移开发 D1、轮换开发管理路径并发布组合 Worker |
+| `npm run deploy -- --branch master` | 构建两份代码，迁移生产 D1、轮换生产管理路径并发布组合 Worker |
 
-下线旧版功能不需要新的数据库迁移，也不会删除已存数据。历史迁移留下的 `manual_*` 表不再由 Worker 读写。已有节点池用户、token、归属顺序和历史次数继续保留；旧手动订阅不再提供服务。不能将 Worker 回退到依赖旧 `configs` 表的版本。
+部署前校验 Worker、分支、触发提交、产物哈希和两个远程分支头。选中数据库迁移后，还会只读检查另一个数据库已应用其代码需要的迁移，并在上传前再次检查分支头；失败则不发布代码和新 Secret。如果两个分支同时新增迁移，先执行的部署可能在应用自身迁移后停止，另一分支迁移完成后才能发布。全新空库需先显式初始化其中一库，再部署另一分支；已有生产库不重复初始化。迁移须兼容仍在运行的旧代码，参见 [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/)。
 
-`npm test` 使用临时本地 D1，不访问云数据库。`npm run dev` 会先执行本地迁移，再启动 Worker。需要单独应用迁移时使用：
-
-```sh
-npm run db:migrate:local
-```
-
-上线的 `npm run deploy` 会生成静态资产，再执行远程 D1 迁移；成功后为 `ADMIN_API_SLUG` 生成新值，并将该 Secret 与订阅 Worker 代码一同发布。资产生成或迁移失败时，不会发布 Worker 或轮换线上标识。数据库创建和迁移方式见 [D1 入门](https://developers.cloudflare.com/d1/get-started/)及 [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/)。配置结构见 [env.md](env.md)。
-
-D1 ID 已填好且 Wrangler 已登录后，可在 `worker` 目录执行首次部署：
-
-```sh
-npm run deploy
-```
-
-该命令会应用远程 D1 迁移、创建或更新 `atlas-router`，绑定 `atlasrouter.zslab.ai`。首次部署不依赖尚未填写的 Access 运行参数：此时订阅服务的根路径会返回 `500 ACCESS_TEAM_DOMAIN is not configured`，管理请求也会被拒绝，这是待配置状态。继续完成下文 Access 应用和 Worker 变量设置后，再通过 Google 登录。
+两份代码共享一次 Worker 发布、兼容日期、资源限制和公共分发入口。它们不是安全沙箱，也不支持分别回滚；修改公共入口或 Wrangler 配置会影响两边，需要同时审查。过期构建检查不能替代发布锁，接通自动部署前应串行发布，避免两个上传相互覆盖。不同分支应用必须从传入的 `env` 获取绑定，不使用 `cloudflare:workers` 的全局 `env` 绕过分发。
 
 ## 2. Google OAuth 和 Cloudflare Access
 
@@ -95,87 +69,42 @@ npm run deploy
 
 ## 3. Worker 运行配置
 
-在 Worker 的 Variables and Secrets 设置：
+同一域名的两种请求共享 `ACCESS_TEAM_DOMAIN`、`ACCESS_AUD` 和 Google 登录应用；查询参数不建立另一个边缘 Access 应用。Worker 内的管理员白名单、管理路径和数据分别配置：
 
-```text
-ACCESS_TEAM_DOMAIN=https://<team>.cloudflareaccess.com
-ACCESS_AUD=REPLACE_WITH_APPLICATION_AUD
-```
+| 用途 | 正式环境 | 开发环境 |
+| --- | --- | --- |
+| 管理员邮箱 Secret | `ADMIN_EMAILS` | `DEV_ADMIN_EMAILS` |
+| 管理路径 Secret | `ADMIN_API_SLUG` | `DEV_ADMIN_API_SLUG` |
+| Smart 权重普通变量 | `SMART_PRIORITY_SCHEME` | `DEV_SMART_PRIORITY_SCHEME` |
+| 可选页面预览身份 Secret | `PREVIEW_EMAIL_HASHES` | `DEV_PREVIEW_EMAIL_HASHES` |
 
-这两个值使用普通变量。Worker 另使用两个 Secret：
+`DEV_SMART_PRIORITY_SCHEME=geometric-3` 已在组合配置中设置，开发订阅试验 1、3、9、27、81… 的 Smart 权重，Clash 仍转换为同顺序 fallback。未配置的生产参数由 `master` 自身决定，公共入口不替它修改默认值。
 
-- `ADMIN_EMAILS`：手动设置，内容为逗号分隔的管理员邮箱。
-- `ADMIN_API_SLUG`：由 `npm run deploy` 自动生成的 32 位小写十六进制标识，每次部署轮换；仅管理员页面会拿到对应接口路径。
+每次部署只生成所选分支的管理路径 Secret，通过 Wrangler `--secrets-file` 随代码发布；其他 Secrets 保留。管理路径缺失或不合法时管理功能关闭。首次接入需确保两个管理路径都已初始化；生产已有值保持，开发首次发布会生成新值。发布后只需刷新对应管理员页面，订阅 token 和用户分配不变。不要绕过脚本直接 `wrangler deploy`，否则会跳过分支、产物和迁移检查。
 
-无需手动生成或填写 `ADMIN_API_SLUG`。部署脚本会通过 [Wrangler `--secrets-file`](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code) 将新标识与代码一同发布，同时保留未涉及的 Secrets。空值、缺失值或误删后的下一次部署也会得到新标识。部署后刷新已打开的管理员页面，订阅链接和分配关系不变。
-
-绕过该脚本直接运行 `wrangler deploy` 不会执行自动轮换。运行时缺失或格式不正确的标识仍会关闭管理功能，避免退回固定路径；重新运行 `npm run deploy` 即可修复。随机路径不能替代身份和权限校验，详见 [env.md](env.md)。
-
-旧的 `ACCESS_USER_AUD` 已不再使用，可移除。不要在生产设置用于离线测试的 `ACCESS_JWKS_JSON`。
-
-Google client secret 留在 Access 的 IdP 设置中；节点配置通过管理页写入 D1。不要将它们写入 Wrangler 配置、GitHub 仓库或构建日志。`keep_vars` 会保留 Dashboard 的普通变量。部署脚本只覆盖 `ADMIN_API_SLUG`，其余既有 Secrets 会被保留。
+Google client secret 保存在 Access IdP 中；节点凭据通过对应管理页写入 D1。`keep_vars` 保留 Dashboard 普通变量。`ACCESS_JWKS_JSON` 只用于离线测试，线上不要设置。完整参数见 [env.md](env.md)。
 
 ## 4. Cloudflare Workers Builds
 
-无需设置 GitHub 的 `development` / `production` Environment，也无需向 GitHub 提供 `CLOUDFLARE_API_TOKEN` 或 `CLOUDFLARE_ACCOUNT_ID`。部署由 Cloudflare 的 GitHub 集成直接触发，设置入口如下：
+首次启用前，两条分支都要包含可运行的构建、部署脚本和入口协议；应用代码可以继续各自演进。先核对 `master` 与线上源码基线，保留生产发布暂停状态，完成下面的连接准备后再启用自动部署。
 
-1. 新 Worker：Cloudflare → Workers & Pages → Create application → GitHub，授权 Cloudflare GitHub App 访问 `jarieshan/AtlasRouter`。已有 Worker：进入该 Worker → Settings → Builds → Connect。
-2. 按下表设置 Worker 名称、监听分支、根目录和命令。新建开发 Worker 的名称必须是 `atlas-router-dev`；不要使用默认的 `main` 分支或默认部署命令。
-3. 在 Branch control 关闭 **Enable Preview Builds**（旧界面为非生产分支构建），只监听表内分支。Cloudflare 界面里的 **Production branch** 指当前 Worker 的部署分支，因此开发 Worker 此项也应填写 `develop`。
-4. 检查构建 token 权限后保存并首次部署；以后推送对应分支由 Cloudflare 自动构建。已有 Worker 连接后可通过新提交触发；失败构建可在 Cloudflare Build History 中重试。
+1. 在已有 `atlas-router` 的 Settings → Builds → Connect 连接 GitHub，授权 Cloudflare GitHub App 访问仓库。
+2. 选择同一个 Worker 的普通部署触发器，根目录设为 `worker`，Node.js 由 `.nvmrc` 固定为 24。关闭 Preview Builds。
+3. 普通触发器的 `branch_includes` 配置为 `["master", "develop"]`。如果 Dashboard 只允许选一个 Production branch，通过官方 Builds API 更新该普通触发器；不要另建开发 Worker。
+4. 构建命令使用 `npm ci && npm run build:branches`，部署命令使用 `npm run deploy:branches`。脚本从 `WORKERS_CI_BRANCH` 读取触发分支。Build Variables 可设 `SKIP_DEPENDENCY_INSTALL=1` 避免重复安装。
 
-| Cloudflare 设置 | 开发订阅 Worker | 生产订阅 Worker（准备上线后启用） |
-| --- | --- | --- |
-| Worker name | `atlas-router-dev` | `atlas-router` |
-| Git repository | `jarieshan/AtlasRouter` | `jarieshan/AtlasRouter` |
-| Production branch | `develop` | `master` |
-| Root directory | `worker` | `worker` |
-| Build command | `npm ci && npm test && npm run build:dev` | `npm ci && npm test` |
-| Deploy command | `npm run deploy:dev` | `npm run deploy:router` |
-| Preview builds | 关闭 | 关闭 |
+API 更新请求的正文已保存在 [builds.branches.json](../worker/builds.branches.json)，供 `PATCH /accounts/<account-id>/builds/triggers/<trigger-id>` 使用。它只包含监听分支和命令，不包含凭据或 GitHub 连接信息。官方 `branch_includes` 支持分支模式数组；本仓库尚未完成账号上的双分支触发实测。接口和所需权限见 [Builds API](https://developers.cloudflare.com/workers/ci-cd/builds/api-reference/)及 [更新触发器](https://developers.cloudflare.com/api/resources/workers_builds/subresources/triggers/methods/update/)。
 
-根目录都选 `worker`，因为 npm 锁文件和部署脚本位于该目录。开发命令始终使用 `wrangler.dev.jsonc`，不靠改名或临时替换生产配置来切换环境。仓库的 [worker/.nvmrc](../worker/.nvmrc) 将构建 Node.js 版本设为 24。Build Variables 可选设置 `SKIP_DEPENDENCY_INSTALL=1`，避免 Cloudflare 自动安装后又执行命令中的 `npm ci`；不设置也可构建。
+配置 Builds API 的用户 token 需要 **Workers Builds Configuration Edit** 权限；构建时使用的部署 token 还需 **D1 Edit** 和 Worker 部署权限。Cloudflare 默认生成的构建 token 不包含 D1 Edit，需选择合适的用户 token。凭据只存 Cloudflare，不填入 GitHub、仓库或聊天。具体权限、构建变量与名称覆盖机制见 [Builds 配置](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)。
 
-Cloudflare 默认创建的构建 token 未包含 D1 权限。为两个订阅 Worker 选择具备 **Account → D1 → Edit** 的用户 API token，并保留 Workers 部署、Account Settings Read 和目标 Zone 的 Workers Routes Edit 等权限；可在 My Profile → API Tokens 中使用 Edit Cloudflare Workers 模板并添加 D1 Edit，再在该 Worker 的 Builds → API token 中选择。限制账号和 Zone 到实际目标。凭据由 Cloudflare 管理，不填入 GitHub 或仓库。参见 [Builds API token](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)。
-
-Workers Builds 会提供 `WORKERS_CI_BRANCH` 和目标 Worker 名称，并可能覆盖 Wrangler 配置中的 `name`。部署脚本会在迁移前拒绝分支、命令或目标 Worker 不匹配的发布；`npm run deploy` 与 `deploy:router` 都只部署生产订阅 Worker，开发环境必须使用 `deploy:dev`。本地手动部署和纯构建检查保留原有用法。官方说明见 [构建变量](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#environment-variables)、[Worker 名称校验](https://developers.cloudflare.com/workers/ci-cd/builds/troubleshoot/#workers-name-requirement)。
-
-Cloudflare 不等待 GitHub Actions 的完成状态，所以 Cloudflare 的 Build command 本身必须运行上表检查；失败后不会执行 Deploy command。GitHub 的 `verify` 仍检查 PR、`develop` 和 `master`，可设为合入 `master` 的必需状态检查。即使 GitHub 默认分支暂时还是 `main`，Cloudflare 也能单独监听 `develop` / `master`，无需为此更改默认分支。仅提交仓库配置不会自动建立 Cloudflare 的 Git 连接，必须在 Dashboard 实际保存上述设置。
-
-开发首次初始化时，使用 `wrangler.dev.jsonc` 中独立的数据库 ID。为 `atlasrouter-dev.zslab.ai` 创建独立 Access 应用，按上文配置根路径和 `/api`，再为该域名的 `/AtlasRouter` 及子路径建立订阅 Bypass。在开发 Worker 上设置它自己的 `ACCESS_TEAM_DOMAIN`、`ACCESS_AUD` 和 `ADMIN_EMAILS`；管理路径由开发部署脚本自动生成。复用 Google IdP 可以，但不要复用生产应用的 AUD。缺少 Access 设置时页面不会开放；新库没有节点时订阅返回等待分配。
-
-本地构建检查无需账号凭据：
-
-```sh
-cd worker
-npm run build
-npm run build:dev
-```
-
-手动部署（需要自己的 Cloudflare 凭据）：
-
-```sh
-cd worker
-npm run deploy
-```
-
-参考：[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)、[构建配置](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)、[分支控制](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)、[构建镜像和 Node.js 版本](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)。
+Cloudflare 不等待 GitHub Actions；`build:branches` 自己在两份提交上运行测试，任一失败都不会部署。GitHub 的 [检查工作流](../.github/workflows/worker.yml) 继续验证 PR、`develop` 和 `master`。无需设置 GitHub Environment 或部署 Secrets，也不必为监听这两个分支而更改 GitHub 默认分支。
 
 ## 5. 首次使用与验收
 
-1. 管理员打开 `https://atlasrouter.zslab.ai/`，通过 Google 登录，同一页会显示个人订阅和节点池管理。
-2. 粘贴带国旗与 IDC/ISP/WARP 关键词的 Surge 节点，点击“加入待保存清单”，再点击“保存并分配”。
-3. 普通用户也打开同一个 URL，登录后看到自己的订阅，复制 `/AtlasRouter?token=<token>` 专属链接到 Surge；无浏览器登录会话也能更新，缺少 token 则返回 401。
-4. 用三个测试邮箱和同组三个测试节点检查主节点不同、主备顺序循环；增加到六个用户时，检查共享主节点且同一主节点下用户的第一备用节点不同。核对 Surge 地区组按此顺序生成 Smart 系数 1、2、3，Clash 地区组为同顺序的 fallback。Clash 模拟一个节点失效时，其两个用户应分别切换到另外两个可用节点；Surge Smart 的实际选择还受连接表现影响。
-5. 管理页检查每个节点的用户邮箱、当前人数、累计次数和配置详情；测试重置链接后旧 token 返回 401。
+1. 开发管理员打开 `https://atlasrouter.zslab.ai/?dev=1`，登录后录入单独的测试节点；不要导入生产库。
+2. 复制开发订阅，确认 Surge 托管更新、模块及 Clash 规则集 URL 都带 `dev=1`；切换客户端、DoH 或轮换 token 后参数仍保留。
+3. 缺少 token 应返回 401；开发 token 去掉 `dev=1`、生产 token 加上 `dev=1` 均应返回 401；不存在路径返回 404。
+4. 修改 `develop` 的转换实现并推送，确认 Cloudflare 自己触发构建；开发输出更新，正式输出和生产数据保持原状。再分别核对 `master` 的发布与构建失败场景。
+5. 核对开发 Surge Smart 权重、Clash fallback 和真实客户端导入。自动化测试使用临时身份和 `.example.com` 节点，不能代替 Google OAuth、Cloudflare 触发器和真实线路验收。
 
-代码测试使用临时身份、公钥和 `.example.com` 节点，不能代替真实 Google OAuth、Access 边缘路径配置和 Surge 客户端导入验收。
-
-上线后可手动执行不带凭据的安全探测：
-
-```sh
-cd worker
-npm run check:live-security -- https://atlasrouter.zslab.ai
-```
-
-也可把 `ATLAS_ROUTER_BASE_URL` 放在本地 `worker/.env`，再运行 `npm run check:live-security`。更多验收步骤见 [security-pentest.md](security-pentest.md)。
+线上无凭据安全探测见 [security-pentest.md](security-pentest.md)。生产暂停期间只做本地验证，不执行上述发布验收。

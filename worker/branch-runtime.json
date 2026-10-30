@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "entry": "src/index.js",
+  "storage": "d1-pool",
+  "query": "dev"
+}

@@ -1,8 +1,11 @@
 # Worker Env
 
-AtlasRouter 每个环境使用一个存储绑定：
+AtlasRouter 在一个 Worker 上绑定两个独立数据库，由 `dev` 参数选择分支代码及其环境：
 
-- `DB`：Cloudflare D1 SQLite。生产使用 `wrangler.jsonc`，开发使用 `wrangler.dev.jsonc`，分别填写独立数据库 ID，再应用 `worker/migrations/` 中的 SQL 迁移创建关系表。开发节点、用户、订阅 token 和分配关系独立保存，不复制生产数据。
+- `DB`：生产 D1，由 `master` 代码使用；无 `dev` 或 `dev=0` 选择此环境。
+- `DEV_DB`：开发 D1，由 `develop` 代码使用，入口为 `dev=1`。分发时作为 `env.DB` 传入开发代码。
+
+部署配置在 `wrangler.branches.jsonc`。两个数据库 ID 必须不同，SQL 迁移来自各自分支的构建快照。开发节点、用户、订阅 token 和分配关系独立保存，不复制生产数据。`wrangler.jsonc` 仅供当前分支本地开发和测试。
 
 节点凭据由管理员通过受保护页面录入存储，不放入代码或普通环境变量。D1 读权限视为敏感配置读取权限。部署凭据由 Cloudflare Workers Builds 管理，订阅 Worker 的构建 token 需要 D1 Edit 权限；GitHub Actions 只验证代码，无需 Cloudflare Secrets。节点和用户订阅 token 不放入构建变量。旧 `SUBSCRIPTIONS` 和 `ATLAS_ROUTER` binding 已移除。
 
@@ -10,16 +13,18 @@ AtlasRouter 每个环境使用一个存储绑定：
 
 - `ACCESS_TEAM_DOMAIN`：普通变量，Cloudflare Access team domain，例如 `https://<team>.cloudflareaccess.com`。
 - `ACCESS_AUD`：普通变量，统一 Access application 的 Audience (AUD)，网页、个人 API 和管理 API 都使用它。
-- `SMART_PRIORITY_SCHEME`：可选普通变量，省略或 `linear` 使用个人主备位置 1、2、3…；`geometric-3` 使用 1、3、9、27、81…。当前仅开发配置显式启用后者，不能由订阅查询参数修改；Clash 对这两种生成格式均保留顺序并输出 fallback。权重必须能表示为安全整数，过大的分组会拒绝生成，避免输出无效数值。
+- `SMART_PRIORITY_SCHEME`：可选普通变量，省略或 `linear` 使用个人主备位置 1、2、3…；`geometric-3` 使用 1、3、9、27、81…。当前仅 `DEV_SMART_PRIORITY_SCHEME` 显式启用后者，不能由订阅查询参数修改；Clash 对这两种生成格式均保留顺序并输出 fallback。权重必须能表示为安全整数，过大的分组会拒绝生成，避免输出无效数值。
 - `ADMIN_EMAILS`：Secret，允许管理配置的邮箱，多个邮箱用英文逗号分隔。
-- `ADMIN_API_SLUG`：Secret，用密码学随机数生成的 32 位小写十六进制标识，组成 `/api/<slug>/pool/*` 管理路径。每次 `npm run deploy` 自动生成并写入；绕过部署流程导致缺失或格式错误时，管理功能关闭。
+- `ADMIN_API_SLUG`：Secret，用密码学随机数生成的 32 位小写十六进制标识，组成 `/api/<slug>/pool/*` 管理路径。每次对应分支部署自动生成并写入；绕过部署流程导致缺失或格式错误时，管理功能关闭。
 - `PREVIEW_EMAIL_HASHES`：可选 Secret，测试邮箱去除首尾空白并转小写后的 SHA-256 十六进制摘要，多个摘要用英文逗号分隔。匹配的身份从普通首页自动进入页面预览，只读展示 D1 中启用节点的 ID、名称和分组，不能注册正式用户或读取正式订阅。只保存识别摘要，不写入测试账号、节点变更、分配或操作记录；摘要不返回给浏览器。
 
 如果曾配置独立的用户/管理员 Access 应用，需将两组路径并入同一个应用，更新 `ACCESS_AUD`，移除已不再使用的 `ACCESS_USER_AUD`。同一个登录会话即可使用个人功能及其有权访问的管理功能。
 
 Google OAuth client ID/secret 配置在 Cloudflare Access 身份提供商中，Worker 不处理 Google client secret。`ACCESS_JWKS_JSON` 仅用于离线测试注入公钥，生产不要设置；生产从 team domain 获取 Access 公钥。真实账号、密钥与本地 `.dev.vars*`、`.env*` 均不入库。
 
-在 Cloudflare 分别将开发、生产 Worker 连接到 GitHub 的 `develop`、`master` 分支。两端独立配置以上运行时变量和 Secrets；特别是 Access AUD、管理路径及订阅 token 不能通用。构建变量与 Worker 运行时变量分开配置，无需 GitHub Environment。部署脚本的 `--development` 只操作开发配置；在 Workers Builds 中，分支或目标 Worker 不匹配时会在数据库迁移前拒绝发布。
+在同一个 Worker 上设置开发专属的 `DEV_ADMIN_EMAILS`、`DEV_ADMIN_API_SLUG`、可选 `DEV_PREVIEW_EMAIL_HASHES` 和 `DEV_SMART_PRIORITY_SCHEME`。分发器将 `DEV_*` 去掉前缀后传给开发代码，缺失值不会回退到生产；生产代码看不到 `DEV_*`。两边只共享同域名登录所需的 `ACCESS_TEAM_DOMAIN`、`ACCESS_AUD`（离线测试还共享 `ACCESS_JWKS_JSON`）。浏览器 API 会自动保留页面的 `dev=1`。
+
+Cloudflare 的同一个普通 Builds 触发器计划监听 `master`、`develop`，具体接入状态和步骤见 [部署说明](deployment-cloudflare.md)。构建变量与 Worker 运行时变量分开配置，无需 GitHub Environment。两份实现共享 Worker 发布、兼容日期和公共入口；这是可信代码之间的绑定分配，不是隔离不可信代码的沙箱。
 
 ## D1 关系表
 
@@ -40,7 +45,7 @@ Google OAuth client ID/secret 配置在 Cloudflare Access 身份提供商中，W
 
 管理员仍只需打开根路径。Worker 在核验管理员邮箱后，将随机管理路径注入 HTML；普通用户页面和个人 API 不包含此值。随机路径仅减少常见路径扫描命中，不能替代 Access JWT、邮箱白名单和同源写入检查。不要使用 `admin` 或邮箱的固定哈希作为标识，不要把真实值提交到仓库。
 
-在 `worker` 目录执行 `npm run deploy` 时，部署脚本会在 D1 迁移成功后生成新标识，通过 Wrangler `--secrets-file` 与代码一同发布。首次部署、已有值、空值或误删后的下一次部署都采用同一流程，无需手动填写，也不需要配置对应的 GitHub Secret。其他 Worker Secrets 保持不变，参见 [Cloudflare Secrets](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code)。
+在 `worker` 目录执行 `npm run deploy -- --branch master` 或 `--branch develop` 时，部署脚本会在对应 D1 迁移成功并通过其他发布检查后生成新标识，通过 Wrangler `--secrets-file` 与代码一同发布。首次部署、已有值、空值或误删后的下一次部署都采用同一流程，无需手动填写，也不需要配置对应的 GitHub Secret。生产分支只轮换 `ADMIN_API_SLUG`，开发分支只轮换 `DEV_ADMIN_API_SLUG`，其他 Worker Secrets 保持不变，参见 [Cloudflare Secrets](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code)。
 
 每次发布后旧路径停止服务，已打开的管理员页面需要刷新。订阅 token 和用户分配不受影响。构建或数据库迁移失败时，不会提前修改线上标识；运行时不会按请求或实例随机生成。若运行中误删该 Secret，重新执行部署即可修复。
 

@@ -5,51 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
-import { assertCloudflareBuildTarget, assertDevelopmentIsolation, deploy, deployDevelopment } from "../scripts/deploy.js";
-
-const developmentConfig = fileURLToPath(new URL("../wrangler.dev.jsonc", import.meta.url));
-
-test("development deployment rejects production Worker, domain and database bindings", async () => {
-  const development = JSON.parse(await readFile(developmentConfig, "utf8"));
-  const production = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
-  assert.doesNotThrow(() => assertDevelopmentIsolation(development, production));
-  for (const change of [
-    { name: production.name },
-    { routes: production.routes },
-    { routes: production.routes.map((route) => route.pattern) },
-    { routes: [{ pattern: "ATLASROUTER.ZSLAB.AI", custom_domain: true }] },
-    { routes: [{ pattern: "*.zslab.ai/*", custom_domain: false }] },
-    { routes: [null] },
-    { routes: [] },
-    { d1_databases: production.d1_databases },
-    { d1_databases: [...development.d1_databases, { ...production.d1_databases[0], binding: "OTHER_DB" }] },
-    { d1_databases: [] },
-  ]) assert.throws(() => assertDevelopmentIsolation({ ...development, ...change }, production), /own Worker, domains and D1/);
-});
-
-test("development migrations and deployment always target its own config", async () => {
-  for (const dryRun of [false, true]) {
-    const calls = [];
-    let file;
-    await deployDevelopment({
-      dryRun, log() {},
-      async run(args, secret) {
-        calls.push(args);
-        assert.equal(args[args.indexOf("--config") + 1], developmentConfig);
-        if (args[0] === "d1") {
-          assert.deepEqual(args, ["d1", "migrations", "apply", "DB", "--remote", "--config", developmentConfig]);
-          assert.equal(secret, undefined);
-          return;
-        }
-        file = args[args.indexOf("--secrets-file") + 1];
-        assert.equal(JSON.parse(await readFile(file, "utf8")).ADMIN_API_SLUG, secret);
-        assert.equal(args.includes("--dry-run"), dryRun);
-      },
-    });
-    assert.deepEqual(calls.map((args) => args[0]), dryRun ? ["deploy"] : ["d1", "deploy"]);
-    await assert.rejects(() => stat(file), { code: "ENOENT" });
-  }
-});
+import { deploy } from "../scripts/deploy.js";
 
 test("GitHub only verifies changes without deployment jobs or credentials", async () => {
   const workflow = parseYaml(await readFile(new URL("../../.github/workflows/worker.yml", import.meta.url), "utf8"));
@@ -58,41 +14,7 @@ test("GitHub only verifies changes without deployment jobs or credentials", asyn
   assert.equal(workflow.jobs.verify.environment, undefined);
   assert.ok(!JSON.stringify(workflow).includes("secrets."));
   assert.deepEqual(workflow.jobs.verify.steps.flatMap((step) => step.run ? [step.run] : []),
-    ["npm ci", "npm test", "npm run build:dev"]);
-});
-
-test("Cloudflare Builds only accepts its connected Worker on the designated branch", () => {
-  for (const [workerName, branch] of [["atlas-router-dev", "develop"], ["atlas-router", "master"]]) {
-    const env = { WORKERS_CI: "1", WORKERS_CI_BRANCH: branch, WRANGLER_CI_OVERRIDE_NAME: workerName };
-    assert.doesNotThrow(() => assertCloudflareBuildTarget(workerName, env));
-    assert.doesNotThrow(() => assertCloudflareBuildTarget(workerName, {}));
-    for (const wrongBranch of [undefined, "main", "feature/test", branch === "develop" ? "master" : "develop"]) {
-      assert.throws(() => assertCloudflareBuildTarget(workerName, { ...env, WORKERS_CI_BRANCH: wrongBranch }), /matching branch/);
-    }
-    assert.throws(() => assertCloudflareBuildTarget(workerName, { ...env, WRANGLER_CI_OVERRIDE_NAME: undefined }), /connected Worker/);
-    for (const wrongWorker of [undefined, ...["atlas-router-dev", "atlas-router"].filter((name) => name !== workerName)]) {
-      assert.throws(() => assertCloudflareBuildTarget(wrongWorker, env), /connected Worker/);
-    }
-  }
-  assert.doesNotThrow(() => assertCloudflareBuildTarget(undefined, {}));
-});
-
-test("the CLI rejects a wrong Builds target before invoking migrations or Wrangler", () => {
-  const script = fileURLToPath(new URL("../scripts/deploy.js", import.meta.url));
-  for (const [flags, branch, workerName] of [
-    [[], "develop", "atlas-router-dev"],
-    [["--router-only"], "develop", "atlas-router-dev"],
-    [["--development"], "develop", "atlas-router"],
-    [["--development"], "master", "atlas-router-dev"],
-  ]) {
-    const result = spawnSync(process.execPath, [script, ...flags], {
-      encoding: "utf8",
-      env: { ...process.env, WORKERS_CI: "1", WORKERS_CI_BRANCH: branch, WRANGLER_CI_OVERRIDE_NAME: workerName },
-    });
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /^Cloudflare Builds must use the matching branch/);
-    assert.equal(result.stdout, "");
-  }
+    ["npm ci", "npm test"]);
 });
 
 test("deployments generate fresh valid route Secrets, including when no usable value exists", async () => {
@@ -175,12 +97,10 @@ test("dry runs validate the Secret upload without applying remote migrations", a
   await assert.rejects(() => stat(path.dirname(file)), { code: "ENOENT" });
 });
 
-test("the CLI rejects unknown or conflicting flags before deployment", () => {
+test("the old deployment CLI refuses to replace the shared Worker with a single branch", () => {
   const script = fileURLToPath(new URL("../scripts/deploy.js", import.meta.url));
-  for (const flags of [["--dryrun"], ["--speedtest-only"], ["--development", "--router-only"]]) {
-    const result = spawnSync(process.execPath, [script, ...flags], { encoding: "utf8" });
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /^Usage: node scripts\/deploy\.js/);
-    assert.equal(result.stdout, "");
-  }
+  const result = spawnSync(process.execPath, [script], { encoding: "utf8" });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /^Use npm run deploy/);
+  assert.equal(result.stdout, "");
 });
