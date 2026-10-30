@@ -23,7 +23,7 @@ AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配�
 | `/AtlasRouter/rules/magicrule/mihomo/<name>.yaml?token=<token>` | GET | 用户专属 token；输出 MagicRule 原生 Mihomo classical YAML |
 | `/AtlasRouter/rules/rule-<hash>.txt?token=<token>` | GET | 用户专属 token；输出已过滤不兼容规则的 Clash 规则集 |
 
-`<slug>` 来自 Worker Secret `ADMIN_API_SLUG`，为 128 位随机值的 32 位小写十六进制表示。管理路径只在管理员验证后的页面中注入，不包含在普通用户页面中。主动轮换该 Secret 后，已打开的管理页面需刷新；当前原生 Preview 发布不轮换生产标识，配置方式见 [env.md](env.md)。即使知道路径，也必须通过 Access JWT 和 `ADMIN_EMAILS` 校验。
+`<slug>` 来自 Worker Secret `ADMIN_API_SLUG`，为 128 位随机值的 32 位小写十六进制表示。管理路径只在管理员验证后的页面中注入，不包含在普通用户页面中。每次 master 构建发布会轮换该 Secret，已打开的管理页面需刷新；原生 Preview 发布不轮换生产标识，配置方式见 [env.md](env.md)。即使知道路径，也必须通过 Access JWT 和 `ADMIN_EMAILS` 校验。
 
 网页和所有 API 使用同一个 Access application 的 `ACCESS_AUD`，同一会话根据邮箱拥有不同权限。浏览器写入请求要求 `Origin` 与目标源一致，并使用 `Content-Type: application/json`。不能通过 URL 角色、邮箱、用户 ID、伪造身份 Header 或 `Authorization` 切换用户或提权。
 
@@ -82,7 +82,7 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 生成内容中的 `#!MANAGED-CONFIG` 和模块 URL 使用当前环境的域名及路径：生产 `/AtlasRouter`、预览 `/AtlasRouter-Dev`。它们只接受订阅 `token`，不能用浏览器登录身份代替。修改模板不会改变个人 token；用户重置后，旧 token 同时失去订阅和模块访问权。
 
-节点按地区/IP 类型生成 `smart` 组，按每个用户现有的主节点、备用节点顺序生成 `policy-priority`：默认第 1 个节点系数为 1，第 2 个为 2，依次递增；开发 Worker 设置 `SMART_PRIORITY_SCHEME=geometric-3`，按相同顺序试验 1、3、9、27、81…。权重使用转义后的节点名称精确匹配，不修改节点归属或主备顺序。系数越小越优先，这是 Smart 评分偏好，不是固定流量比例，也不保证主节点总被选中或出口 IP 不变。Clash 对这类顺序权重组保留成员顺序并输出 `fallback`，不复现 Smart 的评分或站点记忆。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL,Proxy,dns-failed`。MitM 默认关闭，不再生成或保存手动 CA。
+master 按地区/IP 类型生成顺序 `fallback` 组，成员依照每位用户的主节点、备用节点排列，间隔为 300 秒，不生成 `policy-priority`。develop 独立试验 Smart 权重，生产源码不读取 `SMART_PRIORITY_SCHEME`，遗留变量不会启用实验。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL,Proxy,dns-failed`。MitM 默认关闭。
 
 可见的 `Auto` 使用 `smart, include-all-proxies=true`，包含当前订阅 `[Proxy]` 中的所有节点，不包含 `DIRECT` 或其他策略组；在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留；从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge [smart 组](https://manual.nssurge.com/policy-groups/smart.html)结合测速延迟、真实连接响应和丢包择优，并自动重试；它不是始终固定选择单次测速最低的节点。Clash 无等价 smart 类型，转换为每 300 秒测速、容差为 0 的 `url-test`，输出注释说明差异。地区/IP 类型组的主备顺序保持原样。
 
@@ -106,7 +106,7 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 `WeChat`、`Telegram` 和 `X` 是可见的独立策略组，分别接收 WeChat、Telegram 和 Twitter 规则集的流量。WeChat 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连。Telegram 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组，缺少某类节点时跳过。X、AIProxy、GlobalMedia 按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组；AppleProxy 按 `Proxy` → ISP → WARP → IDC → `DIRECT` 排列。上述地区/IP 类型选项先按 IP 类型、再按美国 → 香港 → 新加坡 → 日本 → 其他地区排序；其他地区按两位地区代码的字母升序排列。`Proxy` 自身不包含自引用，选项采用 ISP → WARP → IDC → `Auto` → `DIRECT` 顺序。所有可选策略组均不提供 `REJECT` 选项。`💎 Select` 已移除。
 
-`YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组；没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 Google 和 GlobalMedia 之前。这是手动选择项顺序；地区/IP 类型组内，Surge 按主备顺序赋予 Smart 权重，Clash 使用同顺序的 `fallback`。
+`YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组；没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 Google 和 GlobalMedia 之前。这是手动选择项顺序；地区/IP 类型组内，Surge / Clash 使用同顺序的 `fallback`。
 
 业务策略组使用纯文字名称，图标来自 [Koolson/Qure Color](https://github.com/Koolson/Qure/tree/master/IconSet/Color)，通过 jsDelivr 公共链接加载。WeChat、Telegram、X、YouTube、Apple、iCloud 使用对应服务 Logo；Auto 使用 `Auto.png` 自动选择图标；Proxy、AIProxy、GlobalMedia 分别使用通用代理、AI、影音图标。首次从带 emoji 的旧组名更新后，客户端已保存的手动选择可能需要重新设置。Surge 使用 [`icon-url`](https://manual.nssurge.com/policy-groups/parameters.html)（Mac 6.5.0+），转换为 Clash 时映射为 [`icon`](https://wiki.metacubex.one/en/config/proxy-groups/#icon)，显示效果取决于客户端面板支持。AppleProxy、AppleDirect 继续隐藏，地区/IP 类型组继续使用现有设置。
 
@@ -120,13 +120,13 @@ Apple 子规则存在重叠，匹配顺序为 iCloud → AppleDirect → ApplePr
 
 ## Clash 兼容输出
 
-本节适用于当前 `develop` 中的转换器；Git `master` 尚不提供 Clash 输出。分支基线、生产/预览对照和验证边界见 [兼容性核对](client-compatibility.md)。
+本节适用于 master 的稳定转换器；develop 的权重扩展单独试验。分支基线、生产/预览对照和验证边界见 [兼容性核对](client-compatibility.md)。
 
 Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析为结构化对象并用 YAML 序列化器输出 Clash。没有另一份需要同步维护的 Clash 分流模板。已支持的配置值、节点和规则变动会自动进入两种订阅。
 
 - 支持 VMess AEAD（TCP / WebSocket）、Trojan、常用 Shadowsocks、HTTP / HTTPS、SOCKS5 / SOCKS5-TLS。保留可映射的认证、TLS 校验、证书指纹、ALPN、WebSocket、UDP 和 TCP Fast Open 参数；未知连接参数或不支持的协议会移除整个节点，并清理无效成员、空组和相关规则。`sni=off` 无等价映射时移除节点，不能把 `off` 当成服务器名称。
 - VMess、Trojan 按 [Surge 的协议默认能力](https://manual.nssurge.com/policies/udp.html)输出 `udp: true`；转换器将显式 `udp-relay=false` 保留为关闭，但不能依赖该开关在 Surge 的 VMess / Trojan 上禁用 UDP；Surge 官方将它列为其他协议的可选能力。Shadowsocks、SOCKS5 / SOCKS5-TLS 仍需显式启用。缺少 UDP 支持会使 [Mihomo 跳过指向该代理的 UDP 规则](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)，即使 Claude 的域名和 IP 已在 AI 规则中，也可能最终直连。
-- 保留节点与策略组的排列、用户主备顺序、`select` / `fallback` / `url-test`。本项目生成的精确名称 `1、2、3…` 或开发环境的 `1、3、9…` 顺序权重 `smart` 转换为 `fallback`；不带权重的 `smart`（如 `Auto`）近似为仅含代理节点的 `url-test`，不复现真实连接评分。其他 `policy-priority` 写法暂不支持，相关组会省略并产生不含节点信息的警告。`FINAL` 转为 `MATCH`，省略 Surge 专有的 `dns-failed`；缺少可用兜底策略时不生成配置。
+- 保留节点与策略组的排列、用户主备顺序、`select` / `fallback` / `url-test`。生产地区组使用原生 `fallback`；不带权重的 `smart`（如 `Auto`）近似为仅含代理节点的 `url-test`，不复现真实连接评分。master 转换器不支持 `policy-priority`，相关组会省略并产生不含节点信息的警告。`FINAL` 转为 `MATCH`，省略 Surge 专有的 `dns-failed`；缺少可用兜底策略时不生成配置。
 - 映射普通 / 加密 DNS、系统 hosts、IPv6、GeoIP 数据库、全局代理测试地址和测试超时。DNS 劫持配置放入 `tun.dns-hijack`，TUN 是否启用由客户端决定。
 - 两种 DNS 模式都显式设置 `dns.proxy-server-nameserver`；DoH 跟随出站规则时，节点域名仍使用普通 DNS 引导，只有加密上游追加 `#RULES`。`[Host]` 中精确域名和 `*.` 子域名的 IPv4 DNS 服务器分配映射为 `dns.nameserver-policy`；Surge 的 `*.zslab.ai` 转为 Mihomo 的 `.zslab.ai`，覆盖所有层级子域名且不匹配根域名。其他 Host 写法暂不支持。iOS [Clash 的远程配置识别逻辑](https://github.com/ProjectClash/Clash-Client/blob/main/apple/ClashClientKit/Sources/ClashClientKit/ConfigurationImport.swift)依赖显式的节点解析服务器，缺失时可能把完整订阅当成节点来源并另选规则方案。此前已套用客户端默认方案、只显示 `AUTO` / `PROXY` 的配置，需要重新导入完整订阅并选中使用，确认出现 `AIProxy`、`Telegram`、`YouTube` 等业务组。
 - `block-quic` 的 `all-proxy`、`all`、`always-allow` 映射为 ProjectClash 扩展 `x-clash-block-quic`。当前模板输出 `x-clash-block-quic: all-proxy`：识别为 QUIC 且最终走代理时阻止，直连 QUIC 放行；策略组手动选为 `DIRECT` 也放行，其他 UDP 仍按规则处理。该判断由 [ProjectClash 内核](https://github.com/ProjectClash/Clash/blob/4b7d5f53cff448f01cd5012b5e3f7eddc7d43e33/tunnel/clash_block_quic.go)在解析最终出口后执行，不添加全局 UDP 443 拦截规则，也不关闭节点 UDP。更新订阅并重连后加载；客户端需使用支持该扩展的版本。
@@ -146,7 +146,7 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 | VMess TLS / WebSocket | 都默认关闭；WS 路径 `/` | 保留相同默认值；Trojan / HTTPS / SOCKS5-TLS 强制 TLS |
 | TLS 证书校验 / TFO | 校验开启；TFO 默认关闭 | 保持校验，映射显式 `tfo=true/false` |
 | `fallback` / `url-test` 间隔 | 省略时 600 秒 | 显式输出 600；由 Smart 转换的组使用 300 |
-| 地区/IP 类型组权重 | Smart 按主备顺序使用 1、2、3…，开发试验为 1、3、9…，固定每 5 分钟重测 | 同顺序 `fallback`，不输出无效权重字段 |
+| 地区/IP 类型组 | master 使用同顺序 fallback，显式间隔 300 秒 | 同顺序 fallback，显式间隔 300 秒 |
 | `url-test` 容差 | 省略时 100 毫秒 | 显式输出 100，保留显式 0 |
 | 代理测速 URL / 超时 | `proxy-test-url` / `test-timeout`；缺省 `http://bing.com/` / 5 秒 | 用于组级健康检查；超时转换为毫秒 |
 | IPv6 / 系统 hosts | IPv6 默认关闭；系统 hosts 默认启用 | 保持对应默认值及显式设置 |

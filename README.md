@@ -8,7 +8,7 @@ AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统�
 
 ## 当前状态
 
-首版已实现登录、自动分配、订阅生成。当前采用同一 Worker 的生产 / 原生 Preview：生产页面通过 Dev 按钮管理测试数据，生成开发域名下的 `/AtlasRouter-Dev` 链接，订阅由开发预览直接处理。链接、页面、绑定配置和 `deploy:preview` 发布命令已实现；Cloudflare 连接步骤见 [部署说明](docs/deployment-cloudflare.md)，生产发布仍暂停。GitHub Actions 只运行验证。参见 [原生预览方案](docs/native-previews.md)。
+首版已实现登录、自动分配、订阅生成。当前采用同一 Worker 的生产 / 原生 Preview：生产页面通过 Dev 按钮管理测试数据，生成开发域名下的 `/AtlasRouter-Dev` 链接，订阅由开发预览直接处理。链接、页面、绑定配置和 `deploy:preview` 发布命令已实现；Cloudflare 连接步骤见 [部署说明](docs/deployment-cloudflare.md)，生产由 Cloudflare 的 master 构建发布。GitHub Actions 只运行验证。参见 [原生预览方案](docs/native-previews.md)。
 
 - `README.md`：项目说明与维护入口。
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
@@ -38,7 +38,7 @@ flowchart LR
   B --> D
   E["Surge 携带个人 token"] --> F["Worker 校验订阅凭据"]
   F --> D
-  D --> G["渲染模板与按主备顺序赋权的 Smart 组"]
+  D --> G["渲染模板与按主备顺序排列的 fallback 组"]
   G --> H["Surge 导入 / 更新；客户端检测故障"]
 ```
 
@@ -60,7 +60,7 @@ npm test
 
 使用 Node.js 24。`npm test` 包括单元测试、部署构建检查和 Miniflare/workerd 集成测试，覆盖本地 D1 的并发分配与重启持久化。测试、构建和部署前会将 `surge/` 和 `modules/` 中的静态资产打包进 Worker。
 
-统一网页入口为域名根路径 `/`，订阅链接为 `/AtlasRouter?token=<token>`。普通用户看到个人订阅，管理员在同一页还可管理节点池和用户；角色由验证后的邮箱及 `ADMIN_EMAILS` 决定。个人 API 位于 `/api/account/*`，管理 API 位于 `/api/<slug>/pool/*`；随机标识由 `ADMIN_API_SLUG` Secret 提供，仅注入管理员页面；主动轮换该 Secret 后需刷新已打开的管理员页面。原生 Preview 发布不轮换生产标识。`/admin`、`/api/admin/*` 和旧订阅等入口均已停用，到达 Worker 后返回 404。完整部署步骤见 [Cloudflare 部署](docs/deployment-cloudflare.md)，分配规则见 [多用户与节点池](docs/multi-user.md)。
+统一网页入口为域名根路径 `/`，订阅链接为 `/AtlasRouter?token=<token>`。普通用户看到个人订阅，管理员在同一页还可管理节点池和用户；角色由验证后的邮箱及 `ADMIN_EMAILS` 决定。个人 API 位于 `/api/account/*`，管理 API 位于 `/api/<slug>/pool/*`；随机标识由 `ADMIN_API_SLUG` Secret 提供，仅注入管理员页面；每次 master 构建发布会轮换该 Secret，发布后需刷新已打开的管理员页面。原生 Preview 发布不轮换生产标识。`/admin`、`/api/admin/*` 和旧订阅等入口均已停用，到达 Worker 后返回 404。完整部署步骤见 [Cloudflare 部署](docs/deployment-cloudflare.md)，分配规则见 [多用户与节点池](docs/multi-user.md)。
 
 页面可选启用 DoH 和 Client（默认 Surge / Clash），分别通过 `doh=1`、`client=clash` 注入订阅链接。Clash / Mihomo 输出由同一份完整 Surge 配置转换，自动跳过不兼容内容，不需要维护两份分流配置。参数与兼容范围见 [订阅说明](docs/subscription.md)。
 
@@ -77,7 +77,7 @@ npm run check:live-security -- https://<worker-domain>
 
 ## 分支与原生 Preview
 
-一个 `atlas-router` Worker 使用生产与原生 Preview 两套运行环境：`master` 为生产分支，`develop` 为开发分支。Cloudflare Workers Builds 直接监听推送，GitHub Actions 只运行验证。当前 Git `master` 仍是旧 KV／手动订阅版本，尚不包含 Clash 转换；它不是当前开发版的生产参数副本，也不能当作线上 D1 源码基线直接发布。分支差异及两种客户端的非等价行为见 [兼容性核对](docs/client-compatibility.md)。
+一个 `atlas-router` Worker 使用生产与原生 Preview 两套运行环境：`master` 为生产分支，`develop` 为开发分支。Cloudflare Workers Builds 直接监听推送，GitHub Actions 只运行验证。`master` 使用 Smart 权重实验之前的 D1／Clash 稳定行为：地区/IP 类型组为顺序 fallback；`develop` 保留 Smart 权重实验。基线来源见 [生产基线](docs/production-baseline.md)。分支差异及两种客户端的非等价行为见 [兼容性核对](docs/client-compatibility.md)。
 
 生产页面的 Dev 按钮进入 `/?environment=development`，通过 `DEV_DB` 管理测试节点和凭据，生成开发域名下的 `/AtlasRouter-Dev` 链接。客户端直接请求原生 Preview；无需组合分支代码或生产反向代理。正式订阅仍使用 `/AtlasRouter`，两库 token 不能互换。
 
@@ -85,7 +85,7 @@ npm run check:live-security -- https://<worker-domain>
 npm --prefix worker run deploy:preview -- --dry-run
 ```
 
-Cloudflare Preview command 使用 `npm run deploy:preview`。生产 Deploy command 保持 `npx wrangler deploy --dry-run`，本地 `npm run deploy` 也会明确拒绝生产发布。旧组合构建脚本保留作历史实现，不用于当前流程。域名、D1、Access 和连接状态的核对步骤见 [部署说明](docs/deployment-cloudflare.md)，环境变量见 [env.md](docs/env.md)。
+Cloudflare Preview command 使用 `npm run deploy:preview`。生产 Deploy command 使用 `npm run deploy`，只接受 Cloudflare Workers Builds 的 master 构建上下文；本地只运行验证，不发布。旧组合构建脚本保留作历史实现，不用于当前流程。域名、D1、Access 和连接状态的核对步骤见 [部署说明](docs/deployment-cloudflare.md)，环境变量见 [env.md](docs/env.md)。
 
 ## Cloudflare Worker 配置约定
 
@@ -99,7 +99,7 @@ Cloudflare Preview command 使用 `npm run deploy:preview`。生产 Deploy comma
 
 ## Surge 配置约定
 
-- 自动订阅的 `[Proxy Group]` 使用 `surge/pool-groups.conf`，动态生成如 `🇺🇸USA-ISP`、`🇭🇰HK-IDC`、`🇸🇬SG-WARP` 的 `smart` 组，按个人主备顺序生成 `1、2、3…` 的 `policy-priority` 评分系数；开发环境试验 `1、3、9…`，Clash 均转换为同顺序的 `fallback`。
+- master 自动订阅的 `[Proxy Group]` 使用 `surge/pool-groups.conf`，动态生成如 `🇺🇸USA-ISP`、`🇭🇰HK-IDC`、`🇸🇬SG-WARP` 的顺序 `fallback` 组；Surge / Clash 均保留个人主备次序，间隔 300 秒。Smart 权重仅在 develop 分支实验；原有 Auto Smart 组仍保留。
 - `[Rule]` 负责流量匹配，规则按文件顺序从上到下匹配，并以 `FINAL` 规则兜底。
 - 外部策略可通过 `policy-path` 引入，区域筛选可用 `policy-regex-filter`。
 - 模块文件用于对主配置做局部覆盖或追加，不应承担主配置无法解释的大段逻辑。

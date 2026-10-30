@@ -11,11 +11,11 @@
 | `UI_ENABLED`（变量） | `true` | `false`，根页面返回 404 |
 | `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` | `/AtlasRouter-Dev` |
 | `DEV_SUBSCRIPTION_ORIGIN`（变量） | 开发预览的固定 HTTPS origin | 不需要 |
-| `SMART_PRIORITY_SCHEME`（变量） | 缺省为 `linear`：1、2、3… | `geometric-3`：1、3、9… |
+| `SMART_PRIORITY_SCHEME`（变量） | 不读取，不启用权重实验 | develop 源码使用 `geometric-3`：1、3、9… |
 
 两库 ID 必须不同；Preview 的 `DB` 与生产 UI 的 `DEV_DB` 指向同一个测试库。`DEV_SUBSCRIPTION_ORIGIN` 不能带用户信息、路径、查询或片段，且必须与生产 origin 不同。`environment=development` 仅让生产 UI 及其 API 选择测试库，不转发订阅请求，也不执行另一个分支的代码。测试库结构必须与生产管理页面兼容。
 
-上述变量来自仓库配置；生产设置了 `keep_vars=true`，Dashboard 中已有的 `SMART_PRIORITY_SCHEME` 仍需单独核对，不能把源码缺省值当作线上实际值。顺序系数影响 Surge Smart，Clash 只保留同一成员顺序并输出 fallback；完整差异见 [兼容性核对](client-compatibility.md)。系数须为安全整数，过大的分组会拒绝生成。
+上述变量来自各分支的仓库配置。master 固定生成顺序 fallback，不读取遗留的 `SMART_PRIORITY_SCHEME`；develop 源码和 Preview 配置独立，继续试验 Smart 权重。完整差异见 [兼容性核对](client-compatibility.md)。
 
 生产网页和浏览器 API 还需要以下配置。Preview 默认关闭 UI，订阅只依赖测试 D1 中的个人 token；若另行启用 Preview 浏览器 API，须明确配置其 Access 参数，不能依赖生产 Secrets 自动继承。
 
@@ -41,9 +41,9 @@
 - `npm run build`：当前源代码的 Wrangler dry-run，不发布。
 - `npm run deploy:preview -- --dry-run`：只校验 Preview 发布配置。
 - `npm run deploy:preview`：仅允许 `develop`；迁移测试库后发布固定的 `develop` Preview。
-- `npm run deploy`：生产暂停期间直接报错，不迁移、不发布。
+- `npm run deploy`：只允许 Cloudflare Workers Builds 的 master 构建执行；先迁移两库，再发布生产 UI 和稳定分流代码。本地运行会拒绝发布。
 
-生产 Deploy command 继续使用 `npx wrangler deploy --dry-run`。旧 `build:branches`、`deploy:branches`、`setup:builds` 脚本保留作历史实现，不用于当前原生 Preview，尤其不能用旧组合发布命令绕过生产暂停。生产恢复发布前须先核对 `master` 源码基线、正式 D1 迁移和配置；本次整理没有恢复生产发布。
+Cloudflare 生产 Deploy command 使用 `npm run deploy`。旧 `build:branches`、`deploy:branches`、`setup:builds` 不用于当前流程。发布只由 Cloudflare 监听 Git 推送触发；不从本机手工部署，也不通过 GitHub Actions 发布。
 
 ## D1 关系表
 
@@ -64,7 +64,7 @@
 
 管理员只需打开根路径。Worker 验证管理员邮箱后将随机管理路径注入 HTML；普通用户页面和个人 API 不包含该值。随机路径不能替代 Access JWT、邮箱白名单和同源写入检查。
 
-当前原生 Preview 发布不轮换生产 `ADMIN_API_SLUG`，也不需要 `DEV_ADMIN_API_SLUG`。保留现有合法 Secret；首次启用生产管理功能时需配置随机值，缺失或格式错误时管理功能关闭。主动轮换后，旧路径失效，已打开的管理员页面需要刷新；个人 token 和节点分配不受影响。仓库内旧发布 helper 的自动轮换测试，不代表当前 Preview 命令会执行轮换。
+master 构建在两库迁移成功后自动生成新的 `ADMIN_API_SLUG`，通过权限受限的临时 Secrets 文件与代码一同发布。发布后旧路径失效，管理员页面需要刷新；其他 Secrets、个人 token 和节点分配保持。Preview 发布不轮换生产标识，也不需要 `DEV_ADMIN_API_SLUG`。
 
 节点只从根路径管理区域录入，格式为 `节点名 = Surge 节点配置`。国家旗帜和 `IDC`、`ISP`、`WARP` 决定分组，完整约定见 [multi-user.md](multi-user.md)。保存时提交 `{ revision, nodes: [{ id, line, enabled }] }`，Worker 拆入节点和分配关系表。
 
