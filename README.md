@@ -8,7 +8,7 @@ AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统�
 
 ## 当前状态
 
-首版已实现登录、自动分配、订阅生成，并提供 GitHub Actions CI/CD 工作流：
+首版已实现登录、自动分配、订阅生成；支持 Cloudflare Workers Builds 按 Git 分支部署，GitHub Actions 只运行验证：
 
 - `README.md`：项目说明与维护入口。
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
@@ -78,17 +78,17 @@ npm run check:live-security -- https://<worker-domain>
 
 ## 统一部署
 
-GitHub Actions 按分支部署：`develop` 使用 `development` Environment，只发布开发 Worker 和独立 D1；`master` 使用 `production` Environment，发布生产订阅服务和测速站。PR 只检查。两端分别设置 Access、管理员 Secrets 和节点，测试通过后将 `develop` 合入 `master` 发布生产。启用前需配置 GitHub 的环境 Secrets 和分支限制，见 [部署说明](docs/deployment-cloudflare.md)。
+Cloudflare Workers Builds 直接连接 GitHub 并监听推送：`atlas-router-dev` 监听 `develop`，使用独立 D1；`atlas-router` 监听 `master`，使用生产 D1。每个 Worker 在 Cloudflare 构建中验证后，通过各自的命令部署。GitHub Actions 只检查代码，不持有部署凭据，也不触发部署；无需配置 GitHub Environment Secrets。两端分别设置 Access、管理员 Secrets 和节点，连接步骤见 [部署说明](docs/deployment-cloudflare.md)。
 
 开发环境的本地部署命令为 `npm --prefix worker run deploy:dev`，使用 `worker/wrangler.dev.jsonc`；构建检查使用 `npm --prefix worker run build:dev`。
 
-在仓库根目录运行以下命令，会依次部署 `atlas-router` 订阅服务和 `pulse-speedtest` 测速站：
+本地手动部署时，在仓库根目录运行以下命令，会依次部署 `atlas-router` 订阅服务和 `pulse-speedtest` 测速站：
 
 ```sh
 npm --prefix worker run deploy
 ```
 
-加上 `-- --dry-run` 可检查两个 Worker，不执行远程迁移或发布。只更新其中一个时，使用 `npm --prefix worker run deploy:router` 或 `npm --prefix worker run deploy:speedtest`。订阅服务仍会先执行 D1 迁移并轮换管理路径 Secret；只更新测速站不会触发这些操作。两项发布并非原子操作，后一步失败不会回滚已经成功的前一步。详情见 [Cloudflare 部署](docs/deployment-cloudflare.md)。
+加上 `-- --dry-run` 可检查两个 Worker，不执行远程迁移或发布。只更新其中一个时，使用 `npm --prefix worker run deploy:router` 或 `npm --prefix worker run deploy:speedtest`。Cloudflare Builds 必须使用单个 Worker 的命令；脚本在远程操作前校验监听分支和目标 Worker。订阅服务仍会先执行 D1 迁移并轮换管理路径 Secret；只更新测速站不会触发这些操作。两项本地发布并非原子操作，后一步失败不会回滚已经成功的前一步。详情见 [Cloudflare 部署](docs/deployment-cloudflare.md)。
 
 ## Cloudflare Worker 配置约定
 

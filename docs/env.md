@@ -4,7 +4,7 @@ AtlasRouter 每个环境使用一个存储绑定：
 
 - `DB`：Cloudflare D1 SQLite。生产使用 `wrangler.jsonc`，开发使用 `wrangler.dev.jsonc`，分别填写独立数据库 ID，再应用 `worker/migrations/` 中的 SQL 迁移创建关系表。开发节点、用户、订阅 token 和分配关系独立保存，不复制生产数据。
 
-节点凭据由管理员通过受保护页面录入存储，不放入代码或普通环境变量。D1 读权限视为敏感配置读取权限。GitHub Actions 仅保存部署所需的 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` Secrets，不保存节点或用户订阅 token；部署 token 需要 D1 Edit 权限。旧 `SUBSCRIPTIONS` 和 `ATLAS_ROUTER` binding 已移除。
+节点凭据由管理员通过受保护页面录入存储，不放入代码或普通环境变量。D1 读权限视为敏感配置读取权限。部署凭据由 Cloudflare Workers Builds 管理，订阅 Worker 的构建 token 需要 D1 Edit 权限；GitHub Actions 只验证代码，无需 Cloudflare Secrets。节点和用户订阅 token 不放入构建变量。旧 `SUBSCRIPTIONS` 和 `ATLAS_ROUTER` binding 已移除。
 
 同一个 Cloudflare Access 应用保护域名根路径 `/` 及 `/api` 下的全部 API。所有用户直接访问域名，Worker 校验 Access 注入的 JWT 后按邮箱决定是否展示管理功能。`/AtlasRouter` 订阅入口及其模块、Clash 规则集路径需绕过交互式 Access 登录，由 Worker 校验订阅 token；具体路径优先级见 [部署说明](deployment-cloudflare.md)。需要在 Cloudflare Dashboard 的 Worker Variables and Secrets 中配置：
 
@@ -19,7 +19,7 @@ AtlasRouter 每个环境使用一个存储绑定：
 
 Google OAuth client ID/secret 配置在 Cloudflare Access 身份提供商中，Worker 不处理 Google client secret。`ACCESS_JWKS_JSON` 仅用于离线测试注入公钥，生产不要设置；生产从 team domain 获取 Access 公钥。真实账号、密钥与本地 `.dev.vars*`、`.env*` 均不入库。
 
-`develop` 和 `master` 分别使用 GitHub 的 `development`、`production` Environment。两端独立配置以上运行时变量和 Secrets；特别是 Access AUD、管理路径及订阅 token 不能通用。GitHub Environment 内仅放对应环境的 Cloudflare 部署凭据，部署脚本的 `--development` 只操作开发配置。
+在 Cloudflare 分别将开发、生产 Worker 连接到 GitHub 的 `develop`、`master` 分支。两端独立配置以上运行时变量和 Secrets；特别是 Access AUD、管理路径及订阅 token 不能通用。构建变量与 Worker 运行时变量分开配置，无需 GitHub Environment。部署脚本的 `--development` 只操作开发配置；在 Workers Builds 中，分支或目标 Worker 不匹配时会在数据库迁移前拒绝发布。
 
 ## D1 关系表
 

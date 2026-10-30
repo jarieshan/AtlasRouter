@@ -1,13 +1,15 @@
 # Cloudflare Deployment
 
-首次部署顺序：创建 D1 → 本地首次部署 Worker 和域名 → 配置 Access 与 Worker 运行参数 → 登录验收 → 配置 GitHub Actions。
+首次部署顺序：创建 D1 → 在 Cloudflare 连接 GitHub 并配置 Workers Builds → 首次构建部署 Worker 和域名 → 配置 Access 与 Worker 运行参数 → 登录验收。本地手动部署也保留为维护入口。
 
-部署按 Git 分支选择环境：`develop` → 开发 Worker 和独立 D1，`master` → 生产订阅服务和测速站。PR 只验证，不部署；两个分支都先运行单元测试、workerd 集成测试及构建检查。工作流在 [worker.yml](../.github/workflows/worker.yml)。
+Cloudflare Workers Builds 直接监听 GitHub 分支推送：`develop` → 开发 Worker 和独立 D1，`master` → 生产订阅服务。每个 Worker 在 Cloudflare 构建中验证后部署。GitHub Actions 只做 PR 和分支验证，不触发部署，也不需要部署 Secrets；检查工作流在 [worker.yml](../.github/workflows/worker.yml)。
 
-| Git 分支 | GitHub Environment | Worker / 域名 | D1 |
-| --- | --- | --- | --- |
-| `develop` | `development` | `atlas-router-dev` / `atlasrouter-dev.zslab.ai` | `atlas-router-dev` |
-| `master` | `production` | `atlas-router` / `atlasrouter.zslab.ai`；测速站沿用独立 Worker | `atlas-router` |
+| Git 分支 | Worker / 域名 | D1 |
+| --- | --- | --- |
+| `develop` | `atlas-router-dev` / `atlasrouter-dev.zslab.ai` | `atlas-router-dev` |
+| `master` | `atlas-router` / `atlasrouter.zslab.ai` | `atlas-router` |
+
+这是两个独立 Worker，不是同一个 Worker 的预览分支。先接通开发环境；开发验收通过、准备发布生产时，再将代码合入 `master` 并连接生产 Worker。测速站如需自动部署，单独连接 `pulse-speedtest`，不从订阅 Worker 的构建中顺带发布。
 
 两端分别配置 Access 应用、AUD、管理员 Secret 和节点。开发库不复制生产用户、订阅 token、节点凭据或分配关系。需要先在开发管理页单独录入测试节点，才能用开发订阅进行真实线路测试。
 
@@ -114,18 +116,32 @@ ACCESS_AUD=REPLACE_WITH_APPLICATION_AUD
 
 Google client secret 留在 Access 的 IdP 设置中；节点配置通过管理页写入 D1。不要将它们写入 Wrangler 配置、GitHub 仓库或构建日志。`keep_vars` 会保留 Dashboard 的普通变量。部署脚本只覆盖 `ADMIN_API_SLUG`，其余既有 Secrets 会被保留。
 
-## 4. GitHub CI/CD
+## 4. Cloudflare Workers Builds
 
-在 GitHub 仓库分别创建 `development`、`production` Environment，各自设置部署 Secrets：
+无需设置 GitHub 的 `development` / `production` Environment，也无需向 GitHub 提供 `CLOUDFLARE_API_TOKEN` 或 `CLOUDFLARE_ACCOUNT_ID`。部署由 Cloudflare 的 GitHub 集成直接触发，设置入口如下：
 
-- `CLOUDFLARE_API_TOKEN`：使用 Cloudflare 的 Edit Cloudflare Workers 模板创建、限制到目标账号和 `zslab.ai` Zone，并确认含有 Account → D1 → Edit 权限，以执行数据库迁移。
-- `CLOUDFLARE_ACCOUNT_ID`：目标 Cloudflare Account ID。
+1. 新 Worker：Cloudflare → Workers & Pages → Create application → GitHub，授权 Cloudflare GitHub App 访问 `jarieshan/AtlasRouter`。已有 Worker：进入该 Worker → Settings → Builds → Connect。
+2. 按下表设置 Worker 名称、监听分支、根目录和命令。新建开发 Worker 的名称必须是 `atlas-router-dev`；不要使用默认的 `main` 分支或默认部署命令。
+3. 在 Branch control 关闭 **Enable Preview Builds**（旧界面为非生产分支构建），只监听表内分支。Cloudflare 界面里的 **Production branch** 指当前 Worker 的部署分支，因此开发 Worker 此项也应填写 `develop`。
+4. 检查构建 token 权限后保存并首次部署；以后推送对应分支由 Cloudflare 自动构建。已有 Worker 连接后可通过新提交触发；失败构建可在 Cloudflare Build History 中重试。
 
-两个 Environment 分别限制为 `develop`、`master` 分支，生产凭据不要放在仓库级 Secrets，也不要给开发环境复制生产运行时 Secrets。开发、生产部署使用独立并发队列，正在执行的迁移或部署不因新提交被中断。GitHub Environment 的分支限制和 Secret 隔离需要在仓库设置中实际配置，仅添加工作流文件不会自动完成这些设置。参见 [GitHub Environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)。
+| Cloudflare 设置 | 开发订阅 Worker | 生产订阅 Worker（准备上线后启用） | 测速站（独立连接，可选） |
+| --- | --- | --- | --- |
+| Worker name | `atlas-router-dev` | `atlas-router` | `pulse-speedtest` |
+| Git repository | `jarieshan/AtlasRouter` | `jarieshan/AtlasRouter` | `jarieshan/AtlasRouter` |
+| Production branch | `develop` | `master` | `master` |
+| Root directory | `worker` | `worker` | `worker` |
+| Build command | `npm ci && npm test && npm run build:dev` | `npm ci && npm test` | `npm ci && npm run build:speedtest` |
+| Deploy command | `npm run deploy:dev` | `npm run deploy:router` | `npm run deploy:speedtest` |
+| Preview builds | 关闭 | 关闭 | 关闭 |
 
-PR、`develop` 和 `master` 都运行 `npm ci`、`npm test`、`npm run build:dev` 和 `npm run build:speedtest`。验证任务不使用部署 Secrets。`develop` 验证成功后只执行 `npm run deploy:dev`；`master` 才执行生产的 `npm run deploy`。手动 `workflow_dispatch` 同样根据所选 Git 分支选择环境，其他分支只验证。开发测试完成后，通过 PR 将 `develop` 合入 `master` 发布生产。
+根目录都选 `worker`，因为 npm 锁文件和部署脚本位于该目录；脚本显式选择对应 Wrangler 配置，包括 `../speedtest-worker/wrangler.jsonc`。开发命令始终使用 `wrangler.dev.jsonc`，不靠改名或临时替换生产配置来切换环境。仓库的 [worker/.nvmrc](../worker/.nvmrc) 将构建 Node.js 版本设为 24。Build Variables 可选设置 `SKIP_DEPENDENCY_INSTALL=1`，避免 Cloudflare 自动安装后又执行命令中的 `npm ci`；不设置也可构建。
 
-如果仓库仍以 `main` 为默认分支，需在获得 Git 操作授权后建立 `develop` 和 `master`，并将默认分支调整为 `master`；本工作流不会从 `main` 发布生产。建议将 `verify` 设为 `master` 的必需状态检查。若原项目启用了 Cloudflare Workers Builds 自动部署，应停用那条部署触发器，避免双重发布和绕过 GitHub 检查。
+Cloudflare 默认创建的构建 token 未包含 D1 权限。为两个订阅 Worker 选择具备 **Account → D1 → Edit** 的用户 API token，并保留 Workers 部署、Account Settings Read 和目标 Zone 的 Workers Routes Edit 等权限；可在 My Profile → API Tokens 中使用 Edit Cloudflare Workers 模板并添加 D1 Edit，再在该 Worker 的 Builds → API token 中选择。限制账号和 Zone 到实际目标。凭据由 Cloudflare 管理，不填入 GitHub 或仓库。测速站不需要 D1 权限。参见 [Builds API token](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)。
+
+Workers Builds 会提供 `WORKERS_CI_BRANCH` 和目标 Worker 名称，并可能覆盖 Wrangler 配置中的 `name`。因此不能在 Builds 中使用一次发布两个 Worker 的 `npm run deploy`；部署脚本会在迁移前拒绝分支、命令或目标 Worker 不匹配的发布。本地手动部署和纯构建检查保留原有用法。官方说明见 [构建变量](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#environment-variables)、[Worker 名称校验](https://developers.cloudflare.com/workers/ci-cd/builds/troubleshoot/#workers-name-requirement)。
+
+Cloudflare 不等待 GitHub Actions 的完成状态，所以 Cloudflare 的 Build command 本身必须运行上表检查；失败后不会执行 Deploy command。GitHub 的 `verify` 仍检查 PR、`develop` 和 `master`，可设为合入 `master` 的必需状态检查。即使 GitHub 默认分支暂时还是 `main`，Cloudflare 也能单独监听 `develop` / `master`，无需为此更改默认分支。仅提交仓库配置不会自动建立 Cloudflare 的 Git 连接，必须在 Dashboard 实际保存上述设置。
 
 开发首次初始化时，使用 `wrangler.dev.jsonc` 中独立的数据库 ID。为 `atlasrouter-dev.zslab.ai` 创建独立 Access 应用，按上文配置根路径和 `/api`，再为该域名的 `/AtlasRouter` 及子路径建立订阅 Bypass。在开发 Worker 上设置它自己的 `ACCESS_TEAM_DOMAIN`、`ACCESS_AUD` 和 `ADMIN_EMAILS`；管理路径由开发部署脚本自动生成。复用 Google IdP 可以，但不要复用生产应用的 AUD。缺少 Access 设置时页面不会开放；新库没有节点时订阅返回等待分配。
 
@@ -145,7 +161,7 @@ cd worker
 npm run deploy
 ```
 
-参考：[Cloudflare GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)、[GitHub Node.js CI](https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs)。
+参考：[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)、[构建配置](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)、[分支控制](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)、[构建镜像和 Node.js 版本](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)。
 
 ## 5. 首次使用与验收
 

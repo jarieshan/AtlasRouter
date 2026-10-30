@@ -4,9 +4,8 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { runInNewContext } from "node:vm";
 import { parse as parseYaml } from "yaml";
-import { assertDevelopmentIsolation, deploy, deployAll, deployDevelopment, deploySpeedtest } from "../scripts/deploy.js";
+import { assertCloudflareBuildTarget, assertDevelopmentIsolation, deploy, deployAll, deployDevelopment, deploySpeedtest } from "../scripts/deploy.js";
 
 const speedtestConfig = fileURLToPath(new URL("../../speedtest-worker/wrangler.jsonc", import.meta.url));
 const developmentConfig = fileURLToPath(new URL("../wrangler.dev.jsonc", import.meta.url));
@@ -53,33 +52,49 @@ test("development migrations and deployment always target its own config and nev
   }
 });
 
-test("GitHub deployment selection keeps develop, master, pull requests and other branches separate", async () => {
+test("GitHub only verifies changes without deployment jobs or credentials", async () => {
   const workflow = parseYaml(await readFile(new URL("../../.github/workflows/worker.yml", import.meta.url), "utf8"));
   assert.deepEqual(workflow.on.push.branches, ["develop", "master"]);
-  const development = workflow.jobs["deploy-development"];
-  const production = workflow.jobs["deploy-production"];
-  for (const [ref, event_name, expected] of [
-    ["refs/heads/develop", "push", "development"],
-    ["refs/heads/master", "push", "production"],
-    ["refs/heads/develop", "workflow_dispatch", "development"],
-    ["refs/heads/master", "workflow_dispatch", "production"],
-    ["refs/heads/main", "push", null],
-    ["refs/heads/feature/test", "workflow_dispatch", null],
-    ["refs/heads/develop", "pull_request", null],
-    ["refs/heads/master", "pull_request", null],
-    ["refs/pull/1/merge", "pull_request", null],
-  ]) {
-    const selected = [development, production].filter((job) => runInNewContext(job.if, { github: { ref, event_name } }));
-    assert.deepEqual(selected.map((job) => job.environment), expected ? [expected] : []);
-  }
+  assert.deepEqual(Object.keys(workflow.jobs), ["verify"]);
   assert.equal(workflow.jobs.verify.environment, undefined);
-  assert.ok(!JSON.stringify(workflow.jobs.verify).includes("secrets."));
-  for (const [job, command] of [[development, "npm run deploy:dev"], [production, "npm run deploy"]]) {
-    assert.equal(job.needs, "verify");
-    assert.equal(job.concurrency["cancel-in-progress"], false);
-    assert.ok(job.steps.some((step) => step.run === command));
+  assert.ok(!JSON.stringify(workflow).includes("secrets."));
+  assert.deepEqual(workflow.jobs.verify.steps.flatMap((step) => step.run ? [step.run] : []),
+    ["npm ci", "npm test", "npm run build:dev", "npm run build:speedtest"]);
+});
+
+test("Cloudflare Builds only accepts its connected Worker on the designated branch", () => {
+  for (const [workerName, branch] of [["atlas-router-dev", "develop"], ["atlas-router", "master"], ["pulse-speedtest", "master"]]) {
+    const env = { WORKERS_CI: "1", WORKERS_CI_BRANCH: branch, WRANGLER_CI_OVERRIDE_NAME: workerName };
+    assert.doesNotThrow(() => assertCloudflareBuildTarget(workerName, env));
+    assert.doesNotThrow(() => assertCloudflareBuildTarget(workerName, {}));
+    for (const wrongBranch of [undefined, "main", "feature/test", branch === "develop" ? "master" : "develop"]) {
+      assert.throws(() => assertCloudflareBuildTarget(workerName, { ...env, WORKERS_CI_BRANCH: wrongBranch }), /matching branch/);
+    }
+    assert.throws(() => assertCloudflareBuildTarget(workerName, { ...env, WRANGLER_CI_OVERRIDE_NAME: undefined }), /connected Worker/);
+    for (const wrongWorker of [undefined, ...["atlas-router-dev", "atlas-router", "pulse-speedtest"].filter((name) => name !== workerName)]) {
+      assert.throws(() => assertCloudflareBuildTarget(wrongWorker, env), /connected Worker/);
+    }
   }
-  assert.notEqual(development.concurrency.group, production.concurrency.group);
+  assert.doesNotThrow(() => assertCloudflareBuildTarget(undefined, {}));
+});
+
+test("the CLI rejects a wrong Builds target before invoking migrations or Wrangler", () => {
+  const script = fileURLToPath(new URL("../scripts/deploy.js", import.meta.url));
+  for (const [flags, branch, workerName] of [
+    [[], "master", "atlas-router"],
+    [["--router-only"], "develop", "atlas-router-dev"],
+    [["--development"], "develop", "atlas-router"],
+    [["--development"], "master", "atlas-router-dev"],
+    [["--speedtest-only"], "master", "atlas-router"],
+  ]) {
+    const result = spawnSync(process.execPath, [script, ...flags], {
+      encoding: "utf8",
+      env: { ...process.env, WORKERS_CI: "1", WORKERS_CI_BRANCH: branch, WRANGLER_CI_OVERRIDE_NAME: workerName },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /^Cloudflare Builds must use the matching branch/);
+    assert.equal(result.stdout, "");
+  }
 });
 
 test("deployments generate fresh valid route Secrets, including when no usable value exists", async () => {

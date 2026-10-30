@@ -11,6 +11,14 @@ const speedtestConfig = fileURLToPath(new URL("../../speedtest-worker/wrangler.j
 const developmentConfig = fileURLToPath(new URL("../wrangler.dev.jsonc", import.meta.url));
 const productionConfig = fileURLToPath(new URL("../wrangler.jsonc", import.meta.url));
 
+export function assertCloudflareBuildTarget(workerName, env = process.env) {
+  if (!env.WORKERS_CI && !env.WRANGLER_CI_OVERRIDE_NAME) return;
+  const branch = { "atlas-router-dev": "develop", "atlas-router": "master", "pulse-speedtest": "master" }[workerName];
+  if (!branch || env.WORKERS_CI_BRANCH !== branch || env.WRANGLER_CI_OVERRIDE_NAME !== workerName) {
+    throw new Error("Cloudflare Builds must use the matching branch and deploy only its connected Worker (--development, --router-only or --speedtest-only)");
+  }
+}
+
 export function assertDevelopmentIsolation(development, production) {
   const productionDomains = new Set((production.routes ?? []).map((route) => (typeof route === "string" ? route : route.pattern).toLowerCase()));
   const productionDatabases = new Set((production.d1_databases ?? []).map((db) => db.database_id));
@@ -98,7 +106,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   } else {
     const action = args.includes("--development") ? deployDevelopment
       : args.includes("--router-only") ? deploy : args.includes("--speedtest-only") ? deploySpeedtest : deployAll;
-    action({ dryRun: args.includes("--dry-run") }).catch((error) => {
+    const workerName = args.includes("--development") ? "atlas-router-dev"
+      : args.includes("--router-only") ? "atlas-router" : args.includes("--speedtest-only") ? "pulse-speedtest" : undefined;
+    const dryRun = args.includes("--dry-run");
+    Promise.resolve().then(() => {
+      // Builds can override Wrangler's configured name. Check before any remote D1 migration.
+      if (!dryRun) assertCloudflareBuildTarget(workerName);
+      return action({ dryRun });
+    }).catch((error) => {
       console.error(error.message);
       process.exitCode = 1;
     });
