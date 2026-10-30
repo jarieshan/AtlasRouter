@@ -3,6 +3,13 @@ export const ACCOUNT_PATH = "/";
 export const ACCOUNT_PROFILE_PATH = `${API_PATH}/account/profile`;
 export const ACCOUNT_TOKEN_PATH = `${API_PATH}/account/token`;
 export const POOL_SUBSCRIPTION_PATH = "/AtlasRouter";
+export const DEV_SUBSCRIPTION_PATH = "/AtlasRouter-Dev";
+
+export function subscriptionPath(requestUrl) {
+  const path = new URL(requestUrl).pathname;
+  return path === DEV_SUBSCRIPTION_PATH || path.startsWith(`${DEV_SUBSCRIPTION_PATH}/`)
+    ? DEV_SUBSCRIPTION_PATH : POOL_SUBSCRIPTION_PATH;
+}
 
 export function getAdminRoutes(env) {
   const slug = env.ADMIN_API_SLUG;

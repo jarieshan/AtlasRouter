@@ -1,7 +1,7 @@
 import { parse } from "yaml";
 import { ASSETS } from "./generated/assets.js";
 import { HttpError } from "./errors.js";
-import { POOL_SUBSCRIPTION_PATH } from "./routes.js";
+import { subscriptionPath } from "./routes.js";
 import { inheritBranch, requestBranch } from "./branch-query.js";
 
 const ORIGIN = "https://magicrule.pages.dev";
@@ -21,7 +21,7 @@ export function findMagicRuleSource(filename) {
 export function magicRuleUrl(name, client, requestUrl, token) {
   const filename = `magicrule/${client}/${name}.${CLIENTS[client]?.extension}`;
   if (!findMagicRuleSource(filename)) throw new Error("Unregistered MagicRule source");
-  const url = inheritBranch(new URL(`${POOL_SUBSCRIPTION_PATH}/rules/${filename}`, requestUrl), requestUrl);
+  const url = inheritBranch(new URL(`${subscriptionPath(requestUrl)}/rules/${filename}`, requestUrl), requestUrl);
   url.searchParams.set("token", token);
   return url.toString();
 }
@@ -29,7 +29,7 @@ export function magicRuleUrl(name, client, requestUrl, token) {
 export function nativeMagicRuleSource(source, requestUrl, token) {
   if (source.kind !== "RULE-SET") return null;
   const url = new URL(source.url);
-  const prefix = `${POOL_SUBSCRIPTION_PATH}/rules/`;
+  const prefix = `${subscriptionPath(requestUrl)}/rules/`;
   if (url.origin !== new URL(requestUrl).origin || !url.pathname.startsWith(prefix)
     || url.searchParams.getAll("token").length !== 1 || url.searchParams.get("token") !== token
     || [...url.searchParams.keys()].some((key) => !["token", "dev"].includes(key))) return null;

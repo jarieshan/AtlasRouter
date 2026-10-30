@@ -1,5 +1,11 @@
 # Worker Env
 
+当前原生 Preview 配置以 [native-previews.md](native-previews.md) 和 [wrangler.jsonc](../worker/wrangler.jsonc) 为准。生产 `DB` 绑定正式库，`DEV_DB` 供生产 UI 管理测试凭据和节点；Preview 的 `DB` 仅绑定测试库。`UI_ENABLED`、`SUBSCRIPTION_PATH`、`DEV_SUBSCRIPTION_ORIGIN` 控制页面和链接。开发订阅直接访问开发域名，不使用 `dev=1` 切换代码。
+
+以下双分支环境映射和部署命令是尚未清理的旧组合构建实现说明，不用于原生 Preview；D1 表结构和敏感配置存储约定仍适用。
+
+## 旧组合构建环境
+
 AtlasRouter 在一个 Worker 上绑定两个独立数据库，由 `dev` 参数选择分支代码及其环境：
 
 - `DB`：生产 D1，由 `master` 代码使用；无 `dev` 或 `dev=0` 选择此环境。

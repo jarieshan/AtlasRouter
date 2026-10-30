@@ -16,7 +16,7 @@ function icon(name) {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 }
 
-function page(title, panels, isAdmin, preview = null) {
+function page(title, panels, isAdmin, preview = null, { development = false, developmentAvailable = false } = {}) {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -32,7 +32,8 @@ function page(title, panels, isAdmin, preview = null) {
   <nav class="nav">${isAdmin ? `<a href="#account-panel">我的订阅</a><a href="#pool-panel">节点池管理</a>` : ""}<a class="logout" href="/cdn-cgi/access/logout" aria-label="退出登录">${icon("logout")}<span>退出登录</span></a></nav>
 </div></header>
 <main class="wrap">
-  <div class="page-head"><h1>${title}</h1><p>${isAdmin ? "管理个人订阅、节点池与用户分配。" : "选择客户端并复制专属订阅链接。"}</p></div>
+  <div class="page-head"><h1>${title}</h1><p>${isAdmin ? "管理个人订阅、节点池与用户分配。" : "选择客户端并复制专属订阅链接。"}</p>${developmentAvailable ? `<a class="environment-toggle" href="${development ? "/" : "/?environment=development"}" aria-label="${development ? "切换到生产环境" : "切换到开发环境"}">${development ? "返回生产" : "Dev"}</a>` : ""}</div>
+  ${development ? `<aside class="preview-notice" role="note"><strong>Dev · 开发环境</strong> · 当前订阅、节点和操作均使用测试数据。生成的链接由开发环境直接提供订阅。</aside>` : ""}
   ${preview ? `<aside class="preview-notice" role="note"><strong>页面预览</strong> · ${preview.nodeSource === "database" ? "只读展示当前启用的真实节点，刷新页面获取最新数据。主备顺序仅供预览，不参与分配和统计，操作不保存。" : "模拟数据仅保留在当前页面内存中，刷新即重置，不保存账号、节点或操作记录。"}</aside>` : ""}
   ${panels.map(({ id, body }) => `<div id="${id}" class="panel">${body}</div>`).join("\n")}
 </main>${panels.map(({ id, script, previewData }) => `<script>(() => { const root = document.getElementById("${id}"); const previewData = ${JSON.stringify(previewData ?? null).replaceAll("<", "\\u003c")}; ${clientHelpers}${script} })();</script>`).join("\n")}</body>
@@ -73,6 +74,7 @@ const styles = `
     .page-head { margin-bottom: 24px; }
     .page-head h1 { font-size: 26px; line-height: 1.25; letter-spacing: -.02em; }
     .page-head p { margin-top: 6px; color: var(--muted); font-size: 15px; }
+    .environment-toggle { display: inline-block; margin-top: 12px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--brand); font-weight: 600; }
     .panel { scroll-margin-top: 84px; }
     .preview-notice { margin-bottom: 20px; padding: 12px 16px; border: 1px solid #fde68a; border-radius: 12px; background: var(--warn-soft); color: #92400e; font-size: 13px; line-height: 1.6; }
 
@@ -254,6 +256,7 @@ const clientHelpers = String.raw`
     }
     const url = new URL(path, location.href);
     if (new URL(location.href).searchParams.get("dev") === "1") url.searchParams.set("dev", "1");
+    if (new URL(location.href).searchParams.get("environment") === "development") url.searchParams.set("environment", "development");
     const response = await fetch(url.pathname + url.search, {
       method, credentials: "same-origin", cache: "no-store",
       headers: body === undefined ? {} : { "content-type": "application/json" },
@@ -278,12 +281,14 @@ const clientHelpers = String.raw`
   }
 `;
 
-export function renderAccountPage({ isAdmin = false, adminRoutes = null, preview = false, previewProfile = null } = {}) {
+export function renderAccountPage({ isAdmin = false, adminRoutes = null, preview = false, previewProfile = null,
+  development = false, developmentAvailable = false } = {}) {
   if (preview) isAdmin = false;
   const previewData = preview ? previewProfile ?? pagePreviewProfile() : null;
   const panels = [accountPanel(previewData)];
   if (isAdmin) panels.push(poolPanel(adminRoutes));
-  return page(preview ? "页面预览" : isAdmin ? "管理控制台" : "我的订阅", panels, isAdmin, previewData);
+  return page(preview ? "页面预览" : isAdmin ? "管理控制台" : "我的订阅", panels, isAdmin, previewData,
+    { development, developmentAvailable: !preview && developmentAvailable });
 }
 
 function accountPanel(preview) {

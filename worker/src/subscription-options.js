@@ -1,5 +1,5 @@
 import { HttpError } from "./errors.js";
-import { POOL_SUBSCRIPTION_PATH } from "./routes.js";
+import { subscriptionPath } from "./routes.js";
 import { inheritBranch } from "./branch-query.js";
 
 export function readSubscriptionOptions(params) {
@@ -18,7 +18,7 @@ export function readSubscriptionOptions(params) {
 
 export function buildSubscriptionUrl(requestUrl, token, { client = "surge", doh = false, tencentOa = false } = {}) {
   if (tencentOa && client !== "surge") throw new HttpError(400, "Company intranet compatibility requires Surge");
-  const url = inheritBranch(new URL(POOL_SUBSCRIPTION_PATH, requestUrl), requestUrl);
+  const url = inheritBranch(new URL(subscriptionPath(requestUrl), requestUrl), requestUrl);
   url.searchParams.set("token", token);
   if (client !== "surge") url.searchParams.set("client", client);
   if (doh) url.searchParams.set("doh", "1");

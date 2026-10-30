@@ -9,8 +9,9 @@ import { renderClashProfile } from "./render-clash.js";
 import { getModule, renderSurgeProfile } from "./render-surge.js";
 import { callSubscriptionStore } from "./subscription-store.js";
 import { buildSubscriptionUrl, readSubscriptionOptions } from "./subscription-options.js";
+import { uiEnvironment } from "./ui-environment.js";
 import {
-  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
+  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, DEV_SUBSCRIPTION_PATH, getAdminRoutes,
 } from "./routes.js";
 
 const ACCOUNT_ROUTES = new Set([ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH]);
@@ -19,27 +20,32 @@ export async function handlePoolRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
   if (ACCOUNT_ROUTES.has(path)) {
+    if (path === ACCOUNT_PATH && env.UI_ENABLED === "false") throw new HttpError(404, "Not Found");
     const identity = await requireAccessUser(request, env);
     requireMethod(request, path === ACCOUNT_TOKEN_PATH ? "POST" : "GET");
     const previewIdentity = await isPreviewIdentity(identity.email, env);
+    const target = uiEnvironment(request.url, env);
     if (path === ACCOUNT_PATH) {
       const preview = previewIdentity || url.searchParams.get("preview") === "1";
       const isAdmin = !preview && isAdminEmail(identity.email, env);
       const adminRoutes = isAdmin ? getAdminRoutes(env) : null;
       if (isAdmin && !adminRoutes) throw new HttpError(503, "Management API is not configured");
-      const previewProfile = previewIdentity ? await readPreviewProfile(env) : null;
-      return html(renderAccountPage({ isAdmin, adminRoutes, preview, previewProfile }));
+      const previewProfile = previewIdentity ? await readPreviewProfile(target.env) : null;
+      const developmentAvailable = !preview && Boolean(env.DEV_DB && env.DEV_SUBSCRIPTION_ORIGIN);
+      return html(renderAccountPage({ isAdmin, adminRoutes, preview, previewProfile,
+        development: target.development, developmentAvailable }));
     }
     if (path === ACCOUNT_TOKEN_PATH) await readMutation(request);
-    if (previewIdentity) return Response.json(await readPreviewProfile(env));
-    const profile = await callSubscriptionStore(env, { action: path === ACCOUNT_TOKEN_PATH ? "rotate-token" : "account", identity });
-    const subscriptionUrl = buildSubscriptionUrl(request.url, profile.subscribeToken);
+    if (previewIdentity) return Response.json(await readPreviewProfile(target.env));
+    const profile = await callSubscriptionStore(target.env, { action: path === ACCOUNT_TOKEN_PATH ? "rotate-token" : "account", identity });
+    const subscriptionUrl = buildSubscriptionUrl(target.subscriptionBase, profile.subscribeToken);
     const { subscribeToken, ...view } = profile;
     return Response.json({ ...view, subscriptionUrl });
   }
   const adminRoutes = getAdminRoutes(env);
   if (adminRoutes && Object.values(adminRoutes).includes(path)) {
     await requireAccessAdmin(request, env);
+    const target = uiEnvironment(request.url, env);
     requireMethod(request, path === adminRoutes.nodes ? "PUT" : path === adminRoutes.users ? "PATCH" : path === adminRoutes.import ? "POST" : "GET");
     if (path === adminRoutes.import) {
       return Response.json(await importPoolNodes(await readMutation(request)));
@@ -53,10 +59,12 @@ export async function handlePoolRequest(request, env) {
       const body = await readMutation(request);
       input = { action: "set-user", id: body.id, enabled: body.enabled };
     }
-    return Response.json(await callSubscriptionStore(env, input));
+    return Response.json(await callSubscriptionStore(target.env, input));
   }
-  const modulePrefix = `${POOL_SUBSCRIPTION_PATH}/modules/`;
-  const rulesPrefix = `${POOL_SUBSCRIPTION_PATH}/rules/`;
+  const subscriptionPath = env.SUBSCRIPTION_PATH ?? POOL_SUBSCRIPTION_PATH;
+  if (![POOL_SUBSCRIPTION_PATH, DEV_SUBSCRIPTION_PATH].includes(subscriptionPath)) throw new HttpError(503, "Subscription path is not configured correctly");
+  const modulePrefix = `${subscriptionPath}/modules/`;
+  const rulesPrefix = `${subscriptionPath}/rules/`;
   let ruleSource = null;
   let magicRule = null;
   if (path.startsWith(rulesPrefix)) {
@@ -73,7 +81,7 @@ export async function handlePoolRequest(request, env) {
     }
     if (!module) throw new HttpError(404, "Not Found");
   }
-  if (path === POOL_SUBSCRIPTION_PATH || module || ruleSource || magicRule) {
+  if (path === subscriptionPath || module || ruleSource || magicRule) {
     requireMethod(request, "GET");
     const tokens = url.searchParams.getAll("token");
     if (tokens.length !== 1 || !/^ar_[a-f0-9]{64}$/.test(tokens[0])) throw new HttpError(401, "Unauthorized");
@@ -89,7 +97,10 @@ export async function handlePoolRequest(request, env) {
       smartPriorityScheme: env.SMART_PRIORITY_SCHEME,
     });
     const body = options.client === "clash" ? await renderClashProfile(surge, { requestUrl: request.url, token: tokens[0] }) : surge;
-    return new Response(body, { headers: { "content-type": options.client === "clash" ? "application/yaml; charset=utf-8" : "text/plain; charset=utf-8" } });
+    return new Response(body, { headers: {
+      "content-type": options.client === "clash" ? "application/yaml; charset=utf-8" : "text/plain; charset=utf-8",
+      "content-disposition": `attachment; filename="${subscriptionPath.slice(1)}.${options.client === "clash" ? "yaml" : "conf"}"`,
+    } });
   }
   return null;
 }

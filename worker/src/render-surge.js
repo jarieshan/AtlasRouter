@@ -1,6 +1,6 @@
 import { ASSETS } from "./generated/assets.js";
 import { renderProxyLines } from "./nodes.js";
-import { POOL_SUBSCRIPTION_PATH } from "./routes.js";
+import { subscriptionPath } from "./routes.js";
 import { buildSubscriptionUrl } from "./subscription-options.js";
 import { magicRuleUrl } from "./magic-rules.js";
 import { appendTencentOaSkipProxy } from "./tencent-oa.js";
@@ -18,7 +18,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
     MITM_LINES: "enable = false",
-    MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${POOL_SUBSCRIPTION_PATH}/modules`),
+    MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
     RULE_LINES: renderPoolRules(ASSETS.rules, groups),
     ...Object.fromEntries(Object.keys(ASSETS.magicRules).map((name) => [

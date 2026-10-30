@@ -115,6 +115,52 @@ async function account(mf, subject = "alice", claims) {
   return json(await request(mf, ACCOUNT_PROFILE_PATH, { subject, claims }));
 }
 
+test("native preview consumes links from the production UI with separate D1 data and no preview UI", async (t) => {
+  const config = JSON.parse(await readFile("wrangler.jsonc", "utf8"));
+  assert.notEqual(config.d1_databases[0].database_id, config.previews.d1_databases[0].database_id);
+  assert.equal(config.d1_databases.find((db) => db.binding === "DEV_DB").database_id, config.previews.d1_databases[0].database_id);
+  const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
+  const devOrigin = "https://develop.atlas.example";
+  const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
+    { ...common, name: "production", d1Databases: { DB: "production", DEV_DB: "development" },
+      bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
+        ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG, DEV_SUBSCRIPTION_ORIGIN: devOrigin } },
+    { ...common, name: "development", d1Databases: { DB: "development" }, bindings: config.previews.vars },
+  ] }));
+  t.after(() => mf.dispose());
+  const prodDb = await mf.getD1Database("DB", "production");
+  await applyMigrations(prodDb);
+  await applyMigrations(await mf.getD1Database("DB", "development"));
+  const preview = await mf.getWorker("development");
+  await save(mf);
+  const production = await account(mf);
+  const before = await readSubscriptionState({ DB: prodDb });
+  await json(await request(mf, `${POOL_NODES_PATH}?environment=development`, { subject: "admin", method: "PUT",
+    body: { revision: 0, nodes: nodes(5, "WARP") } }));
+  const dev = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "alice" }));
+  const url = new URL(dev.subscriptionUrl);
+  assert.equal(url.origin, devOrigin);
+  assert.equal(url.pathname, "/AtlasRouter-Dev");
+  assert.notEqual(url.searchParams.get("token"), new URL(production.subscriptionUrl).searchParams.get("token"));
+  const response = await preview.fetch(dev.subscriptionUrl);
+  assert.equal(response.status, 200);
+  const surge = await response.text();
+  orderedSmartMembers(surge, "🇺🇸USA-WARP", [1, 3, 9, 27, 81]);
+  assert.doesNotMatch(surge, /Example - ISP/);
+  const moduleUrl = surge.match(/https:\/\/develop\.atlas\.example\/AtlasRouter-Dev\/modules\/[^\s]+/)[0];
+  assert.equal((await preview.fetch(moduleUrl)).status, 200);
+  const clashResponse = await preview.fetch(`${dev.subscriptionUrl}&client=clash`);
+  assert.equal(clashResponse.status, 200);
+  const clash = parseYaml(await clashResponse.text());
+  assert.ok(Object.values(clash["rule-providers"]).every(({ url }) => url.startsWith(`${devOrigin}/AtlasRouter-Dev/rules/`)));
+  assert.equal((await preview.fetch(`${devOrigin}/`)).status, 404);
+  assert.equal((await preview.fetch(`${devOrigin}/missing`)).status, 404);
+  assert.equal((await preview.fetch(`${devOrigin}/AtlasRouter-Dev`)).status, 401);
+  assert.equal((await preview.fetch(`${devOrigin}/AtlasRouter${url.search}`)).status, 404);
+  assert.equal((await request(mf, `/AtlasRouter-Dev${url.search}`)).status, 404);
+  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), before);
+});
+
 test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {
   const production = await createRuntime(t);
   const development = await createRuntime(t, { ACCESS_AUD: "development-app", SMART_PRIORITY_SCHEME: "geometric-3" });

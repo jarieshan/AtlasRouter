@@ -2,6 +2,8 @@
 
 AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配置或旧 URL。
 
+原生 Preview 使用独立开发域名和 `/AtlasRouter-Dev`，生产仍使用 `/AtlasRouter`。生产页面的 Dev 按钮进入 `/?environment=development`，浏览器 API 保留该参数，从测试库获取独立凭据与节点；生成的链接直接指向开发环境。这个参数只选择 UI 管理的数据，不选择订阅执行代码。开发预览设置 `UI_ENABLED=false` 后根页面返回 404；自动更新、模块、规则集地址均保留开发域名和 `/AtlasRouter-Dev`。下载文件分别命名为 `AtlasRouter.conf` / `AtlasRouter-Dev.conf`，Clash 使用 `.yaml`。原生 Preview 的线上接入状态见 [native-previews.md](native-previews.md)。
+
 ## 当前入口
 
 | 路径 | 方法 | 鉴权 / 用途 |

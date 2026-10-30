@@ -5,7 +5,7 @@ import { parse as parseYaml } from "yaml";
 import { findMagicRuleSource, magicRuleUrl } from "../src/magic-rules.js";
 import { handleRequest } from "../src/index.js";
 import { createD1Env } from "../test-helpers/d1.js";
-import { ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes } from "../src/routes.js";
+import { ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, DEV_SUBSCRIPTION_PATH, getAdminRoutes } from "../src/routes.js";
 
 const TEAM_DOMAIN = "https://team.cloudflareaccess.com";
 const ACCESS_AUD = "access-aud";
@@ -377,6 +377,94 @@ test("rejects invalid Cloudflare Access JWTs before reading D1", async () => {
   }
 });
 
+
+test("production UI manages independent development credentials and links directly to the preview", async (t) => {
+  const env = createEnv();
+  const development = { ...createEnv(), UI_ENABLED: "false", SUBSCRIPTION_PATH: DEV_SUBSCRIPTION_PATH };
+  env.DEV_DB = development.DB;
+  env.DEV_SUBSCRIPTION_ORIGIN = "https://develop.atlas.example";
+  t.mock.method(globalThis, "fetch", () => assert.fail("UI and subscription generation must not proxy requests"));
+  const memberHeaders = accessHeaders({ email: "member@example.com" });
+  const mutation = { ...accessHeaders(), origin: "https://atlas.example", "content-type": "application/json" };
+  for (const [query, name] of [["", "Production"], ["?environment=development", "Development"]]) {
+    const saved = await request(routes.nodes + query, { method: "PUT", headers: mutation,
+      body: JSON.stringify({ revision: 0, nodes: [{ id: name, enabled: true,
+        line: `🇺🇸 ${name} - ISP = trojan, ${name.toLowerCase()}.example.com, 443, password=TEST_ONLY` }] }) }, env);
+    assert.equal(saved.status, 200);
+  }
+  const prod = await (await request(ACCOUNT_PROFILE_PATH, { headers: memberHeaders }, env)).json();
+  const dev = await (await request(`${ACCOUNT_PROFILE_PATH}?environment=development`, { headers: memberHeaders }, env)).json();
+  const prodUrl = new URL(prod.subscriptionUrl);
+  const devUrl = new URL(dev.subscriptionUrl);
+  assert.equal(prodUrl.origin, "https://atlas.example");
+  assert.equal(prodUrl.pathname, POOL_SUBSCRIPTION_PATH);
+  assert.equal(devUrl.origin, env.DEV_SUBSCRIPTION_ORIGIN);
+  assert.equal(devUrl.pathname, DEV_SUBSCRIPTION_PATH);
+  assert.deepEqual([...devUrl.searchParams.keys()], ["token"]);
+  assert.notEqual(prodUrl.searchParams.get("token"), devUrl.searchParams.get("token"));
+  assert.match(prod.groups[0].nodes[0].name, /Production/);
+  assert.match(dev.groups[0].nodes[0].name, /Development/);
+  const nativeRequest = (url, init) => handleRequest(new Request(url, init), development);
+  for (const client of ["surge", "clash"]) {
+    const url = new URL(devUrl);
+    url.searchParams.set("client", client);
+    url.searchParams.set("doh", "1");
+    const response = await nativeRequest(url);
+    assert.equal(response.status, 200);
+    assertSecurityHeaders(response);
+    assert.match(response.headers.get("content-disposition"), new RegExp(`AtlasRouter-Dev\\.${client === "clash" ? "yaml" : "conf"}`));
+    const body = await response.text();
+    assert.match(body, /Development/);
+    assert.doesNotMatch(body, /Production/);
+    const urls = client === "clash" ? Object.values(parseYaml(body)["rule-providers"]).map((provider) => provider.url)
+      : body.match(/https:\/\/develop\.atlas\.example[^\s]+/g);
+    assert.ok(urls.length > 5);
+    for (const value of urls) {
+      const link = new URL(value.split(",")[0]);
+      assert.equal(link.origin, devUrl.origin);
+      assert.ok(link.pathname === DEV_SUBSCRIPTION_PATH || link.pathname.startsWith(`${DEV_SUBSCRIPTION_PATH}/`));
+      assert.equal(link.searchParams.get("token"), devUrl.searchParams.get("token"));
+    }
+    if (client === "surge") assert.ok(body.startsWith(`#!MANAGED-CONFIG ${url.toString().replace("&client=surge", "")}`));
+  }
+  assert.equal((await nativeRequest(`${devUrl.origin}/`)).status, 404);
+  assert.equal((await nativeRequest(`${devUrl.origin}/?preview=1`)).status, 404);
+  assert.equal((await nativeRequest(`${devUrl.origin}/missing`)).status, 404);
+  assert.equal((await nativeRequest(`${devUrl.origin}${POOL_SUBSCRIPTION_PATH}${devUrl.search}`)).status, 404);
+  assert.equal((await request(DEV_SUBSCRIPTION_PATH + devUrl.search, {}, env)).status, 404);
+  assert.equal((await nativeRequest(`${devUrl.origin}${DEV_SUBSCRIPTION_PATH}`)).status, 401);
+  assert.equal((await nativeRequest(devUrl, { method: "POST" })).status, 405);
+  assert.equal((await nativeRequest(`${devUrl.origin}${DEV_SUBSCRIPTION_PATH}${prodUrl.search}`)).status, 401);
+  assert.equal((await request(POOL_SUBSCRIPTION_PATH + devUrl.search, {}, env)).status, 401);
+  const rotated = await request(`${ACCOUNT_TOKEN_PATH}?environment=development`, { method: "POST",
+    headers: { ...mutation, ...memberHeaders }, body: "{}" }, env);
+  assert.equal(rotated.status, 200);
+  assert.equal((await nativeRequest(devUrl)).status, 401);
+  assert.equal((await nativeRequest((await rotated.json()).subscriptionUrl)).status, 200);
+  assert.equal((await request(POOL_SUBSCRIPTION_PATH + prodUrl.search, {}, env)).status, 200);
+  const page = await request("/", { headers: memberHeaders }, env);
+  assert.match(await page.text(), /href="\/\?environment=development"/);
+  const devPage = await request("/?environment=development", { headers: memberHeaders }, env);
+  assert.match(await devPage.text(), /Dev · 开发环境/);
+  assert.equal((await request(`${routes.state}?environment=development`, { headers: memberHeaders }, env)).status, 403);
+});
+
+test("missing development settings and invalid UI selections cannot fall back to production data", async () => {
+  for (const origin of [undefined, "http://develop.atlas.example", "https://user:password@develop.atlas.example", "https://develop.atlas.example/path", "https://atlas.example"]) {
+    const env = unreadableEnv();
+    env.DEV_DB = createD1Env().DB;
+    env.DEV_SUBSCRIPTION_ORIGIN = origin;
+    assert.equal((await request(`${ACCOUNT_PROFILE_PATH}?environment=development`, { headers: accessHeaders() }, env)).status, 503);
+    assert.equal((await request("/", { headers: accessHeaders() }, env)).status, 200);
+  }
+  const env = unreadableEnv();
+  env.DEV_SUBSCRIPTION_ORIGIN = "https://develop.atlas.example";
+  assert.equal((await request(`${ACCOUNT_PROFILE_PATH}?environment=development`, { headers: accessHeaders() }, env)).status, 503);
+  for (const query of ["?environment=unknown", "?environment=development&environment=production"]) {
+    assert.equal((await request(ACCOUNT_PROFILE_PATH + query, { headers: accessHeaders() }, env)).status, 400);
+  }
+  assert.equal((await request(`${ACCOUNT_PROFILE_PATH}?environment=development`, {}, env)).status, 403);
+});
 
 function accessHeaders(payloadOverrides = {}, headerOverrides = {}) {
   return {

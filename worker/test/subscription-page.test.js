@@ -144,6 +144,38 @@ test("page previews keep all interactions in memory and reset on a new page load
   assert.equal(storageAccesses, 0);
 });
 
+test("Dev controls use development credentials while subscription links point directly to the preview", async () => {
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  fields.get("#subscription-client").value = "surge";
+  let copied;
+  let calls = 0;
+  const html = renderAccountPage({ development: true, developmentAvailable: true });
+  assert.match(html, /返回生产/);
+  assert.match(html, /Dev · 开发环境/);
+  assert.doesNotMatch(renderAccountPage({ preview: true, developmentAvailable: true }), /切换到开发环境/);
+  vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
+    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element },
+    URL, location: { href: "https://atlas.example/?environment=development" }, confirm: () => true,
+    navigator: { clipboard: { writeText: async (value) => { copied = value; } } },
+    fetch: async (path, options) => {
+      calls += 1;
+      assert.equal(path, `${calls === 1 ? ACCOUNT_PROFILE_PATH : ACCOUNT_TOKEN_PATH}?environment=development`);
+      assert.equal(options.method, calls === 1 ? "GET" : "POST");
+      return Response.json({ email: "member@example.com", status: "active", groups: [],
+        subscriptionUrl: `https://develop.atlas.example/AtlasRouter-Dev?token=dev-test-${calls}` });
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  fields.get("#subscription-client").value = "clash";
+  fields.get("#enable-doh").checked = true;
+  fields.get("#subscription-client").onchange();
+  await fields.get("#copy").onclick();
+  assert.equal(copied, "https://develop.atlas.example/AtlasRouter-Dev?token=dev-test-1&client=clash&doh=1");
+  await fields.get("#rotate").onclick();
+  await fields.get("#copy").onclick();
+  assert.equal(copied, "https://develop.atlas.example/AtlasRouter-Dev?token=dev-test-2&client=clash&doh=1");
+});
+
 test("database node labels render as text and preview interactions stay in the page", async () => {
   const name = '🇺🇸 ISP </script><script>alert("test")</script>';
   const profile = {

@@ -8,7 +8,7 @@ AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统�
 
 ## 当前状态
 
-首版已实现登录、自动分配、订阅生成。单 Worker 双分支分发已通过本地验证；Cloudflare Workers Builds 的线上连接待接通，GitHub Actions 只运行验证：
+首版已实现登录、自动分配、订阅生成。当前采用同一 Worker 的生产 / 原生 Preview：生产页面通过 Dev 按钮管理测试数据，生成开发域名下的 `/AtlasRouter-Dev` 链接，订阅由开发预览直接处理。链接、页面、绑定配置和 `deploy:preview` 发布命令已实现；Cloudflare 连接步骤见 [部署说明](docs/deployment-cloudflare.md)，生产发布仍暂停。GitHub Actions 只运行验证。参见 [原生预览方案](docs/native-previews.md)。
 
 - `README.md`：项目说明与维护入口。
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
