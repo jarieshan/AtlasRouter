@@ -28,7 +28,7 @@ Dev 按钮切换整个管理页面的数据环境，节点清单、个人订阅�
 | `DB` | 正式 D1 | 测试 D1 |
 | `DEV_DB` | 测试 D1，仅用于生产 UI 管理 | 无 |
 | `DEV_SUBSCRIPTION_ORIGIN` | 开发预览的固定 HTTPS origin | 无 |
-| `SMART_PRIORITY_SCHEME` | 保持现有生产配置 | `geometric-3` |
+| `SMART_PRIORITY_SCHEME` | 缺省 `linear`；已有 Dashboard 变量需另行核对 | `geometric-3` |
 
 `DEV_SUBSCRIPTION_ORIGIN` 只能包含 HTTPS origin，不能带凭据、路径、查询或片段。开发配置缺失时，开发页面和 API 返回 503，不回退到生产库。生产 UI 的管理员身份继续由生产 Access 配置与 `ADMIN_EMAILS` 决定。独立 D1 隔离用户、Token、节点和分配；测试库的账号与节点表必须保持与生产管理页面兼容，订阅转换实现可以独立变化。修改测试库结构时需审查这一管理接口的兼容性。
 
@@ -44,6 +44,8 @@ Dev 按钮切换整个管理页面的数据环境，节点清单、个人订阅�
 - 生产 UI 与 `/api` 保持 Access 登录保护。订阅客户端需要直接访问正式 `/AtlasRouter` 和开发 `/AtlasRouter-Dev` 及其子路径；如果这些地址由 Access 保护，要为对应订阅路径设置精确的 Bypass，之后仍由应用校验个人 Token。不要为整个生产域名或管理 API 设置 Bypass。
 - Preview 不继承生产变量和 Secrets；订阅不依赖 Access 登录，但若启用 Preview 的浏览器 API，需要明确配置它自己的 Access 参数。日志查询字符串应继续脱敏。
 - Workers Builds 的目标是 `master` 推送执行生产流程，`develop` 推送执行原生 Preview 流程。官方的原生预览命令是 `npx wrangler preview`，会按分支更新固定预览环境；`wrangler versions upload` 是另一种机制。参见 [Build branches](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)。
-- `npm run deploy`、`build:branches`、`deploy:branches`、`setup:builds` 仍服务于旧组合构建，不应用于原生 Preview。Cloudflare Preview command 使用新增的 `npm run deploy:preview`，生产 Deploy command 保持 dry-run，继续暂停生产发布。
+- `npm run deploy` 在生产暂停期间直接拒绝发布。`build:branches`、`deploy:branches`、`setup:builds` 保留为旧组合构建脚本，不应用于原生 Preview。Cloudflare Preview command 使用 `npm run deploy:preview`，生产 Deploy command 保持 dry-run。
 
 本地验证使用 `cd worker && npm test`。测试覆盖生产页面生成开发链接、两库读写隔离、Token 隔离与轮换、开发页面关闭、路径校验，以及 Surge / Clash 自动更新、规则集和模块地址。
+
+Git `master` 与当前 `develop` 尚未对齐；同一份当前源码的生产/预览参数对照，不等于两个 Git 分支的功能一致。具体基线、已验证项目和无法等价转换的行为见 [兼容性核对](client-compatibility.md)。

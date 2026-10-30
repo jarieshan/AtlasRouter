@@ -56,6 +56,6 @@ export function runWrangler(args, secret) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  console.error("Use npm run deploy -- --branch master|develop to build and publish the shared Worker.");
+  console.error("Production deployment is paused. Use npm run build for a local check, or npm run deploy:preview to publish the develop Preview. See docs/deployment-cloudflare.md.");
   process.exitCode = 1;
 }

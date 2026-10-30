@@ -60,7 +60,7 @@ npm test
 
 使用 Node.js 24。`npm test` 包括单元测试、部署构建检查和 Miniflare/workerd 集成测试，覆盖本地 D1 的并发分配与重启持久化。测试、构建和部署前会将 `surge/` 和 `modules/` 中的静态资产打包进 Worker。
 
-统一网页入口为域名根路径 `/`，订阅链接为 `/AtlasRouter?token=<token>`。普通用户看到个人订阅，管理员在同一页还可管理节点池和用户；角色由验证后的邮箱及 `ADMIN_EMAILS` 决定。个人 API 位于 `/api/account/*`，管理 API 位于 `/api/<slug>/pool/*`；随机标识由 `ADMIN_API_SLUG` Secret 提供，每次 `npm run deploy` 自动生成并随代码发布，仅注入管理员页面；部署后需刷新已打开的管理员页面。`/admin`、`/api/admin/*` 和旧订阅等入口均已停用，到达 Worker 后返回 404。完整部署步骤见 [Cloudflare 部署](docs/deployment-cloudflare.md)，分配规则见 [多用户与节点池](docs/multi-user.md)。
+统一网页入口为域名根路径 `/`，订阅链接为 `/AtlasRouter?token=<token>`。普通用户看到个人订阅，管理员在同一页还可管理节点池和用户；角色由验证后的邮箱及 `ADMIN_EMAILS` 决定。个人 API 位于 `/api/account/*`，管理 API 位于 `/api/<slug>/pool/*`；随机标识由 `ADMIN_API_SLUG` Secret 提供，仅注入管理员页面；主动轮换该 Secret 后需刷新已打开的管理员页面。原生 Preview 发布不轮换生产标识。`/admin`、`/api/admin/*` 和旧订阅等入口均已停用，到达 Worker 后返回 404。完整部署步骤见 [Cloudflare 部署](docs/deployment-cloudflare.md)，分配规则见 [多用户与节点池](docs/multi-user.md)。
 
 页面可选启用 DoH 和 Client（默认 Surge / Clash），分别通过 `doh=1`、`client=clash` 注入订阅链接。Clash / Mihomo 输出由同一份完整 Surge 配置转换，自动跳过不兼容内容，不需要维护两份分流配置。参数与兼容范围见 [订阅说明](docs/subscription.md)。
 
@@ -71,24 +71,21 @@ cd worker
 npm run check:live-security -- https://<worker-domain>
 ```
 
-也可以把目标域名放在本地 `worker/.env` 的 `ATLAS_ROUTER_BASE_URL` 中，然后直接运行 `npm run check:live-security`。检查随机管理 API 还需在环境中提供 `ADMIN_API_SLUG`，否则脚本明确跳过该部分；输出会遮蔽随机路径。`.env*` 已被 git 忽略，不应入库。
+也可以把目标域名放在本地 `worker/.env` 的 `ATLAS_ROUTER_BASE_URL` 中，然后直接运行 `npm run check:live-security`。检查随机管理 API 还需在环境中提供 `ADMIN_API_SLUG`，否则脚本明确跳过该部分；输出会遮蔽随机路径。可参考仅含占位值的 [env.example](worker/env.example)。`.env*`、`local-private/`、依赖、Wrangler 状态和生成资源已被 Git 忽略，不应入库。
 
 完整安全测试流程见 `docs/security-pentest.md`。
 
-## 统一部署
+## 分支与原生 Preview
 
-一个 `atlas-router` Worker 打包 `master` 和 `develop` 的独立实现：默认执行 `master`，`dev=1` 执行 `develop`，各自使用独立 D1。两个分支可以有不同的订阅转换逻辑、模板和依赖。开发网页为 `/?dev=1`，开发订阅及其模块、规则集和自动更新地址都保留 `dev=1`。
+一个 `atlas-router` Worker 使用生产与原生 Preview 两套运行环境：`master` 为生产分支，`develop` 为开发分支。Cloudflare Workers Builds 直接监听推送，GitHub Actions 只运行验证。当前 Git `master` 仍是旧 KV／手动订阅版本，尚不包含 Clash 转换；它不是当前开发版的生产参数副本，也不能当作线上 D1 源码基线直接发布。分支差异及两种客户端的非等价行为见 [兼容性核对](docs/client-compatibility.md)。
 
-Cloudflare Workers Builds 的普通触发器计划监听两个分支，构建时分别验证并组合代码；GitHub Actions 只检查代码。两端共享域名和 Access 登录应用，开发数据库及管理 Secrets 使用 `DEV_*`。组合配置在 [wrangler.branches.jsonc](worker/wrangler.branches.jsonc)。
+生产页面的 Dev 按钮进入 `/?environment=development`，通过 `DEV_DB` 管理测试节点和凭据，生成开发域名下的 `/AtlasRouter-Dev` 链接。客户端直接请求原生 Preview；无需组合分支代码或生产反向代理。正式订阅仍使用 `/AtlasRouter`，两库 token 不能互换。
 
 ```sh
-npm --prefix worker run build:branches
-npm --prefix worker run deploy:branches -- --dry-run
+npm --prefix worker run deploy:preview -- --dry-run
 ```
 
-发布时使用 `npm --prefix worker run deploy -- --branch develop` 或 `--branch master`。只迁移、轮换所选分支的数据配置，但每次发布都包含两份代码，共享 Worker 的发布与回滚。
-
-目前尚未启用自动部署：现有 `master` 是旧 KV 版本，需先对齐线上 D1 源码基线；Cloudflare Builds 连接及双分支触发也尚待配置。部署脚本会拒绝不满足入口协议的分支，生产继续保持暂停。设置、限制和验收见 [部署说明](docs/deployment-cloudflare.md)。
+Cloudflare Preview command 使用 `npm run deploy:preview`。生产 Deploy command 保持 `npx wrangler deploy --dry-run`，本地 `npm run deploy` 也会明确拒绝生产发布。旧组合构建脚本保留作历史实现，不用于当前流程。域名、D1、Access 和连接状态的核对步骤见 [部署说明](docs/deployment-cloudflare.md)，环境变量见 [env.md](docs/env.md)。
 
 ## Cloudflare Worker 配置约定
 

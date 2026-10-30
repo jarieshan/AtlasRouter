@@ -97,10 +97,15 @@ test("dry runs validate the Secret upload without applying remote migrations", a
   await assert.rejects(() => stat(path.dirname(file)), { code: "ENOENT" });
 });
 
-test("the old deployment CLI refuses to replace the shared Worker with a single branch", () => {
+test("the default deployment command keeps production paused and points to native Preview", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(manifest.scripts.deploy, "node scripts/deploy.js");
   const script = fileURLToPath(new URL("../scripts/deploy.js", import.meta.url));
-  const result = spawnSync(process.execPath, [script], { encoding: "utf8" });
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /^Use npm run deploy/);
-  assert.equal(result.stdout, "");
+  for (const args of [[], ["--branch", "master"], ["--branch", "develop"]]) {
+    const result = spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /^Production deployment is paused\./);
+    assert.match(result.stderr, /npm run deploy:preview/);
+    assert.equal(result.stdout, "");
+  }
 });

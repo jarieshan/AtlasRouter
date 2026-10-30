@@ -2,7 +2,7 @@
 
 使用已有的 `atlas-router` Worker。Cloudflare Workers Builds 直接监听 GitHub：`master` 是生产分支，`develop` 发布到同一 Worker 的原生 Preview。GitHub Actions 只做验证。
 
-当前代码已准备好开发发布命令，但本文不表示账号侧连接或预览已经部署。生产发布仍暂停，现有 `master` 还需先对齐经过核对的生产源码；不能直接用旧分支覆盖线上。
+当前代码已准备好开发发布命令，但本文不表示账号侧连接或预览已经部署。生产发布仍暂停，现有 `master` 还需先对齐经过核对的生产源码；不能直接用旧分支覆盖线上。分支差异见 [兼容性核对](client-compatibility.md)。本地 `npm run deploy` 会直接拒绝发布，避免误用旧组合部署流程。
 
 ## 1. 域名
 

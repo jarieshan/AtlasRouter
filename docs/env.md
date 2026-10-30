@@ -1,36 +1,49 @@
-# Worker Env
+# Worker 环境与存储
 
-当前原生 Preview 配置以 [native-previews.md](native-previews.md) 和 [wrangler.jsonc](../worker/wrangler.jsonc) 为准。生产 `DB` 绑定正式库，`DEV_DB` 供生产 UI 管理测试凭据和节点；Preview 的 `DB` 仅绑定测试库。`UI_ENABLED`、`SUBSCRIPTION_PATH`、`DEV_SUBSCRIPTION_ORIGIN` 控制页面和链接。开发订阅直接访问开发域名，不使用 `dev=1` 切换代码。
+当前使用同一 Worker 的生产环境和原生 Preview；配置入口是 [wrangler.jsonc](../worker/wrangler.jsonc)。Cloudflare 接入步骤见 [部署说明](deployment-cloudflare.md)，域名、路径和数据流见 [原生预览方案](native-previews.md)。`dev=1` 不再用于当前入口切换分支代码。
 
-以下双分支环境映射和部署命令是尚未清理的旧组合构建实现说明，不用于原生 Preview；D1 表结构和敏感配置存储约定仍适用。
+## 运行时配置
 
-## 旧组合构建环境
+| 配置 | 生产 | `develop` Preview |
+| --- | --- | --- |
+| `DB`（D1 binding） | `atlas-router` 正式库 | `atlas-router-dev` 测试库 |
+| `DEV_DB`（D1 binding） | 测试库，仅供生产 UI 管理测试数据 | 不绑定 |
+| `UI_ENABLED`（变量） | `true` | `false`，根页面返回 404 |
+| `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` | `/AtlasRouter-Dev` |
+| `DEV_SUBSCRIPTION_ORIGIN`（变量） | 开发预览的固定 HTTPS origin | 不需要 |
+| `SMART_PRIORITY_SCHEME`（变量） | 缺省为 `linear`：1、2、3… | `geometric-3`：1、3、9… |
 
-AtlasRouter 在一个 Worker 上绑定两个独立数据库，由 `dev` 参数选择分支代码及其环境：
+两库 ID 必须不同；Preview 的 `DB` 与生产 UI 的 `DEV_DB` 指向同一个测试库。`DEV_SUBSCRIPTION_ORIGIN` 不能带用户信息、路径、查询或片段，且必须与生产 origin 不同。`environment=development` 仅让生产 UI 及其 API 选择测试库，不转发订阅请求，也不执行另一个分支的代码。测试库结构必须与生产管理页面兼容。
 
-- `DB`：生产 D1，由 `master` 代码使用；无 `dev` 或 `dev=0` 选择此环境。
-- `DEV_DB`：开发 D1，由 `develop` 代码使用，入口为 `dev=1`。分发时作为 `env.DB` 传入开发代码。
+上述变量来自仓库配置；生产设置了 `keep_vars=true`，Dashboard 中已有的 `SMART_PRIORITY_SCHEME` 仍需单独核对，不能把源码缺省值当作线上实际值。顺序系数影响 Surge Smart，Clash 只保留同一成员顺序并输出 fallback；完整差异见 [兼容性核对](client-compatibility.md)。系数须为安全整数，过大的分组会拒绝生成。
 
-部署配置在 `wrangler.branches.jsonc`。两个数据库 ID 必须不同，SQL 迁移来自各自分支的构建快照。开发节点、用户、订阅 token 和分配关系独立保存，不复制生产数据。`wrangler.jsonc` 仅供当前分支本地开发和测试。
+生产网页和浏览器 API 还需要以下配置。Preview 默认关闭 UI，订阅只依赖测试 D1 中的个人 token；若另行启用 Preview 浏览器 API，须明确配置其 Access 参数，不能依赖生产 Secrets 自动继承。
 
-节点凭据由管理员通过受保护页面录入存储，不放入代码或普通环境变量。D1 读权限视为敏感配置读取权限。部署凭据由 Cloudflare Workers Builds 管理，订阅 Worker 的构建 token 需要 D1 Edit 权限；GitHub Actions 只验证代码，无需 Cloudflare Secrets。节点和用户订阅 token 不放入构建变量。旧 `SUBSCRIPTIONS` 和 `ATLAS_ROUTER` binding 已移除。
+| 名称 | 类型 | 用途 |
+| --- | --- | --- |
+| `ACCESS_TEAM_DOMAIN` | 普通变量 | Access team origin，例如 `https://<team>.cloudflareaccess.com` |
+| `ACCESS_AUD` | 普通变量 | 统一网页与 API 的 Access application Audience |
+| `ADMIN_EMAILS` | Secret | 允许管理配置的邮箱，英文逗号分隔 |
+| `ADMIN_API_SLUG` | Secret | 密码学随机生成的 32 位小写十六进制管理路径标识 |
+| `PREVIEW_EMAIL_HASHES` | 可选 Secret | 测试邮箱规范化后的 SHA-256 摘要，英文逗号分隔 |
 
-同一个 Cloudflare Access 应用保护域名根路径 `/` 及 `/api` 下的全部 API。所有用户直接访问域名，Worker 校验 Access 注入的 JWT 后按邮箱决定是否展示管理功能。`/AtlasRouter` 订阅入口及其模块、Clash 规则集路径需绕过交互式 Access 登录，由 Worker 校验订阅 token；具体路径优先级见 [部署说明](deployment-cloudflare.md)。需要在 Cloudflare Dashboard 的 Worker Variables and Secrets 中配置：
+`PREVIEW_EMAIL_HASHES` 是只读的**页面演示身份**，与原生 Worker Preview 和 Dev 数据环境不同。匹配身份只查看启用节点的展示信息，模拟操作保留在页面内存，不注册正式用户、不获取有效订阅，也不写入分配记录。
 
-- `ACCESS_TEAM_DOMAIN`：普通变量，Cloudflare Access team domain，例如 `https://<team>.cloudflareaccess.com`。
-- `ACCESS_AUD`：普通变量，统一 Access application 的 Audience (AUD)，网页、个人 API 和管理 API 都使用它。
-- `SMART_PRIORITY_SCHEME`：可选普通变量，省略或 `linear` 使用个人主备位置 1、2、3…；`geometric-3` 使用 1、3、9、27、81…。当前仅 `DEV_SMART_PRIORITY_SCHEME` 显式启用后者，不能由订阅查询参数修改；Clash 对这两种生成格式均保留顺序并输出 fallback。权重必须能表示为安全整数，过大的分组会拒绝生成，避免输出无效数值。
-- `ADMIN_EMAILS`：Secret，允许管理配置的邮箱，多个邮箱用英文逗号分隔。
-- `ADMIN_API_SLUG`：Secret，用密码学随机数生成的 32 位小写十六进制标识，组成 `/api/<slug>/pool/*` 管理路径。每次对应分支部署自动生成并写入；绕过部署流程导致缺失或格式错误时，管理功能关闭。
-- `PREVIEW_EMAIL_HASHES`：可选 Secret，测试邮箱去除首尾空白并转小写后的 SHA-256 十六进制摘要，多个摘要用英文逗号分隔。匹配的身份从普通首页自动进入页面预览，只读展示 D1 中启用节点的 ID、名称和分组，不能注册正式用户或读取正式订阅。只保存识别摘要，不写入测试账号、节点变更、分配或操作记录；摘要不返回给浏览器。
+同一个 Access application 保护生产 `/` 及 `/api/*`；订阅路径及其子路径使用精确 Bypass，再由 Worker 校验个人 token。Google OAuth client ID/secret 配置在 Access 身份提供商中。Worker 不处理 Google client secret；`ACCESS_JWKS_JSON` 仅供离线测试，生产不设置。旧 `ACCESS_USER_AUD`、KV binding 和组合构建的 `DEV_ADMIN_*` 不属于当前配置。
 
-如果曾配置独立的用户/管理员 Access 应用，需将两组路径并入同一个应用，更新 `ACCESS_AUD`，移除已不再使用的 `ACCESS_USER_AUD`。同一个登录会话即可使用个人功能及其有权访问的管理功能。
+节点凭据通过受保护管理页面录入 D1，不放在普通环境变量或代码中。D1 读取权限视为敏感数据读取权限。构建凭据由 Workers Builds 管理，其 token 需有 D1 Edit 权限以迁移开发库；GitHub Actions 只验证代码，不需要 Cloudflare Secrets。构建变量与 Worker 运行时变量分开配置，个人订阅 token 不放入构建变量。
 
-Google OAuth client ID/secret 配置在 Cloudflare Access 身份提供商中，Worker 不处理 Google client secret。`ACCESS_JWKS_JSON` 仅用于离线测试注入公钥，生产不要设置；生产从 team domain 获取 Access 公钥。真实账号、密钥与本地 `.dev.vars*`、`.env*` 均不入库。
+## 本地配置与发布命令
 
-在同一个 Worker 上设置开发专属的 `DEV_ADMIN_EMAILS`、`DEV_ADMIN_API_SLUG`、可选 `DEV_PREVIEW_EMAIL_HASHES` 和 `DEV_SMART_PRIORITY_SCHEME`。分发器将 `DEV_*` 去掉前缀后传给开发代码，缺失值不会回退到生产；生产代码看不到 `DEV_*`。两边只共享同域名登录所需的 `ACCESS_TEAM_DOMAIN`、`ACCESS_AUD`（离线测试还共享 `ACCESS_JWKS_JSON`）。浏览器 API 会自动保留页面的 `dev=1`。
+本地 `.dev.vars*`、`.env*`、`local-private/`、Wrangler 状态、依赖和生成资源由 [.gitignore](../.gitignore) 排除。可把仅含占位域名的 [env.example](../worker/env.example) 复制为 `worker/.env`，供只读线上检查使用；这不是云端部署前置步骤，不提交真实值。
 
-Cloudflare 的同一个普通 Builds 触发器计划监听 `master`、`develop`，具体接入状态和步骤见 [部署说明](deployment-cloudflare.md)。构建变量与 Worker 运行时变量分开配置，无需 GitHub Environment。两份实现共享 Worker 发布、兼容日期和公共入口；这是可信代码之间的绑定分配，不是隔离不可信代码的沙箱。
+- `npm test`：单元测试、构建和本地运行时测试。
+- `npm run build`：当前源代码的 Wrangler dry-run，不发布。
+- `npm run deploy:preview -- --dry-run`：只校验 Preview 发布配置。
+- `npm run deploy:preview`：仅允许 `develop`；迁移测试库后发布固定的 `develop` Preview。
+- `npm run deploy`：生产暂停期间直接报错，不迁移、不发布。
+
+生产 Deploy command 继续使用 `npx wrangler deploy --dry-run`。旧 `build:branches`、`deploy:branches`、`setup:builds` 脚本保留作历史实现，不用于当前原生 Preview，尤其不能用旧组合发布命令绕过生产暂停。生产恢复发布前须先核对 `master` 源码基线、正式 D1 迁移和配置；本次整理没有恢复生产发布。
 
 ## D1 关系表
 
@@ -49,13 +62,9 @@ Cloudflare 的同一个普通 Builds 触发器计划监听 `master`、`develop`�
 
 ## 管理路径与节点配置
 
-管理员仍只需打开根路径。Worker 在核验管理员邮箱后，将随机管理路径注入 HTML；普通用户页面和个人 API 不包含此值。随机路径仅减少常见路径扫描命中，不能替代 Access JWT、邮箱白名单和同源写入检查。不要使用 `admin` 或邮箱的固定哈希作为标识，不要把真实值提交到仓库。
+管理员只需打开根路径。Worker 验证管理员邮箱后将随机管理路径注入 HTML；普通用户页面和个人 API 不包含该值。随机路径不能替代 Access JWT、邮箱白名单和同源写入检查。
 
-在 `worker` 目录执行 `npm run deploy -- --branch master` 或 `--branch develop` 时，部署脚本会在对应 D1 迁移成功并通过其他发布检查后生成新标识，通过 Wrangler `--secrets-file` 与代码一同发布。首次部署、已有值、空值或误删后的下一次部署都采用同一流程，无需手动填写，也不需要配置对应的 GitHub Secret。生产分支只轮换 `ADMIN_API_SLUG`，开发分支只轮换 `DEV_ADMIN_API_SLUG`，其他 Worker Secrets 保持不变，参见 [Cloudflare Secrets](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code)。
-
-每次发布后旧路径停止服务，已打开的管理员页面需要刷新。订阅 token 和用户分配不受影响。构建或数据库迁移失败时，不会提前修改线上标识；运行时不会按请求或实例随机生成。若运行中误删该 Secret，重新执行部署即可修复。
-
-脚本使用权限受限的临时 JSON 文件传递 Secret，结束后删除，并隐藏输出中的随机值。可运行 `npm run deploy -- --dry-run` 验证上传流程；此模式不执行远程迁移或发布。本地开发仍在被忽略的 `.dev.vars` 中设置独立测试值。
+当前原生 Preview 发布不轮换生产 `ADMIN_API_SLUG`，也不需要 `DEV_ADMIN_API_SLUG`。保留现有合法 Secret；首次启用生产管理功能时需配置随机值，缺失或格式错误时管理功能关闭。主动轮换后，旧路径失效，已打开的管理员页面需要刷新；个人 token 和节点分配不受影响。仓库内旧发布 helper 的自动轮换测试，不代表当前 Preview 命令会执行轮换。
 
 节点只从根路径管理区域录入，格式为 `节点名 = Surge 节点配置`。国家旗帜和 `IDC`、`ISP`、`WARP` 决定分组，完整约定见 [multi-user.md](multi-user.md)。保存时提交 `{ revision, nodes: [{ id, line, enabled }] }`，Worker 拆入节点和分配关系表。
 
