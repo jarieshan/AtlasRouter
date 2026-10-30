@@ -4,7 +4,7 @@
 
 ## 入口
 
-以下为完成 Cloudflare 接入后的目标地址，不代表已经部署：
+以下为生产与 Preview 的入口约定；是否发布成功以 Cloudflare 对应构建和实际请求为准：
 
 | 用途 | 地址（省略个人凭据） | 执行环境 |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ Dev 按钮切换整个管理页面的数据环境，节点清单、个人订阅�
 | `DB` | 正式 D1 | 测试 D1 |
 | `DEV_DB` | 测试 D1，仅用于生产 UI 管理 | 无 |
 | `DEV_SUBSCRIPTION_ORIGIN` | 开发预览的固定 HTTPS origin | 无 |
-| `SMART_PRIORITY_SCHEME` | 缺省 `linear`；已有 Dashboard 变量需另行核对 | `geometric-3` |
+| 地区组策略 | master 固定顺序 fallback | develop 使用 Smart，`geometric-3` |
 
 `DEV_SUBSCRIPTION_ORIGIN` 只能包含 HTTPS origin，不能带凭据、路径、查询或片段。开发配置缺失时，开发页面和 API 返回 503，不回退到生产库。生产 UI 的管理员身份继续由生产 Access 配置与 `ADMIN_EMAILS` 决定。独立 D1 隔离用户、Token、节点和分配；测试库的账号与节点表必须保持与生产管理页面兼容，订阅转换实现可以独立变化。修改测试库结构时需审查这一管理接口的兼容性。
 
@@ -38,14 +38,14 @@ Dev 按钮切换整个管理页面的数据环境，节点清单、个人订阅�
 
 本分支已包含代码、配置和 `npm run deploy:preview` 命令。该命令只允许 `develop` 发布，先校验 Worker 名称、独立 D1 和页面配置，迁移开发库后调用 `wrangler preview --name develop --ignore-base-config`。其他分支跳过发布，迁移失败不上传。`--ignore-base-config` 保证采用仓库中的 Preview 配置；不需要手动填写 Preview Base 的数据库或变量。`npm run deploy:preview -- --dry-run` 仅校验配置，不调用远程 API。Cloudflare 的连接步骤见 [部署说明](deployment-cloudflare.md)。
 
-本次未主动部署 Worker、修改 Cloudflare 配置或更新 `master`。现有 `master` 仍需与生产源码基线核对后才能启用生产自动发布。
+master 已按权重实验前的 fallback 行为准备生产基线，并补齐 Dev UI；实际发布由 Cloudflare Builds 执行。
 
 - 域名选择“生产和预览”后，生产使用原域名，预览使用 `<preview-name>.<原域名>`。这里固定预览名 `develop`。域名、DNS 和覆盖开发子域名的证书必须实际就绪，参见 [预览域名](https://developers.cloudflare.com/workers/previews/custom-domains/)。
 - 生产 UI 与 `/api` 保持 Access 登录保护。订阅客户端需要直接访问正式 `/AtlasRouter` 和开发 `/AtlasRouter-Dev` 及其子路径；如果这些地址由 Access 保护，要为对应订阅路径设置精确的 Bypass，之后仍由应用校验个人 Token。不要为整个生产域名或管理 API 设置 Bypass。
 - Preview 不继承生产变量和 Secrets；订阅不依赖 Access 登录，但若启用 Preview 的浏览器 API，需要明确配置它自己的 Access 参数。日志查询字符串应继续脱敏。
 - Workers Builds 的目标是 `master` 推送执行生产流程，`develop` 推送执行原生 Preview 流程。官方的原生预览命令是 `npx wrangler preview`，会按分支更新固定预览环境；`wrangler versions upload` 是另一种机制。参见 [Build branches](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)。
-- `npm run deploy` 在生产暂停期间直接拒绝发布。`build:branches`、`deploy:branches`、`setup:builds` 保留为旧组合构建脚本，不应用于原生 Preview。Cloudflare Preview command 使用 `npm run deploy:preview`，生产 Deploy command 保持 dry-run。
+- master 的 `npm run deploy` 只在 Cloudflare Builds 的 master 构建中发布。`build:branches`、`deploy:branches`、`setup:builds` 保留为旧组合构建脚本，不应用于原生 Preview。Cloudflare Preview command 使用 `npm run deploy:preview`，生产 Deploy command 使用 `npm run deploy`。
 
 本地验证使用 `cd worker && npm test`。测试覆盖生产页面生成开发链接、两库读写隔离、Token 隔离与轮换、开发页面关闭、路径校验，以及 Surge / Clash 自动更新、规则集和模块地址。
 
-Git `master` 与当前 `develop` 尚未对齐；同一份当前源码的生产/预览参数对照，不等于两个 Git 分支的功能一致。具体基线、已验证项目和无法等价转换的行为见 [兼容性核对](client-compatibility.md)。
+master 与 develop 的分流差异是有意隔离：生产保留权重前的 fallback，开发继续 Smart 试验。详见 [兼容性核对](client-compatibility.md)和[生产基线](production-baseline.md)。

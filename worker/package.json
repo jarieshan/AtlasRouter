@@ -14,7 +14,7 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "dev": "npm run generate && npm run db:migrate:local && wrangler dev",
-    "deploy": "node scripts/deploy.js",
+    "deploy": "npm run generate && node scripts/deploy-production.js",
     "deploy:preview": "npm run generate && node scripts/deploy-preview.js",
     "deploy:branches": "node scripts/deploy-branches.js"
   },

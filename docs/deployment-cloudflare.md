@@ -2,7 +2,7 @@
 
 使用已有的 `atlas-router` Worker。Cloudflare Workers Builds 直接监听 GitHub：`master` 是生产分支，`develop` 发布到同一 Worker 的原生 Preview。GitHub Actions 只做验证。
 
-当前代码已准备好开发发布命令，但本文不表示账号侧连接或预览已经部署。生产发布仍暂停，现有 `master` 还需先对齐经过核对的生产源码；不能直接用旧分支覆盖线上。分支差异见 [兼容性核对](client-compatibility.md)。本地 `npm run deploy` 会直接拒绝发布，避免误用旧组合部署流程。
+master 使用权重实验前的稳定 fallback 行为，并提供生产 Dev 按钮；develop 保留 Smart 权重。基线与发布边界见 [生产基线](production-baseline.md)。后续只通过 Cloudflare 监听分支推送发布，不从本机手工部署。
 
 ## 1. 域名
 
@@ -22,11 +22,11 @@
 | Production branch | `master` |
 | Root directory | `worker` |
 | Build command | `npm ci && npm test` |
-| Deploy command（生产暂停期间） | `npx wrangler deploy --dry-run` |
+| Deploy command | `npm run deploy` |
 | Preview Builds | 开启 |
 | Preview command | `npm run deploy:preview` |
 
-`master` 保持生产分支，不再临时填写 `develop`。生产命令中的 `--dry-run` 保证不发布代码或绑定配置。旧 `master` 尚未完成适配时，其构建可能失败；不要为了变绿而将生产分支改成 `develop`。
+`master` 保持生产分支。原先的 `npx wrangler deploy --dry-run` 只构建、不发布，必须改为 `npm run deploy` 才会更新生产 UI。命令只接受 Cloudflare Builds 的 master 构建上下文，依次迁移正式库和 UI 使用的测试库，再发布生产代码并轮换管理路径；迁移失败不发布。
 
 如果页面出现 **Set up Worker Previews**，按提示切换到原生 Worker Previews，然后再次确认 Preview command 为 `npm run deploy:preview`。这是 Cloudflare 的一次性切换，不能切回旧 Version URL 预览模型。参见 [Build branches](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)。
 
@@ -40,11 +40,11 @@
 
 - 生产 `DB` → `atlas-router`；生产 `DEV_DB` → `atlas-router-dev`，供生产 UI 管理测试用户和节点。
 - 原生 Preview `DB` → `atlas-router-dev`；Preview 不绑定生产数据库。
-- Preview `UI_ENABLED=false`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`、`SMART_PRIORITY_SCHEME=geometric-3`。
+- develop 分支的 Preview 配置为 `UI_ENABLED=false`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`、`SMART_PRIORITY_SCHEME=geometric-3`；master 不配置或读取权重变量。
 
 不用在手机上逐项填写这些 bindings 和 variables。开发发布脚本先核对 `DEV_DB` 与 Preview `DB` 指向同一个开发库、且不同于生产库，再执行开发库迁移，最后上传 Preview。它不会执行生产 D1 迁移，也不上传生产版本。
 
-生产新增的 `DEV_DB` binding 和 Dev 按钮，需要以后更新生产版本才生效。当前生产 dry-run 不会应用这些变更。开发库节点和用户保持独立，不自动复制生产数据。
+生产 `DEV_DB` binding 和 Dev 按钮会随 master 的成功发布一起生效；只有构建成功、没有实际发布时，线上页面不会变化。开发库节点和用户保持独立，不自动复制生产数据。
 
 ## 4. Access 与验证
 
@@ -52,8 +52,8 @@
 
 在完成配置、并确认 develop 已包含 `deploy:preview` 后，触发一次 develop 的新构建。检查构建日志：运行测试 → 迁移 `DEV_DB` → 发布 `develop` Preview；不应出现生产 `wrangler deploy` 上传。
 
-- `https://develop.atlasrouter.zslab.ai/` 返回 404，是关闭 UI 的预期结果。
+- `https://develop.atlasrouter.zslab.ai/` 到达 Worker 后返回 404，是关闭 UI 的预期结果；若 Access 覆盖此路径，可能先跳转到登录页。
 - `https://develop.atlasrouter.zslab.ai/AtlasRouter-Dev` 未携带 Token 时返回 401，是鉴权生效的预期结果。
 - 成功订阅还需测试库有可用节点及有效测试 Token。生产页面的 Dev 按钮在后续生产更新后负责生成链接，不能用生产 Token 替代测试 Token。
 
-代码准备、开发预览部署和生产页面更新是不同步骤。生产暂停期间，只接通 develop 自动更新；不要去掉生产命令中的 `--dry-run`。
+master 构建成功发布后，刷新生产首页，应在页头看到 Dev 按钮。它在生产页面切换测试数据，生成独立开发域名与 `/AtlasRouter-Dev` 路径；Preview 根页面仍关闭。发布失败时以 Cloudflare 构建日志定位，修正后在 Cloudflare 重试该分支构建，不改为本地手工部署。
