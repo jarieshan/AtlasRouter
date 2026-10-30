@@ -5,15 +5,16 @@
 建议放在这里的内容：
 
 - 架构设计：订阅生成流程、目录职责、数据流。
-- 部署说明：Cloudflare Workers Git Integration 和 KV 配置。
+- 部署说明：GitHub Actions、Cloudflare Access、D1 配置和数据库迁移。
 - 运维手册：订阅地址、鉴权方式、常见故障排查。
 - 决策记录：规则组织、策略组命名、Worker 数据格式等需要长期保留的取舍。
 
 当前文档：
 
 - `deployment-cloudflare.md`：Cloudflare Worker 部署流程。
-- `env.md`：Worker 运行时 KV 和节点数据格式。
+- `env.md`：Worker 运行时 D1 和节点数据格式。
 - `subscription.md`：Surge 订阅地址和路由说明。
+- `multi-user.md`：邮箱身份、节点分配、共享容量和均衡回退。
 
 不建议放在这里的内容：
 

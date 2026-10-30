@@ -1,24 +1,42 @@
 import { HttpError } from "./errors.js";
+import { isPreviewIdentity } from "./page-preview.js";
 
 const ACCESS_JWT_HEADER = "cf-access-jwt-assertion";
 const JWKS_CACHE = new Map();
 
 export async function requireAccessAdmin(request, env) {
-  const teamDomain = normalizeTeamDomain(env.ACCESS_TEAM_DOMAIN);
-  const audience = requiredString(env.ACCESS_AUD, "ACCESS_AUD is not configured");
   const adminEmails = parseAdminEmails(env.ADMIN_EMAILS);
+  const payload = await requireAccessIdentity(request, env, env.ACCESS_AUD);
+  const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+  if (!email || !adminEmails.has(email) || await isPreviewIdentity(email, env)) {
+    throw new HttpError(403, "Forbidden");
+  }
+
+  return payload;
+}
+
+export async function requireAccessUser(request, env) {
+  const payload = await requireAccessIdentity(request, env, env.ACCESS_AUD);
+  if (typeof payload.email !== "string" || !/^[^\s@]+@[^\s@]+$/.test(payload.email.trim())) {
+    throw new HttpError(403, "Cloudflare Access user identity is required");
+  }
+  return { email: payload.email.trim().toLowerCase() };
+}
+
+export function isAdminEmail(email, env) {
+  if (typeof env.ADMIN_EMAILS !== "string" || !env.ADMIN_EMAILS.trim()) return false;
+  return parseAdminEmails(env.ADMIN_EMAILS).has(email);
+}
+
+async function requireAccessIdentity(request, env, aud) {
+  const teamDomain = normalizeTeamDomain(env.ACCESS_TEAM_DOMAIN);
+  const audience = requiredString(aud, "Cloudflare Access audience is not configured");
   const token = request.headers.get(ACCESS_JWT_HEADER);
   if (!token) {
     throw new HttpError(403, "Missing Cloudflare Access token");
   }
 
-  const payload = await verifyAccessJwt(token, { teamDomain, audience, env });
-  const email = typeof payload.email === "string" ? payload.email.toLowerCase() : "";
-  if (!email || !adminEmails.has(email)) {
-    throw new HttpError(403, "Forbidden");
-  }
-
-  return payload;
+  return verifyAccessJwt(token, { teamDomain, audience, env });
 }
 
 export async function verifyAccessJwt(token, { teamDomain, audience, env }) {
@@ -30,7 +48,7 @@ export async function verifyAccessJwt(token, { teamDomain, audience, env }) {
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
   const header = parseBase64UrlJson(encodedHeader);
   const payload = parseBase64UrlJson(encodedPayload);
-  if (header.alg !== "RS256" || typeof header.kid !== "string") {
+  if (!header || !payload || header.alg !== "RS256" || typeof header.kid !== "string") {
     throw new HttpError(403, "Invalid Cloudflare Access token");
   }
   if (payload.iss !== teamDomain || !audienceMatches(payload.aud, audience)) {
@@ -143,9 +161,17 @@ function parseBase64UrlJson(value) {
 }
 
 function base64UrlToBytes(value) {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new HttpError(403, "Invalid Cloudflare Access token");
+  }
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-  const binary = atob(padded);
+  let binary;
+  try {
+    binary = atob(padded);
+  } catch {
+    throw new HttpError(403, "Invalid Cloudflare Access token");
+  }
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);

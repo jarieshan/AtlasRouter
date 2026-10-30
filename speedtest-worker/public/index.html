@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111323">
+  <meta name="description" content="Pulse：简洁直观的网络速度测试界面，查看下载、上传速度与网络延迟。">
+  <title>Pulse — 网络速度测试</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#speed-test">跳至测速界面</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="Pulse 首页">
+        <img src="/favicon.svg" alt="" width="37" height="37">
+        <span>PULSE<span class="brand-dot">.</span></span>
+      </a>
+      <nav aria-label="主导航">
+        <a class="nav-active" href="#speed-test" aria-current="page">速度测试</a>
+        <button type="button" data-dialog="about-dialog">测试说明</button>
+        <button type="button" data-dialog="privacy-dialog">隐私</button>
+      </nav>
+      <span class="header-label">NETWORK TOOLS</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow"><span></span> EVERY CONNECTION COUNTS</p>
+      <h1 id="page-title">你的网络，<span>有多快？</span></h1>
+      <p class="intro-copy">从下载到上传，让连接速度一目了然。</p>
+    </section>
+
+    <section class="test-panel" id="speed-test" aria-label="网络速度测试">
+      <div class="panel-heading">
+        <span class="panel-title">SPEED TEST <span>/ 速度测试</span></span>
+        <span class="status-badge"><span></span> 网络测试</span>
+      </div>
+
+      <div class="metrics" aria-label="测速结果">
+        <div class="metric" id="download-metric">
+          <div class="metric-label"><span class="direction download" aria-hidden="true">↓</span>下载 <span>DOWNLOAD</span></div>
+          <p><span class="metric-value" id="download-value">—</span><span class="unit">Mbps</span></p>
+        </div>
+        <div class="metric" id="upload-metric">
+          <div class="metric-label"><span class="direction upload" aria-hidden="true">↑</span>上传 <span>UPLOAD</span></div>
+          <p><span class="metric-value" id="upload-value">—</span><span class="unit">Mbps</span></p>
+        </div>
+        <div class="metric" id="latency-metric">
+          <div class="metric-label"><span class="direction latency" aria-hidden="true">↔</span>延迟 <span>PING</span></div>
+          <p><span class="metric-value" id="ping-value">—</span><span class="unit">ms</span></p>
+        </div>
+      </div>
+
+      <div class="test-stage">
+        <div class="stage-note"><span class="tiny-line"></span><span>简单 · 直观 · 轻量</span></div>
+        <div class="dial" id="dial">
+          <svg class="gauge" viewBox="0 0 440 340" aria-hidden="true">
+            <defs>
+              <linearGradient id="gauge-gradient" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0%" stop-color="#38b5b9"/>
+                <stop offset="100%" stop-color="#83ffe1"/>
+              </linearGradient>
+            </defs>
+            <path class="gauge-ticks" d="M 69 289 A 191 191 0 1 1 371 289" pathLength="100"/>
+            <path class="gauge-track" d="M 83 277 A 174 174 0 1 1 357 277" pathLength="100"/>
+            <path class="gauge-progress" id="gauge-progress" d="M 83 277 A 174 174 0 1 1 357 277" pathLength="100" stroke-dashoffset="100"/>
+            <g class="gauge-labels">
+              <text x="91" y="306">0</text><text x="20" y="190">10</text>
+              <text x="62" y="70">50</text><text x="220" y="18">100</text>
+              <text x="376" y="70">500</text><text x="415" y="190">1k</text>
+              <text x="348" y="306">Mbps</text>
+            </g>
+          </svg>
+          <div class="dial-center">
+            <span class="dial-caption" id="dial-caption">LET’S GO</span>
+            <button type="button" class="go-button" id="go-button" aria-label="开始测速" disabled>
+              <span id="dial-value">GO</span>
+              <span class="go-caption" id="go-caption">开始测速</span>
+            </button>
+            <span class="dial-under" id="dial-under">点击，探索连接的速度</span>
+          </div>
+        </div>
+        <div class="status-area">
+          <p class="status" role="status" id="test-status"><span class="status-dot"></span><span id="status-text">准备就绪</span></p>
+          <p class="test-note">测试过程中，请尽量减少其他网络活动</p>
+        </div>
+        <div class="test-steps" aria-label="测试阶段">
+          <span id="step-connect"><i></i>连接</span>
+          <span id="step-latency"><i></i>延迟</span>
+          <span id="step-download"><i></i>下载</span>
+          <span id="step-upload"><i></i>上传</span>
+        </div>
+        <button class="copy-button" id="copy-button" type="button" hidden>复制测试结果 <span aria-hidden="true">↗</span></button>
+        <noscript><p class="noscript-note">请启用 JavaScript 以使用测速界面。</p></noscript>
+      </div>
+
+      <div class="connection-info">
+        <div class="connection-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          <div><span class="connection-label">客户端</span><p>当前浏览器 <span class="connection-tag">LOCAL</span></p></div>
+        </div>
+        <div class="connection-link" aria-hidden="true"><span></span><i></i><span></span></div>
+        <div class="connection-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 7h14M5 17h14"/></svg>
+          <div><span class="connection-label">服务器</span><p>Cloudflare Edge <span class="connection-tag">EDGE</span></p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="explainer" aria-label="了解测速指标">
+      <article><span class="explainer-number">01 /</span><h2>下载，看得更流畅。</h2><p>接收数据的速度，影响视频播放、网页浏览和文件下载。</p></article>
+      <article><span class="explainer-number">02 /</span><h2>上传，分享更从容。</h2><p>发送数据的速度，影响文件分享、云端备份和视频通话。</p></article>
+      <article><span class="explainer-number">03 /</span><h2>低延迟，快人一步。</h2><p>数据往返的时间。数值越低，游戏与实时交互通常越灵敏。</p></article>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p><strong>PULSE.</strong> <span>每一次连接，都值得了解。</span></p>
+    <p>© 2026 Pulse <span class="footer-separator">/</span> <button type="button" data-dialog="privacy-dialog">隐私说明</button></p>
+  </footer>
+
+  <dialog id="about-dialog" aria-labelledby="about-title">
+    <button class="dialog-close" type="button" data-close aria-label="关闭测试说明">×</button>
+    <p class="eyebrow">ABOUT THIS TEST</p><h2 id="about-title">看懂每一段连接。</h2>
+    <p>Pulse 提供简洁直观的网络速度测试界面。点击 GO 后，依次显示连接、延迟、下载和上传阶段；运行时再次点击仪表盘即可停止。</p>
+    <p>下载与上传速度使用 Mbps 表示，延迟使用毫秒（ms）表示。完成后可复制结果，或点击“再测一次”重新开始。</p>
+    <p>网络速度会受到 Wi-Fi 信号、设备性能、线路拥塞和服务器距离等因素影响。测试时建议暂停其他下载任务，保持连接稳定。</p>
+    <button class="dialog-action" type="button" data-close>了解了</button>
+  </dialog>
+  <dialog id="privacy-dialog" aria-labelledby="privacy-title">
+    <button class="dialog-close" type="button" data-close aria-label="关闭隐私说明">×</button>
+    <p class="eyebrow">YOUR PRIVACY</p><h2 id="privacy-title">简单，也保持克制。</h2>
+    <p>测试界面在浏览器中运行。页面脚本不读取 IP 地址，不使用 Cookie、本地存储或第三方统计，也不收集账号信息。</p>
+    <p>点击“复制测试结果”时，只会将当前读数写入剪贴板。刷新页面后，测试状态会重置。</p>
+    <p>访问页面仍需向托管平台请求静态文件；托管平台可能按其配置处理 HTTP 访问日志。</p>
+    <button class="dialog-action" type="button" data-close>知道了</button>
+  </dialog>
+</body>
+</html>

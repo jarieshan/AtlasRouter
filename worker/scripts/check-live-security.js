@@ -1,82 +1,62 @@
 #!/usr/bin/env node
 
+import {
+  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
+} from "../src/routes.js";
+
 const DEFAULT_TIMEOUT_MS = 12_000;
 const ACCESS_HOST_PATTERN = /(^|\.)cloudflareaccess\.com$/i;
 const ADMIN_DENY_MESSAGES = new Set([
-  "Missing Cloudflare Access token",
-  "Invalid Cloudflare Access token",
-  "Expired Cloudflare Access token",
-  "Cloudflare Access token is not active",
-  "Unknown Cloudflare Access signing key",
-  "Forbidden",
+  "Missing Cloudflare Access token", "Invalid Cloudflare Access token", "Expired Cloudflare Access token",
+  "Cloudflare Access token is not active", "Unknown Cloudflare Access signing key", "Forbidden",
 ]);
-const SUBSCRIPTION_PATH = "/AtlasRouter";
-const LEGACY_SUBSCRIPTION_PATH = "/atlas-router";
-const ADMIN_PATH = `${SUBSCRIPTION_PATH}/admin`;
-const ADMIN_CONFIG_PATH = `${ADMIN_PATH}/config`;
-const ADMIN_CERTIFICATE_PATH = `${ADMIN_PATH}/certificates`;
-
 const { baseUrl, timeoutMs } = parseArgs(process.argv.slice(2));
+const adminRoutes = getAdminRoutes(process.env);
+if (process.env.ADMIN_API_SLUG !== undefined && !adminRoutes) throw new Error("Invalid ADMIN_API_SLUG");
+if (!adminRoutes) console.log("SKIP management API probes: ADMIN_API_SLUG is not set.");
 
 const checks = [
-  protectedAdmin("admin page", "GET", ADMIN_PATH),
-  protectedAdmin("admin config", "GET", ADMIN_CONFIG_PATH),
-  protectedAdmin("admin certificate generator", "GET", ADMIN_CERTIFICATE_PATH),
-  protectedAdmin("admin page method probe", "POST", ADMIN_PATH),
-  protectedAdmin("admin config method probe", "DELETE", ADMIN_CONFIG_PATH),
-  protectedAdmin("admin certificate unauthenticated generate", "POST", ADMIN_CERTIFICATE_PATH, {
-    "content-type": "application/json",
-  }, "{}"),
-  protectedAdmin("admin config unauthenticated write", "PUT", ADMIN_CONFIG_PATH, {
-    "content-type": "application/json",
-  }, "{}"),
-  protectedAdmin("admin config CORS preflight", "OPTIONS", ADMIN_CONFIG_PATH, {
-    origin: "https://example.test",
-    "access-control-request-method": "PUT",
+  protectedAdmin("root portal", "GET", ACCOUNT_PATH),
+  protectedAdmin("account profile", "GET", ACCOUNT_PROFILE_PATH),
+  protectedAdmin("account token reset", "POST", ACCOUNT_TOKEN_PATH, { "content-type": "application/json" }, "{}"),
+  protectedAdmin("forged role ignored", "GET", `${ACCOUNT_PATH}?role=admin&email=admin@example.com`),
+  protectedAdmin("forged identity ignored", "GET", ACCOUNT_PATH, { "cf-access-authenticated-user-email": "admin@example.com" }),
+  unauthorizedRoute("subscription without token", POOL_SUBSCRIPTION_PATH),
+  unauthorizedRoute("subscription invalid token", `${POOL_SUBSCRIPTION_PATH}?token=invalid-token`),
+  unauthorizedRoute("Clash subscription without token", `${POOL_SUBSCRIPTION_PATH}?client=clash`),
+  unauthorizedRoute("DoH subscription invalid token", `${POOL_SUBSCRIPTION_PATH}?token=invalid-token&client=clash&doh=1`),
+  unauthorizedRoute("subscription admin token ignored", `${POOL_SUBSCRIPTION_PATH}?admin_token=invalid-token`),
+  unauthorizedRoute("subscription forged credentials ignored", POOL_SUBSCRIPTION_PATH, {
+    authorization: "Bearer test-only", "cf-access-jwt-assertion": "bogus",
   }),
-  protectedAdmin("admin query token ignored", "GET", `${ADMIN_PATH}?admin_token=admin-token`),
-  protectedAdmin("config query token ignored", "GET", `${ADMIN_CONFIG_PATH}?admin_token=admin-token`),
-  protectedAdmin("admin authorization ignored", "GET", ADMIN_PATH, {
-    authorization: "Bearer admin-token",
-  }),
-  protectedAdmin("config authorization ignored", "GET", ADMIN_CONFIG_PATH, {
-    authorization: "Bearer admin-token",
-  }),
-  protectedAdmin("admin fake Access JWT rejected", "GET", ADMIN_PATH, {
-    "cf-access-jwt-assertion": "bogus",
-  }),
-  protectedAdmin("config fake Access JWT rejected", "GET", ADMIN_CONFIG_PATH, {
-    "cf-access-jwt-assertion": "bogus",
-  }),
-  protectedAdmin("admin trailing slash", "GET", `${ADMIN_PATH}/`),
-  protectedAdmin("config trailing slash", "GET", `${ADMIN_CONFIG_PATH}/`),
-  notServedOrProtectedAdmin("old admin page", "GET", "/admin"),
-  notServedOrProtectedAdmin("old admin config", "GET", "/admin/config"),
-  notServedOrProtectedAdmin("old admin certificate generator", "POST", "/admin/certificates", {
-    "content-type": "application/json",
-  }, "{}"),
-  retiredRoute("retired admin page", "/atlas"),
-  retiredRoute("retired admin config", "/atlas/config"),
-  unauthorizedRoute("subscription without token", SUBSCRIPTION_PATH),
-  unauthorizedRoute("subscription invalid token", `${SUBSCRIPTION_PATH}?token=invalid-token`),
-  unauthorizedRoute("subscription admin token ignored", `${SUBSCRIPTION_PATH}?admin_token=admin-token`),
-  unauthorizedRoute("subscription fallback headers ignored", SUBSCRIPTION_PATH, {
-    authorization: "Bearer admin-token",
-    "cf-access-jwt-assertion": "bogus",
-  }),
-  unauthorizedRoute("legacy subscription without token", LEGACY_SUBSCRIPTION_PATH),
-  unauthorizedRoute("legacy subscription invalid token", `${LEGACY_SUBSCRIPTION_PATH}?token=invalid-token`),
-  unauthorizedRoute("legacy subscription admin token ignored", `${LEGACY_SUBSCRIPTION_PATH}?admin_token=admin-token`),
-  unauthorizedRoute("legacy subscription fallback headers ignored", LEGACY_SUBSCRIPTION_PATH, {
-    authorization: "Bearer admin-token",
-    "cf-access-jwt-assertion": "bogus",
-  }),
-  unauthorizedRoute("module without token", "/modules/skip-proxy-lists.sgmodule"),
-  unauthorizedRoute("module fallback headers ignored", "/modules/skip-proxy-lists.sgmodule", {
-    authorization: "Bearer admin-token",
-    "cf-access-jwt-assertion": "bogus",
-  }),
+  unauthorizedRoute("module without token", `${POOL_SUBSCRIPTION_PATH}/modules/skip-proxy-lists.sgmodule`),
+  ...[
+    ["GET", "/admin"], ["GET", "/admin/config"], ["POST", "/admin/certificates"],
+    ["GET", "/atlas"], ["GET", "/atlas/config"], ["GET", "/atlasrouter"], ["GET", "/atlas-router"],
+    ["GET", "/atlasrouter/modules/skip-proxy-lists.sgmodule"],
+    ["GET", "/AtlasRouter/rules/missing"],
+    ["GET", "/AtlasRouter/subscription"], ["GET", "/AtlasRouter/account"], ["GET", "/AtlasRouter/admin"],
+    ["GET", "/AtlasRouter/admin/pool"], ["GET", "/AtlasRouter/account/profile"], ["POST", "/AtlasRouter/account/token"],
+    ["GET", "/AtlasRouter/admin/config"], ["POST", "/AtlasRouter/admin/certificates"],
+    ["GET", "/AtlasRouter/admin/pool/state"], ["PUT", "/AtlasRouter/admin/pool/nodes"], ["PATCH", "/AtlasRouter/admin/pool/users"],
+    ["GET", "/api/admin/pool/state"], ["PUT", "/api/admin/pool/nodes"], ["PATCH", "/api/admin/pool/users"],
+    ["GET", "/api/admin/config"], ["POST", "/api/admin/certificates"],
+    ["GET", "/modules/skip-proxy-lists.sgmodule"], ["GET", "/AtlasRouter/subscription/modules/skip-proxy-lists.sgmodule"],
+  ].map(([method, path]) => retiredRoute("retired route", method, path)),
 ];
+if (adminRoutes) {
+  checks.push(
+    protectedAdmin("node pool state", "GET", adminRoutes.state),
+    protectedAdmin("node pool write", "PUT", adminRoutes.nodes, { "content-type": "application/json" }, "{}"),
+    protectedAdmin("node pool import", "POST", adminRoutes.import, { "content-type": "application/json" }, "{}"),
+    protectedAdmin("node pool user write", "PATCH", adminRoutes.users, { "content-type": "application/json" }, "{}"),
+    protectedAdmin("admin query token ignored", "GET", `${adminRoutes.state}?admin_token=test-only`),
+    protectedAdmin("admin authorization ignored", "GET", adminRoutes.state, { authorization: "Bearer test-only" }),
+    protectedAdmin("admin fake Access JWT rejected", "GET", adminRoutes.state, { "cf-access-jwt-assertion": "bogus" }),
+    protectedAdmin("admin CORS preflight", "OPTIONS", adminRoutes.nodes, { origin: "https://example.test", "access-control-request-method": "PUT" }),
+    retiredRoute("admin trailing slash", "GET", `${adminRoutes.state}/`),
+  );
+}
 
 let failures = 0;
 console.log(`Live security target: ${baseUrl}`);
@@ -87,7 +67,7 @@ for (const check of checks) {
   const line = [
     verdict.ok ? "PASS" : "FAIL",
     check.name,
-    `${check.method} ${check.path}`,
+    `${check.method} ${check.path.replace(/\/api\/[a-f0-9]{32}(?=\/)/g, "/api/<redacted>")}`,
     `status=${result.status}`,
     result.locationHost ? `location=${result.locationHost}` : "",
   ].filter(Boolean).join(" | ");
@@ -96,7 +76,6 @@ for (const check of checks) {
   if (!verdict.ok) {
     failures += 1;
     console.log(`  ${verdict.message}`);
-    console.log(`  body: ${summarizeBody(result.body)}`);
   }
 }
 
@@ -154,7 +133,8 @@ Options:
   --timeout-ms=<ms>     Per-request timeout. Defaults to ${DEFAULT_TIMEOUT_MS}
 
 This script performs unauthenticated, non-mutating live security probes. It is
-not wired into npm test and must be run explicitly.`);
+not wired into npm test and must be run explicitly. Set ADMIN_API_SLUG in the
+environment to include management API probes; its value is redacted in output.`);
 }
 
 function normalizeBaseUrl(value) {
@@ -176,38 +156,14 @@ function protectedAdmin(name, method, path, headers = {}, body = undefined) {
   };
 }
 
-function notServedOrProtectedAdmin(name, method, path, headers = {}, body = undefined) {
+function retiredRoute(name, method, path) {
   return {
-    name,
-    method,
-    path,
-    headers,
-    body,
+    name, method, path,
     assert(result) {
-      if (leaksProtectedContent(result.body)) {
-        return fail("response body appears to contain protected AtlasRouter content");
-      }
-      if (result.status === 404 && result.body.trim() === "Not Found") {
-        return pass();
-      }
-      return assertProtectedAdmin(result);
-    },
-  };
-}
-
-function retiredRoute(name, path) {
-  return {
-    name,
-    method: "GET",
-    path,
-    assert(result) {
-      if (result.status !== 404) {
-        return fail(`expected 404 for retired route, got ${result.status}`);
-      }
-      if (result.body.trim() !== "Not Found") {
-        return fail("retired route did not return Not Found");
-      }
-      return pass();
+      if (leaksProtectedContent(result.body)) return fail("response contains protected content");
+      if (isAccessRedirect(result)) return pass();
+      if (result.status === 404 && result.body.trim() === "Not Found") return pass();
+      return fail("expected Not Found after reaching the Worker, or an Access redirect");
     },
   };
 }
@@ -237,7 +193,7 @@ async function request(check, timeoutMs) {
   try {
     const response = await fetch(url, {
       method: check.method,
-      headers: check.headers,
+      headers: { "user-agent": "Mozilla/5.0 (compatible; AtlasRouterSecurityCheck/1.0)", ...check.headers },
       body: check.body,
       redirect: "manual",
       signal: controller.signal,
@@ -296,11 +252,7 @@ function locationHost(location) {
 }
 
 function leaksProtectedContent(body) {
-  return /AtlasRouter Admin|#!MANAGED-CONFIG|\[Proxy\]|"profiles"|"subscribeToken"|"nodes"|"caP12"|"caPassphrase"/.test(body);
-}
-
-function summarizeBody(body) {
-  return body.replace(/\s+/g, " ").trim().slice(0, 160) || "<empty>";
+  return /id="(?:account|pool)-panel"|#!MANAGED-CONFIG|\[Proxy\]|"profiles"|"subscribeToken"|"nodes"|"caP12"|"caPassphrase"/.test(body);
 }
 
 function pass() {

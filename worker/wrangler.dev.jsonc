@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "atlas-router-dev",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-12",
+  "minify": true,
+  "placement": {
+    "mode": "smart"
+  },
+  "workers_dev": false,
+  "preview_urls": false,
+  "keep_vars": true,
+  "routes": [
+    {
+      "pattern": "atlasrouter-dev.zslab.ai",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "SMART_PRIORITY_SCHEME": "geometric-3"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "atlas-router-dev",
+      "database_id": "af8d5520-678b-4fe7-b8eb-8d0ee214aaa1",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true,
+      "persist": true,
+      "head_sampling_rate": 0.05
+    }
+  }
+}

@@ -3,17 +3,30 @@
   "name": "atlas-router",
   "main": "src/index.js",
   "compatibility_date": "2026-05-12",
+  "minify": true,
+  "placement": {
+    "mode": "smart"
+  },
   "workers_dev": false,
   "preview_urls": false,
   "keep_vars": true,
-  "kv_namespaces": [
+  "routes": [
     {
-      "binding": "ATLAS_ROUTER",
-      "id": "1dfdee1920e04fa18276c4c694a6f530"
+      "pattern": "atlasrouter.zslab.ai",
+      "custom_domain": true
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "atlas-router",
+      "database_id": "c97ab4f9-cbbc-4aa3-a51d-c440b39489db",
+      "migrations_dir": "migrations"
     }
   ],
   "observability": {
-    "enabled": false,
+    "enabled": true,
+    "redact_query_string": true,
     "head_sampling_rate": 1,
     "logs": {
       "enabled": true,
@@ -24,7 +37,7 @@
     "traces": {
       "enabled": true,
       "persist": true,
-      "head_sampling_rate": 1
+      "head_sampling_rate": 0.05
     }
   }
 }

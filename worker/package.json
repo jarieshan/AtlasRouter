@@ -4,12 +4,29 @@
   "type": "module",
   "scripts": {
     "generate": "node scripts/generate-assets.js",
-    "test": "npm run generate && node --test",
+    "test": "npm run test:unit && npm run test:runtime",
+    "test:unit": "npm run generate && node --test test/*.test.js",
+    "test:runtime": "npm run build && node --test test-runtime/*.test.js",
+    "build": "npm run generate && wrangler deploy --dry-run --outdir .wrangler/test-dist",
+    "build:speedtest": "node --check ../speedtest-worker/public/app.js && node scripts/deploy.js --speedtest-only --dry-run",
+    "build:dev": "npm run generate && node scripts/deploy.js --development --dry-run",
     "check:live-security": "node --env-file-if-exists=.env scripts/check-live-security.js",
-    "dev": "npm run generate && npx wrangler dev",
-    "deploy": "npm run generate && npx wrangler deploy"
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "dev": "npm run generate && npm run db:migrate:local && wrangler dev",
+    "deploy": "npm run generate && node scripts/deploy.js",
+    "deploy:router": "npm run generate && node scripts/deploy.js --router-only",
+    "deploy:dev": "npm run generate && node scripts/deploy.js --development",
+    "deploy:speedtest": "node scripts/deploy.js --speedtest-only"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "devDependencies": {
+    "miniflare": "5.20261023.0-beta",
+    "wrangler": "4.153.0"
   },
   "dependencies": {
-    "node-forge": "^1.4.0"
+    "yaml": "2.9.1"
   }
 }

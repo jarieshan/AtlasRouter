@@ -1,17 +1,20 @@
 # AtlasRouter
 
-AtlasRouter 是一个围绕 Surge APP 组织的代理分流套件仓库，目标是把分流规则、脚本、模块和订阅生成逻辑放在同一个可维护的工程里。
+AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统，集中维护分流规则、模块和节点池。
 
-订阅服务计划部署在 Cloudflare Workers 上。节点信息不写入仓库，而是通过 Cloudflare KV 注入；Worker 再结合本仓库维护的规则与策略，生成 Surge 可订阅的最终配置。
+用户通过 Cloudflare Access + Google 登录，以验证后的邮箱识别账号，在个人页面获取专属订阅链接。管理员录入节点后，系统按地区/IP 类型分组，为每个用户分配各组主节点，并生成均衡轮转的备份顺序。节点不足时允许共享主节点。
+
+用户、节点与分配关系分别保存在 Cloudflare D1 SQLite 的 `users`、`nodes`、`assignments` 表中；不保存 JSON 快照，也不再提供旧版手动订阅或兼容入口。节点信息、订阅凭据不写入仓库。
 
 ## 当前状态
 
-仓库已具备初版订阅生成闭环：
+首版已实现登录、自动分配、订阅生成，并提供 GitHub Actions CI/CD 工作流：
 
 - `README.md`：项目说明与维护入口。
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
 - `docs/`：设计、部署、运维和决策记录。
 - `worker/`：Cloudflare Worker 订阅服务。
+- `speedtest-worker/`：独立部署的静态测速外观站，根路径展示界面演示，见 [使用说明](speedtest-worker/README.md)。
 - `surge/`：Surge 主配置模板。
 - `modules/`：Surge 模块。
 - `references/`：历史配置和样例，仅用于理解已有想法，不作为事实来源或实现依据。
@@ -31,12 +34,13 @@ AtlasRouter 是一个围绕 Surge APP 组织的代理分流套件仓库，目标
 
 ```mermaid
 flowchart LR
-  A["Cloudflare Worker 请求"] --> B["鉴权与路径解析"]
-  B --> C["读取 Worker KV"]
-  C --> D["加载节点信息"]
-  D --> E["组合 Surge 模板、策略组、规则和模块引用"]
-  E --> F["输出最终订阅内容"]
-  F --> G["Surge APP 导入 / 更新订阅"]
+  A["Google / Cloudflare Access"] --> B["用户页：按邮箱获取订阅链接"]
+  C["管理员录入节点"] --> D["D1：归属、计数与均衡分配"]
+  B --> D
+  E["Surge 携带个人 token"] --> F["Worker 校验订阅凭据"]
+  F --> D
+  D --> G["渲染模板与按主备顺序赋权的 Smart 组"]
+  G --> H["Surge 导入 / 更新；客户端检测故障"]
 ```
 
 ## 维护原则
@@ -51,10 +55,15 @@ flowchart LR
 
 ```sh
 cd worker
+npm ci
 npm test
 ```
 
-Worker 会在测试和部署前运行 `scripts/generate-assets.js`，把 `surge/` 和 `modules/` 中的静态资产打包进 Worker。
+使用 Node.js 24。`npm test` 包括单元测试、部署构建检查和 Miniflare/workerd 集成测试，覆盖本地 D1 的并发分配与重启持久化。测试、构建和部署前会将 `surge/` 和 `modules/` 中的静态资产打包进 Worker。
+
+统一网页入口为域名根路径 `/`，订阅链接为 `/AtlasRouter?token=<token>`。普通用户看到个人订阅，管理员在同一页还可管理节点池和用户；角色由验证后的邮箱及 `ADMIN_EMAILS` 决定。个人 API 位于 `/api/account/*`，管理 API 位于 `/api/<slug>/pool/*`；随机标识由 `ADMIN_API_SLUG` Secret 提供，每次 `npm run deploy` 自动生成并随代码发布，仅注入管理员页面；部署后需刷新已打开的管理员页面。`/admin`、`/api/admin/*` 和旧订阅等入口均已停用，到达 Worker 后返回 404。完整部署步骤见 [Cloudflare 部署](docs/deployment-cloudflare.md)，分配规则见 [多用户与节点池](docs/multi-user.md)。
+
+页面可选启用 DoH 和 Client（默认 Surge / Clash），分别通过 `doh=1`、`client=clash` 注入订阅链接。Clash / Mihomo 输出由同一份完整 Surge 配置转换，自动跳过不兼容内容，不需要维护两份分流配置。参数与兼容范围见 [订阅说明](docs/subscription.md)。
 
 线上安全探测需要手动执行，不属于默认测试：
 
@@ -63,22 +72,37 @@ cd worker
 npm run check:live-security -- https://<worker-domain>
 ```
 
-也可以把目标域名放在本地 `worker/.env` 的 `ATLAS_ROUTER_BASE_URL` 中，然后直接运行 `npm run check:live-security`。`.env*` 已被 git 忽略，不应入库。
+也可以把目标域名放在本地 `worker/.env` 的 `ATLAS_ROUTER_BASE_URL` 中，然后直接运行 `npm run check:live-security`。检查随机管理 API 还需在环境中提供 `ADMIN_API_SLUG`，否则脚本明确跳过该部分；输出会遮蔽随机路径。`.env*` 已被 git 忽略，不应入库。
 
 完整安全测试流程见 `docs/security-pentest.md`。
+
+## 统一部署
+
+GitHub Actions 按分支部署：`develop` 使用 `development` Environment，只发布开发 Worker 和独立 D1；`master` 使用 `production` Environment，发布生产订阅服务和测速站。PR 只检查。两端分别设置 Access、管理员 Secrets 和节点，测试通过后将 `develop` 合入 `master` 发布生产。启用前需配置 GitHub 的环境 Secrets 和分支限制，见 [部署说明](docs/deployment-cloudflare.md)。
+
+开发环境的本地部署命令为 `npm --prefix worker run deploy:dev`，使用 `worker/wrangler.dev.jsonc`；构建检查使用 `npm --prefix worker run build:dev`。
+
+在仓库根目录运行以下命令，会依次部署 `atlas-router` 订阅服务和 `pulse-speedtest` 测速站：
+
+```sh
+npm --prefix worker run deploy
+```
+
+加上 `-- --dry-run` 可检查两个 Worker，不执行远程迁移或发布。只更新其中一个时，使用 `npm --prefix worker run deploy:router` 或 `npm --prefix worker run deploy:speedtest`。订阅服务仍会先执行 D1 迁移并轮换管理路径 Secret；只更新测速站不会触发这些操作。两项发布并非原子操作，后一步失败不会回滚已经成功的前一步。详情见 [Cloudflare 部署](docs/deployment-cloudflare.md)。
 
 ## Cloudflare Worker 配置约定
 
 实际变量名由 Worker 实现决定，但应遵守以下边界：
 
-- 订阅 token 和节点信息通过 Cloudflare KV 注入，KV 读权限视为订阅敏感配置读取权限。
-- 管理页由 Cloudflare Access 保护，Worker 只校验 Access JWT 和管理员邮箱白名单。
+- 通过 `DB` binding 使用 D1，节点池使用 `users`、`nodes`、`assignments` 表，分配更新通过版本检查和多表事务提交。D1 读取权限视为敏感配置读取权限；不再需要 KV 或 Durable Object binding。
+- 网页及 API 由同一个 Cloudflare Access + Google 应用保护，Worker 校验 JWT；管理操作还校验管理员邮箱白名单。
+- `ADMIN_EMAILS`、`ADMIN_API_SLUG` 使用 Worker Secret；Google OAuth 客户端密钥配置在 Cloudflare Access 身份提供商中。
 - 本地开发时不要提交 `.dev.vars*`、`.env*` 或任何真实节点信息。
 - Worker 代码应从 `fetch(request, env, ctx)` 的 `env` 参数读取绑定，避免硬编码。
 
 ## Surge 配置约定
 
-- `[Proxy Group]` 负责策略组合，例如手动选择、自动测速、故障切换和区域筛选。
+- 自动订阅的 `[Proxy Group]` 使用 `surge/pool-groups.conf`，动态生成如 `🇺🇸USA-ISP`、`🇭🇰HK-IDC`、`🇸🇬SG-WARP` 的 `smart` 组，按个人主备顺序生成 `1、2、3…` 的 `policy-priority` 评分系数；开发环境试验 `1、3、9…`，Clash 均转换为同顺序的 `fallback`。
 - `[Rule]` 负责流量匹配，规则按文件顺序从上到下匹配，并以 `FINAL` 规则兜底。
 - 外部策略可通过 `policy-path` 引入，区域筛选可用 `policy-regex-filter`。
 - 模块文件用于对主配置做局部覆盖或追加，不应承担主配置无法解释的大段逻辑。
