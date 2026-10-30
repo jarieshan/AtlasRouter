@@ -9,7 +9,7 @@
 
 网页也按相同参数选择环境：正式入口 `/`，开发入口 `/?dev=1`。开发订阅使用 `/AtlasRouter?token=<dev-token>&dev=1`。参数不会绕过鉴权，生产 token 不能访问开发库，开发 token 也不能访问生产库。重复或非法 `dev` 参数返回 400。
 
-**接入状态：**单 Worker 分发、独立 D1 和不同分支转换代码已在本地 workerd 验证，尚未启用线上双分支部署。接入时发现现有 `master` 仍是旧 KV/手动订阅版本，与线上 D1 应用不一致；必须先将它对齐到经过核对的线上源码基线，再加入分支入口协议，不能直接用旧 `master` 覆盖线上。当前 Cloudflare 凭据调用 Builds API 返回 403，GitHub 连接及双分支触发器还需在 Cloudflare 配置。仓库中的配置文件不会自行创建触发器。
+**接入状态：**单 Worker 分发、独立 D1 和不同分支转换代码已在本地 workerd 验证，尚未启用线上双分支部署。接入时发现现有 `master` 仍是旧 KV/手动订阅版本，与线上 D1 应用不一致；必须先将它对齐到经过核对的线上源码基线，再加入分支入口协议，不能直接用旧 `master` 覆盖线上。当前本地 Cloudflare 凭据调用 Builds API 返回 403。首次连接可在 Cloudflare 构建内运行 `setup:builds`，复用已补权限的 Builds token 配置双分支监听；此路径尚未在账号上实测。仓库中的 JSON 配置文件不会自行创建触发器。
 
 ## 1. 构建与存储
 
@@ -86,16 +86,34 @@ Google client secret 保存在 Access IdP 中；节点凭据通过对应管理�
 
 ## 4. Cloudflare Workers Builds
 
-首次启用前，两条分支都要包含可运行的构建、部署脚本和入口协议；应用代码可以继续各自演进。先核对 `master` 与线上源码基线，保留生产发布暂停状态，完成下面的连接准备后再启用自动部署。
+首次启用真实部署前，两条分支都要包含可运行的构建、部署脚本和入口协议；应用代码可以继续各自演进。先核对 `master` 与线上源码基线，保留生产发布暂停状态，完成下面的连接准备后再启用自动部署。
 
-1. 在已有 `atlas-router` 的 Settings → Builds → Connect 连接 GitHub，授权 Cloudflare GitHub App 访问仓库。
-2. 选择同一个 Worker 的普通部署触发器，根目录设为 `worker`，Node.js 由 `.nvmrc` 固定为 24。关闭 Preview Builds。
-3. 普通触发器的 `branch_includes` 配置为 `["master", "develop"]`。如果 Dashboard 只允许选一个 Production branch，通过官方 Builds API 更新该普通触发器；不要另建开发 Worker。
-4. 构建命令使用 `npm ci && npm run build:branches`，部署命令使用 `npm run deploy:branches`。脚本从 `WORKERS_CI_BRANCH` 读取触发分支。Build Variables 可设 `SKIP_DEPENDENCY_INSTALL=1` 避免重复安装。
+手机首次连接无需编辑 `.env` 或手动执行 API：
+
+1. 在已有 `atlas-router` 的 Settings → Builds → Connect 连接 GitHub，授权 Cloudflare GitHub App 访问本仓库。已有连接直接修改设置。
+2. 按下表保存构建设置。`develop` 是当前包含设置脚本的分支；设置成功后，脚本会把同一触发器的监听列表改为 `master`、`develop`。
+
+| 设置 | 首次连接值 |
+| --- | --- |
+| Production branch | `develop` |
+| Root directory | `worker` |
+| Build command | `npm ci && npm run build:branches && npm run setup:builds` |
+| Deploy command | `npm run deploy:branches -- --dry-run` |
+| Preview Builds | 关闭 |
+| API Token | Cloudflare 自动生成或当前选中的用户 token |
+
+3. 在 Builds 的 API Token 项确认正在使用的 token 名称，然后到 My Profile → API Tokens 编辑**同一个 token**，保留原有权限，增加 Account → Workers Builds Configuration → Edit。首次设置和 dry-run 不需要 D1 Edit；启用真实部署前再给同一 token 补 Account → D1 → Edit。token 无需复制到聊天、GitHub、本地文件或额外的构建变量。
+4. 触发或重试一次 `develop` 构建。若连接时已自动启动构建，补权限前出现 403，可在权限保存后重试。
+
+`setup:builds` 仅允许在 `atlas-router` 的 Cloudflare Builds、`develop` 分支内运行，通过 Wrangler 在内存中读取当前构建 token。脚本校验当前构建 UUID、提交、Worker、仓库、触发器及 dry-run 部署命令，再更新当前触发器并回读确认。它不发布 Worker、不操作 D1，不创建第二个 Worker，也不改其他触发器。账号从 `CLOUDFLARE_ACCOUNT_ID` 或唯一可见账号识别；若存在多个账号且构建环境未指定账号，需在 Builds variables 填入该账号 ID，脚本不会猜测。
+
+成功日志为 `Builds setup verified: master + develop; deploy command remains dry-run.` 开头。成功后构建命令自动恢复为 `npm ci && npm run build:branches`，设置命令不再每次执行，部署命令继续保留 `--dry-run`。此时已核对监听配置，两个分支的真实推送触发仍需分别实测；`master` 未补齐脚本前不能作为完整的构建验收。
+
+待两个分支适配、数据库初始化及发布并发控制都验证完成，并允许上线后，再把 Deploy command 改为 `npm run deploy:branches`。脚本从 `WORKERS_CI_BRANCH` 读取触发分支。Build Variables 可设 `SKIP_DEPENDENCY_INSTALL=1` 避免重复安装。Node.js 由 `.nvmrc` 固定为 24。
 
 API 更新请求的正文已保存在 [builds.branches.json](../worker/builds.branches.json)，供 `PATCH /accounts/<account-id>/builds/triggers/<trigger-id>` 使用。它只包含监听分支和命令，不包含凭据或 GitHub 连接信息。官方 `branch_includes` 支持分支模式数组；本仓库尚未完成账号上的双分支触发实测。接口和所需权限见 [Builds API](https://developers.cloudflare.com/workers/ci-cd/builds/api-reference/)及 [更新触发器](https://developers.cloudflare.com/api/resources/workers_builds/subresources/triggers/methods/update/)。
 
-配置 Builds API 的用户 token 需要 **Workers Builds Configuration Edit** 权限；构建时使用的部署 token 还需 **D1 Edit** 和 Worker 部署权限。Cloudflare 默认生成的构建 token 不包含 D1 Edit，需选择合适的用户 token。凭据只存 Cloudflare，不填入 GitHub、仓库或聊天。具体权限、构建变量与名称覆盖机制见 [Builds 配置](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)。
+配置 Builds API 的用户 token 需要 **Workers Builds Configuration Edit** 权限；构建时使用的部署 token 还需 **D1 Edit** 和 Worker 部署权限。Cloudflare 默认生成的构建 token 不包含前两项，可按上述步骤编辑现有 token 权限。凭据只存 Cloudflare，不填入 GitHub、仓库或聊天。具体权限、构建变量与名称覆盖机制见 [Builds 配置](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)。
 
 Cloudflare 不等待 GitHub Actions；`build:branches` 自己在两份提交上运行测试，任一失败都不会部署。GitHub 的 [检查工作流](../.github/workflows/worker.yml) 继续验证 PR、`develop` 和 `master`。无需设置 GitHub Environment 或部署 Secrets，也不必为监听这两个分支而更改 GitHub 默认分支。
 

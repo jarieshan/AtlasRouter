@@ -9,6 +9,7 @@
     "test:runtime": "npm run build && node --test test-runtime/*.test.js",
     "build": "npm run generate && wrangler deploy --dry-run --outdir .wrangler/test-dist",
     "build:branches": "node scripts/build-branches.js",
+    "setup:builds": "node scripts/setup-builds.js",
     "check:live-security": "node --env-file-if-exists=.env scripts/check-live-security.js",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
