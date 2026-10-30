@@ -1,3 +1,7 @@
+# Keep subscription and UI access independent of proxy availability, including QUIC.
+DOMAIN,atlasrouter.zslab.ai,DIRECT
+DOMAIN,develop.atlasrouter.zslab.ai,DIRECT
+
 # DoH upstream connections use automatic proxy selection.
 PROTOCOL,DOH,Auto
 # Hostname rules retain DoH routing in Clash, which omits Surge PROTOCOL rules.

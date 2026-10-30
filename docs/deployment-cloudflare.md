@@ -57,3 +57,5 @@ master 使用权重实验前的稳定 fallback 行为，并提供生产 Dev 按�
 - 成功订阅还需测试库有可用节点及有效测试 Token。生产页面的 Dev 按钮在后续生产更新后负责生成链接，不能用生产 Token 替代测试 Token。
 
 master 构建成功发布后，刷新生产首页，应在页头看到 Dev 按钮。它在生产页面切换测试数据，生成独立开发域名与 `/AtlasRouter-Dev` 路径；Preview 根页面仍关闭。发布失败时以 Cloudflare 构建日志定位，修正后在 Cloudflare 重试该分支构建，不改为本地手工部署。
+
+如果旧客户端配置使订阅入口经代理后无法连接，可临时切换直连模式，完成一次订阅更新后切回规则模式。新配置对 `atlasrouter.zslab.ai` 与 `develop.atlasrouter.zslab.ai` 使用精确 `DIRECT` 规则，其他站点的代理和 QUIC 策略不变。

@@ -47,6 +47,11 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
     assert.deepEqual(config.match(/^PROTOCOL,DOH,.*$/gm), ["PROTOCOL,DOH,Auto"]);
+    for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
+      const directRule = `DOMAIN,${hostname},DIRECT`;
+      assert.ok(config.indexOf(directRule) >= 0);
+      assert.ok(config.indexOf(directRule) < config.indexOf("PROTOCOL,DOH,Auto"));
+    }
     for (const hostname of ["cloudflare-dns.com", "dns.google"]) {
       const rule = `DOMAIN,${hostname},Auto`;
       assert.ok(config.includes(rule));
@@ -70,6 +75,11 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const output = await renderClashProfile(surge, context);
     const config = parse(output);
     assert.equal(config["x-clash-block-quic"], "all-proxy");
+    for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
+      const index = config.rules.indexOf(`DOMAIN,${hostname},DIRECT`);
+      assert.ok(index >= 0);
+      assert.ok(index < config.rules.findIndex((rule) => rule.startsWith("RULE-SET,")));
+    }
     assert.deepEqual(config.proxies.map((node) => node.name), ["🇺🇸 US ISP 1", "🇺🇸 US ISP 2", "🇺🇸 US WARP", "🇭🇰 HK IDC"]);
     for (const group of input.groups) {
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).type, "fallback");
