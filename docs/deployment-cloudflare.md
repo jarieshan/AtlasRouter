@@ -9,7 +9,7 @@ Cloudflare Workers Builds 直接监听 GitHub 分支推送：`develop` → 开�
 | `develop` | `atlas-router-dev` / `atlasrouter-dev.zslab.ai` | `atlas-router-dev` |
 | `master` | `atlas-router` / `atlasrouter.zslab.ai` | `atlas-router` |
 
-这是两个独立 Worker，不是同一个 Worker 的预览分支。先接通开发环境；开发验收通过、准备发布生产时，再将代码合入 `master` 并连接生产 Worker。测速站如需自动部署，单独连接 `pulse-speedtest`，不从订阅 Worker 的构建中顺带发布。
+这是两个独立 Worker，不是同一个 Worker 的预览分支。先接通开发环境；开发验收通过、准备发布生产时，再将代码合入 `master` 并连接生产 Worker。
 
 两端分别配置 Access 应用、AUD、管理员 Secret 和节点。开发库不复制生产用户、订阅 token、节点凭据或分配关系。需要先在开发管理页单独录入测试节点，才能用开发订阅进行真实线路测试。
 
@@ -17,16 +17,15 @@ Cloudflare Workers Builds 直接监听 GitHub 分支推送：`develop` → 开�
 
 | 命令 | 范围 |
 | --- | --- |
-| `npm run deploy` | 先迁移 D1、轮换管理路径并发布 `atlas-router`，成功后发布 `pulse-speedtest` |
-| `npm run deploy -- --dry-run` | 检查两个 Worker，不执行远程迁移或发布 |
-| `npm run deploy:router` | 仅部署订阅服务，包含迁移和管理路径轮换 |
-| `npm run deploy:speedtest` | 仅部署测速站，不访问 D1、不轮换管理路径 |
+| `npm run deploy` | 迁移生产 D1、轮换生产管理路径并发布 `atlas-router` |
+| `npm run deploy -- --dry-run` | 检查生产配置与构建，不执行远程迁移或发布 |
+| `npm run deploy:router` | `deploy` 的别名，包含生产迁移和管理路径轮换 |
 | `npm run deploy:dev` | 仅迁移开发 D1、轮换开发管理路径并发布 `atlas-router-dev` |
 | `npm run build:dev` | 检查开发配置与构建，不迁移或发布 |
 
-两个 Worker 分别使用自己的 Wrangler 配置；订阅服务的临时 Secret 文件不会传给测速站。任一步失败会终止命令，但已经成功发布的 Worker 不会自动回滚。若仅测速站发布失败，修复后可用 `npm run deploy:speedtest` 重试。
+开发、生产环境分别使用自己的 Wrangler 配置，每次命令只部署所选环境。任一步失败会终止命令；迁移失败时不会发布 Worker 或轮换管理路径。
 
-开发配置独立保存在 [wrangler.dev.jsonc](../worker/wrangler.dev.jsonc)。开发部署脚本先检查 Worker 名称、域名和 D1 ID 与生产不同，再为迁移和发布显式传入开发配置；不会调用生产或测速站的部署命令。开发环境设置 `SMART_PRIORITY_SCHEME=geometric-3`，按个人主备顺序试验 1、3、9、27、81… 的 Smart 权重；Clash 仍转换为同顺序 fallback。这不提供连续失败次数或固定出口 IP 的保证。
+开发配置独立保存在 [wrangler.dev.jsonc](../worker/wrangler.dev.jsonc)。开发部署脚本先检查 Worker 名称、域名和 D1 ID 与生产不同，再为迁移和发布显式传入开发配置。开发环境设置 `SMART_PRIORITY_SCHEME=geometric-3`，按个人主备顺序试验 1、3、9、27、81… 的 Smart 权重；Clash 仍转换为同顺序 fallback。这不提供连续失败次数或固定出口 IP 的保证。
 
 ## 1. Worker 和存储
 
@@ -63,7 +62,7 @@ npx wrangler d1 create atlas-router
 npm run db:migrate:local
 ```
 
-上线的 `npm run deploy` 会生成静态资产，再执行远程 D1 迁移；成功后为 `ADMIN_API_SLUG` 生成新值，并将该 Secret 与订阅 Worker 代码一同发布，最后发布测速站。资产生成或迁移失败时，两个 Worker 都不会发布，也不会轮换线上标识。数据库创建和迁移方式见 [D1 入门](https://developers.cloudflare.com/d1/get-started/)及 [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/)。配置结构见 [env.md](env.md)。
+上线的 `npm run deploy` 会生成静态资产，再执行远程 D1 迁移；成功后为 `ADMIN_API_SLUG` 生成新值，并将该 Secret 与订阅 Worker 代码一同发布。资产生成或迁移失败时，不会发布 Worker 或轮换线上标识。数据库创建和迁移方式见 [D1 入门](https://developers.cloudflare.com/d1/get-started/)及 [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/)。配置结构见 [env.md](env.md)。
 
 D1 ID 已填好且 Wrangler 已登录后，可在 `worker` 目录执行首次部署：
 
@@ -71,7 +70,7 @@ D1 ID 已填好且 Wrangler 已登录后，可在 `worker` 目录执行首次部
 npm run deploy
 ```
 
-该命令会应用远程 D1 迁移、创建或更新 `atlas-router` 与 `pulse-speedtest`，分别绑定 `atlasrouter.zslab.ai` 与 `speedtest.hosts.zslab.ai`。首次部署不依赖尚未填写的 Access 运行参数：此时订阅服务的根路径会返回 `500 ACCESS_TEAM_DOMAIN is not configured`，管理请求也会被拒绝，这是待配置状态。继续完成下文 Access 应用和 Worker 变量设置后，再通过 Google 登录。测速站不使用 Access 或数据库，详见 [测速站说明](../speedtest-worker/README.md)。
+该命令会应用远程 D1 迁移、创建或更新 `atlas-router`，绑定 `atlasrouter.zslab.ai`。首次部署不依赖尚未填写的 Access 运行参数：此时订阅服务的根路径会返回 `500 ACCESS_TEAM_DOMAIN is not configured`，管理请求也会被拒绝，这是待配置状态。继续完成下文 Access 应用和 Worker 变量设置后，再通过 Google 登录。
 
 ## 2. Google OAuth 和 Cloudflare Access
 
@@ -125,21 +124,21 @@ Google client secret 留在 Access 的 IdP 设置中；节点配置通过管理�
 3. 在 Branch control 关闭 **Enable Preview Builds**（旧界面为非生产分支构建），只监听表内分支。Cloudflare 界面里的 **Production branch** 指当前 Worker 的部署分支，因此开发 Worker 此项也应填写 `develop`。
 4. 检查构建 token 权限后保存并首次部署；以后推送对应分支由 Cloudflare 自动构建。已有 Worker 连接后可通过新提交触发；失败构建可在 Cloudflare Build History 中重试。
 
-| Cloudflare 设置 | 开发订阅 Worker | 生产订阅 Worker（准备上线后启用） | 测速站（独立连接，可选） |
-| --- | --- | --- | --- |
-| Worker name | `atlas-router-dev` | `atlas-router` | `pulse-speedtest` |
-| Git repository | `jarieshan/AtlasRouter` | `jarieshan/AtlasRouter` | `jarieshan/AtlasRouter` |
-| Production branch | `develop` | `master` | `master` |
-| Root directory | `worker` | `worker` | `worker` |
-| Build command | `npm ci && npm test && npm run build:dev` | `npm ci && npm test` | `npm ci && npm run build:speedtest` |
-| Deploy command | `npm run deploy:dev` | `npm run deploy:router` | `npm run deploy:speedtest` |
-| Preview builds | 关闭 | 关闭 | 关闭 |
+| Cloudflare 设置 | 开发订阅 Worker | 生产订阅 Worker（准备上线后启用） |
+| --- | --- | --- |
+| Worker name | `atlas-router-dev` | `atlas-router` |
+| Git repository | `jarieshan/AtlasRouter` | `jarieshan/AtlasRouter` |
+| Production branch | `develop` | `master` |
+| Root directory | `worker` | `worker` |
+| Build command | `npm ci && npm test && npm run build:dev` | `npm ci && npm test` |
+| Deploy command | `npm run deploy:dev` | `npm run deploy:router` |
+| Preview builds | 关闭 | 关闭 |
 
-根目录都选 `worker`，因为 npm 锁文件和部署脚本位于该目录；脚本显式选择对应 Wrangler 配置，包括 `../speedtest-worker/wrangler.jsonc`。开发命令始终使用 `wrangler.dev.jsonc`，不靠改名或临时替换生产配置来切换环境。仓库的 [worker/.nvmrc](../worker/.nvmrc) 将构建 Node.js 版本设为 24。Build Variables 可选设置 `SKIP_DEPENDENCY_INSTALL=1`，避免 Cloudflare 自动安装后又执行命令中的 `npm ci`；不设置也可构建。
+根目录都选 `worker`，因为 npm 锁文件和部署脚本位于该目录。开发命令始终使用 `wrangler.dev.jsonc`，不靠改名或临时替换生产配置来切换环境。仓库的 [worker/.nvmrc](../worker/.nvmrc) 将构建 Node.js 版本设为 24。Build Variables 可选设置 `SKIP_DEPENDENCY_INSTALL=1`，避免 Cloudflare 自动安装后又执行命令中的 `npm ci`；不设置也可构建。
 
-Cloudflare 默认创建的构建 token 未包含 D1 权限。为两个订阅 Worker 选择具备 **Account → D1 → Edit** 的用户 API token，并保留 Workers 部署、Account Settings Read 和目标 Zone 的 Workers Routes Edit 等权限；可在 My Profile → API Tokens 中使用 Edit Cloudflare Workers 模板并添加 D1 Edit，再在该 Worker 的 Builds → API token 中选择。限制账号和 Zone 到实际目标。凭据由 Cloudflare 管理，不填入 GitHub 或仓库。测速站不需要 D1 权限。参见 [Builds API token](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)。
+Cloudflare 默认创建的构建 token 未包含 D1 权限。为两个订阅 Worker 选择具备 **Account → D1 → Edit** 的用户 API token，并保留 Workers 部署、Account Settings Read 和目标 Zone 的 Workers Routes Edit 等权限；可在 My Profile → API Tokens 中使用 Edit Cloudflare Workers 模板并添加 D1 Edit，再在该 Worker 的 Builds → API token 中选择。限制账号和 Zone 到实际目标。凭据由 Cloudflare 管理，不填入 GitHub 或仓库。参见 [Builds API token](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)。
 
-Workers Builds 会提供 `WORKERS_CI_BRANCH` 和目标 Worker 名称，并可能覆盖 Wrangler 配置中的 `name`。因此不能在 Builds 中使用一次发布两个 Worker 的 `npm run deploy`；部署脚本会在迁移前拒绝分支、命令或目标 Worker 不匹配的发布。本地手动部署和纯构建检查保留原有用法。官方说明见 [构建变量](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#environment-variables)、[Worker 名称校验](https://developers.cloudflare.com/workers/ci-cd/builds/troubleshoot/#workers-name-requirement)。
+Workers Builds 会提供 `WORKERS_CI_BRANCH` 和目标 Worker 名称，并可能覆盖 Wrangler 配置中的 `name`。部署脚本会在迁移前拒绝分支、命令或目标 Worker 不匹配的发布；`npm run deploy` 与 `deploy:router` 都只部署生产订阅 Worker，开发环境必须使用 `deploy:dev`。本地手动部署和纯构建检查保留原有用法。官方说明见 [构建变量](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#environment-variables)、[Worker 名称校验](https://developers.cloudflare.com/workers/ci-cd/builds/troubleshoot/#workers-name-requirement)。
 
 Cloudflare 不等待 GitHub Actions 的完成状态，所以 Cloudflare 的 Build command 本身必须运行上表检查；失败后不会执行 Deploy command。GitHub 的 `verify` 仍检查 PR、`develop` 和 `master`，可设为合入 `master` 的必需状态检查。即使 GitHub 默认分支暂时还是 `main`，Cloudflare 也能单独监听 `develop` / `master`，无需为此更改默认分支。仅提交仓库配置不会自动建立 Cloudflare 的 Git 连接，必须在 Dashboard 实际保存上述设置。
 
@@ -151,7 +150,6 @@ Cloudflare 不等待 GitHub Actions 的完成状态，所以 Cloudflare 的 Buil
 cd worker
 npm run build
 npm run build:dev
-npm run build:speedtest
 ```
 
 手动部署（需要自己的 Cloudflare 凭据）：

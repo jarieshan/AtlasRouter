@@ -14,7 +14,6 @@ AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统�
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
 - `docs/`：设计、部署、运维和决策记录。
 - `worker/`：Cloudflare Worker 订阅服务。
-- `speedtest-worker/`：独立部署的静态测速外观站，根路径展示界面演示，见 [使用说明](speedtest-worker/README.md)。
 - `surge/`：Surge 主配置模板。
 - `modules/`：Surge 模块。
 - `references/`：历史配置和样例，仅用于理解已有想法，不作为事实来源或实现依据。
@@ -82,13 +81,13 @@ Cloudflare Workers Builds 直接连接 GitHub 并监听推送：`atlas-router-de
 
 开发环境的本地部署命令为 `npm --prefix worker run deploy:dev`，使用 `worker/wrangler.dev.jsonc`；构建检查使用 `npm --prefix worker run build:dev`。
 
-本地手动部署时，在仓库根目录运行以下命令，会依次部署 `atlas-router` 订阅服务和 `pulse-speedtest` 测速站：
+本地手动部署时，在仓库根目录运行以下命令，部署 `atlas-router` 订阅服务：
 
 ```sh
 npm --prefix worker run deploy
 ```
 
-加上 `-- --dry-run` 可检查两个 Worker，不执行远程迁移或发布。只更新其中一个时，使用 `npm --prefix worker run deploy:router` 或 `npm --prefix worker run deploy:speedtest`。Cloudflare Builds 必须使用单个 Worker 的命令；脚本在远程操作前校验监听分支和目标 Worker。订阅服务仍会先执行 D1 迁移并轮换管理路径 Secret；只更新测速站不会触发这些操作。两项本地发布并非原子操作，后一步失败不会回滚已经成功的前一步。详情见 [Cloudflare 部署](docs/deployment-cloudflare.md)。
+加上 `-- --dry-run` 可检查生产构建，不执行远程迁移或发布。`npm --prefix worker run deploy:router` 是同一生产部署入口的别名；开发环境使用 `deploy:dev`。脚本在 Cloudflare Builds 的远程操作前校验监听分支和目标 Worker，部署时先执行对应环境的 D1 迁移并轮换管理路径 Secret。详情见 [Cloudflare 部署](docs/deployment-cloudflare.md)。
 
 ## Cloudflare Worker 配置约定
 

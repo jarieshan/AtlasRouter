@@ -5,9 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
-import { assertCloudflareBuildTarget, assertDevelopmentIsolation, deploy, deployAll, deployDevelopment, deploySpeedtest } from "../scripts/deploy.js";
+import { assertCloudflareBuildTarget, assertDevelopmentIsolation, deploy, deployDevelopment } from "../scripts/deploy.js";
 
-const speedtestConfig = fileURLToPath(new URL("../../speedtest-worker/wrangler.jsonc", import.meta.url));
 const developmentConfig = fileURLToPath(new URL("../wrangler.dev.jsonc", import.meta.url));
 
 test("development deployment rejects production Worker, domain and database bindings", async () => {
@@ -28,7 +27,7 @@ test("development deployment rejects production Worker, domain and database bind
   ]) assert.throws(() => assertDevelopmentIsolation({ ...development, ...change }, production), /own Worker, domains and D1/);
 });
 
-test("development migrations and deployment always target its own config and never deploy speedtest", async () => {
+test("development migrations and deployment always target its own config", async () => {
   for (const dryRun of [false, true]) {
     const calls = [];
     let file;
@@ -59,11 +58,11 @@ test("GitHub only verifies changes without deployment jobs or credentials", asyn
   assert.equal(workflow.jobs.verify.environment, undefined);
   assert.ok(!JSON.stringify(workflow).includes("secrets."));
   assert.deepEqual(workflow.jobs.verify.steps.flatMap((step) => step.run ? [step.run] : []),
-    ["npm ci", "npm test", "npm run build:dev", "npm run build:speedtest"]);
+    ["npm ci", "npm test", "npm run build:dev"]);
 });
 
 test("Cloudflare Builds only accepts its connected Worker on the designated branch", () => {
-  for (const [workerName, branch] of [["atlas-router-dev", "develop"], ["atlas-router", "master"], ["pulse-speedtest", "master"]]) {
+  for (const [workerName, branch] of [["atlas-router-dev", "develop"], ["atlas-router", "master"]]) {
     const env = { WORKERS_CI: "1", WORKERS_CI_BRANCH: branch, WRANGLER_CI_OVERRIDE_NAME: workerName };
     assert.doesNotThrow(() => assertCloudflareBuildTarget(workerName, env));
     assert.doesNotThrow(() => assertCloudflareBuildTarget(workerName, {}));
@@ -71,7 +70,7 @@ test("Cloudflare Builds only accepts its connected Worker on the designated bran
       assert.throws(() => assertCloudflareBuildTarget(workerName, { ...env, WORKERS_CI_BRANCH: wrongBranch }), /matching branch/);
     }
     assert.throws(() => assertCloudflareBuildTarget(workerName, { ...env, WRANGLER_CI_OVERRIDE_NAME: undefined }), /connected Worker/);
-    for (const wrongWorker of [undefined, ...["atlas-router-dev", "atlas-router", "pulse-speedtest"].filter((name) => name !== workerName)]) {
+    for (const wrongWorker of [undefined, ...["atlas-router-dev", "atlas-router"].filter((name) => name !== workerName)]) {
       assert.throws(() => assertCloudflareBuildTarget(wrongWorker, env), /connected Worker/);
     }
   }
@@ -81,11 +80,10 @@ test("Cloudflare Builds only accepts its connected Worker on the designated bran
 test("the CLI rejects a wrong Builds target before invoking migrations or Wrangler", () => {
   const script = fileURLToPath(new URL("../scripts/deploy.js", import.meta.url));
   for (const [flags, branch, workerName] of [
-    [[], "master", "atlas-router"],
+    [[], "develop", "atlas-router-dev"],
     [["--router-only"], "develop", "atlas-router-dev"],
     [["--development"], "develop", "atlas-router"],
     [["--development"], "master", "atlas-router-dev"],
-    [["--speedtest-only"], "master", "atlas-router"],
   ]) {
     const result = spawnSync(process.execPath, [script, ...flags], {
       encoding: "utf8",
@@ -177,91 +175,9 @@ test("dry runs validate the Secret upload without applying remote migrations", a
   await assert.rejects(() => stat(path.dirname(file)), { code: "ENOENT" });
 });
 
-test("combined deployment publishes the router before speedtest without sharing its Secret", async () => {
-  const calls = [];
-  let secretsFile;
-  await deployAll({
-    log() {},
-    async run(args, secret) {
-      if (args[0] === "d1") {
-        calls.push("migrate");
-      } else if (args.includes("--secrets-file")) {
-        calls.push("router");
-        secretsFile = args[args.indexOf("--secrets-file") + 1];
-        assert.match(secret, /^[a-f0-9]{32}$/);
-      } else {
-        calls.push("speedtest");
-        assert.deepEqual(args, ["deploy", "--config", speedtestConfig]);
-        assert.equal(secret, undefined);
-        await assert.rejects(() => stat(secretsFile), { code: "ENOENT" });
-      }
-    },
-  });
-  assert.deepEqual(calls, ["migrate", "router", "speedtest"]);
-});
-
-test("combined deployment stops if migration or router publication fails", async () => {
-  for (const failure of ["migrate", "router"]) {
-    const calls = [];
-    await assert.rejects(() => deployAll({
-      log() {},
-      async run(args) {
-        const step = args[0] === "d1" ? "migrate" : args.includes("--secrets-file") ? "router" : "speedtest";
-        calls.push(step);
-        if (step === failure) throw new Error(`${failure} failed`);
-      },
-    }), new RegExp(`${failure} failed`));
-    assert.deepEqual(calls, failure === "migrate" ? ["migrate"] : ["migrate", "router"]);
-  }
-});
-
-test("speedtest failure is reported without publishing the router again", async () => {
-  const calls = [];
-  await assert.rejects(() => deployAll({
-    log() {},
-    async run(args) {
-      calls.push(args[0]);
-      if (args.includes("--config")) throw new Error("speedtest failed");
-    },
-  }), /speedtest failed/);
-  assert.deepEqual(calls, ["d1", "deploy", "deploy"]);
-});
-
-test("combined dry runs check both Workers and never migrate or publish", async () => {
-  const calls = [];
-  await deployAll({
-    dryRun: true,
-    log() {},
-    async run(args, secret) {
-      calls.push(args);
-      assert.equal(args[0], "deploy");
-      assert.ok(args.includes("--dry-run"));
-      if (args.includes("--config")) {
-        assert.deepEqual(args, ["deploy", "--config", speedtestConfig, "--dry-run"]);
-        assert.equal(secret, undefined);
-      } else {
-        assert.ok(args.includes("--secrets-file"));
-      }
-    },
-  });
-  assert.equal(calls.length, 2);
-});
-
-test("speedtest can be deployed alone without migration or route Secret generation", async () => {
-  const calls = [];
-  await deploySpeedtest({
-    log() {},
-    async run(args, secret) {
-      calls.push(args);
-      assert.equal(secret, undefined);
-    },
-  });
-  assert.deepEqual(calls, [["deploy", "--config", speedtestConfig]]);
-});
-
 test("the CLI rejects unknown or conflicting flags before deployment", () => {
   const script = fileURLToPath(new URL("../scripts/deploy.js", import.meta.url));
-  for (const flags of [["--dryrun"], ["--router-only", "--speedtest-only"], ["--development", "--router-only"], ["--development", "--speedtest-only"]]) {
+  for (const flags of [["--dryrun"], ["--speedtest-only"], ["--development", "--router-only"]]) {
     const result = spawnSync(process.execPath, [script, ...flags], { encoding: "utf8" });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /^Usage: node scripts\/deploy\.js/);

@@ -7,15 +7,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const workerDir = fileURLToPath(new URL("../", import.meta.url));
 const wrangler = fileURLToPath(new URL("../node_modules/wrangler/bin/wrangler.js", import.meta.url));
-const speedtestConfig = fileURLToPath(new URL("../../speedtest-worker/wrangler.jsonc", import.meta.url));
 const developmentConfig = fileURLToPath(new URL("../wrangler.dev.jsonc", import.meta.url));
 const productionConfig = fileURLToPath(new URL("../wrangler.jsonc", import.meta.url));
 
 export function assertCloudflareBuildTarget(workerName, env = process.env) {
   if (!env.WORKERS_CI && !env.WRANGLER_CI_OVERRIDE_NAME) return;
-  const branch = { "atlas-router-dev": "develop", "atlas-router": "master", "pulse-speedtest": "master" }[workerName];
+  const branch = { "atlas-router-dev": "develop", "atlas-router": "master" }[workerName];
   if (!branch || env.WORKERS_CI_BRANCH !== branch || env.WRANGLER_CI_OVERRIDE_NAME !== workerName) {
-    throw new Error("Cloudflare Builds must use the matching branch and deploy only its connected Worker (--development, --router-only or --speedtest-only)");
+    throw new Error("Cloudflare Builds must use the matching branch and deploy only its connected Worker (--development or --router-only)");
   }
 }
 
@@ -38,17 +37,6 @@ export async function deployDevelopment(options = {}) {
     JSON.parse(await readFile(file, "utf8"))));
   assertDevelopmentIsolation(development, production);
   await deploy({ ...options, configPath: developmentConfig });
-}
-
-export async function deployAll(options = {}) {
-  await deploy(options);
-  await deploySpeedtest(options);
-}
-
-export async function deploySpeedtest({ dryRun = false, run = runWrangler, log = console.log } = {}) {
-  log(dryRun ? "Checking speedtest Worker without changing remote resources..." : "Deploying speedtest Worker...");
-  await run(["deploy", "--config", speedtestConfig, ...(dryRun ? ["--dry-run"] : [])]);
-  if (!dryRun) log("Speedtest Worker deployment complete.");
 }
 
 export async function deploy({ dryRun = false, run = runWrangler, log = console.log, configPath } = {}) {
@@ -99,15 +87,13 @@ function runWrangler(args, secret) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const args = process.argv.slice(2);
-  if (args.some((arg) => !["--dry-run", "--router-only", "--speedtest-only", "--development"].includes(arg)) ||
-      ["--router-only", "--speedtest-only", "--development"].filter((flag) => args.includes(flag)).length > 1) {
-    console.error("Usage: node scripts/deploy.js [--dry-run] [--router-only | --speedtest-only | --development]");
+  if (args.some((arg) => !["--dry-run", "--router-only", "--development"].includes(arg)) ||
+      (args.includes("--router-only") && args.includes("--development"))) {
+    console.error("Usage: node scripts/deploy.js [--dry-run] [--router-only | --development]");
     process.exitCode = 1;
   } else {
-    const action = args.includes("--development") ? deployDevelopment
-      : args.includes("--router-only") ? deploy : args.includes("--speedtest-only") ? deploySpeedtest : deployAll;
-    const workerName = args.includes("--development") ? "atlas-router-dev"
-      : args.includes("--router-only") ? "atlas-router" : args.includes("--speedtest-only") ? "pulse-speedtest" : undefined;
+    const action = args.includes("--development") ? deployDevelopment : deploy;
+    const workerName = args.includes("--development") ? "atlas-router-dev" : "atlas-router";
     const dryRun = args.includes("--dry-run");
     Promise.resolve().then(() => {
       // Builds can override Wrangler's configured name. Check before any remote D1 migration.
