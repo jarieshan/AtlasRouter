@@ -23,7 +23,7 @@ AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配�
 | `/AtlasRouter/rules/magicrule/mihomo/<name>.yaml?token=<token>` | GET | 用户专属 token；输出 MagicRule 原生 Mihomo classical YAML |
 | `/AtlasRouter/rules/rule-<hash>.txt?token=<token>` | GET | 用户专属 token；输出已过滤不兼容规则的 Clash 规则集 |
 
-`<slug>` 来自 Worker Secret `ADMIN_API_SLUG`，为 128 位随机值的 32 位小写十六进制表示。管理路径只在管理员验证后的页面中注入，不包含在普通用户页面中。每次 `npm run deploy` 会自动生成新值并随代码发布，已打开的管理页面需刷新；配置方式见 [env.md](env.md)。即使知道路径，也必须通过 Access JWT 和 `ADMIN_EMAILS` 校验。
+`<slug>` 来自 Worker Secret `ADMIN_API_SLUG`，为 128 位随机值的 32 位小写十六进制表示。管理路径只在管理员验证后的页面中注入，不包含在普通用户页面中。主动轮换该 Secret 后，已打开的管理页面需刷新；当前原生 Preview 发布不轮换生产标识，配置方式见 [env.md](env.md)。即使知道路径，也必须通过 Access JWT 和 `ADMIN_EMAILS` 校验。
 
 网页和所有 API 使用同一个 Access application 的 `ACCESS_AUD`，同一会话根据邮箱拥有不同权限。浏览器写入请求要求 `Origin` 与目标源一致，并使用 `Content-Type: application/json`。不能通过 URL 角色、邮箱、用户 ID、伪造身份 Header 或 `Authorization` 切换用户或提权。
 
@@ -37,7 +37,7 @@ AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配�
 | `doh` | `0` | `0`、`1`；`1` 启用 DoH |
 | `tencent_oa` | `0` | `0`、`1`；`1` 追加腾讯公司内网的系统代理例外，适用于仅开系统代理的 Surge Mac |
 
-例如 `/AtlasRouter?token=<token>&client=clash&doh=1` 同时启用 Clash 输出和 DoH。重复参数、空值或其他参数值返回 400；无效 token 仍先返回 401。默认选项省略于页面生成的 URL，现有订阅无需调整。
+例如 `/AtlasRouter?token=<token>&client=clash&doh=1` 同时启用 Clash 输出和 DoH。这些参数重复、为空或使用其他值时返回 400；无效 token 仍先返回 401。默认选项省略于页面生成的 URL，现有订阅无需调整。
 
 DoH 上游使用 [Cloudflare](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/) 的 `https://cloudflare-dns.com/dns-query` 和 [Google](https://developers.google.com/speed/public-dns/docs/secure-transports) 的 `https://dns.google/dns-query`，地址维护在 `surge/template.conf`。`doh=1` 同时激活 `encrypted-dns-server` 和 `encrypted-dns-follow-outbound-mode = true`；托管更新地址保留该选项。`surge/rules.list` 前部使用 `PROTOCOL,DOH,Auto`，在规则模式下将 Surge 自身发起的 DoH 请求统一交给 `Auto` 自动选择代理节点，证书校验保持开启。该规则先于两个上游域名规则及外部规则集；域名规则用于 Clash 转换时的兼容处理。参见 [Surge 协议规则](https://manual.nssurge.com/rules/protocol-and-network.html#protocol)和[加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html)。
 
@@ -80,7 +80,7 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 ## 订阅内容
 
-生成内容中的 `#!MANAGED-CONFIG` 和模块 URL 统一使用 `/AtlasRouter`，只接受订阅 `token`，不能用浏览器登录身份代替。修改模板不会改变个人 token；用户重置后，旧 token 同时失去订阅和模块访问权。
+生成内容中的 `#!MANAGED-CONFIG` 和模块 URL 使用当前环境的域名及路径：生产 `/AtlasRouter`、预览 `/AtlasRouter-Dev`。它们只接受订阅 `token`，不能用浏览器登录身份代替。修改模板不会改变个人 token；用户重置后，旧 token 同时失去订阅和模块访问权。
 
 节点按地区/IP 类型生成 `smart` 组，按每个用户现有的主节点、备用节点顺序生成 `policy-priority`：默认第 1 个节点系数为 1，第 2 个为 2，依次递增；开发 Worker 设置 `SMART_PRIORITY_SCHEME=geometric-3`，按相同顺序试验 1、3、9、27、81…。权重使用转义后的节点名称精确匹配，不修改节点归属或主备顺序。系数越小越优先，这是 Smart 评分偏好，不是固定流量比例，也不保证主节点总被选中或出口 IP 不变。Clash 对这类顺序权重组保留成员顺序并输出 `fallback`，不复现 Smart 的评分或站点记忆。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL,Proxy,dns-failed`。MitM 默认关闭，不再生成或保存手动 CA。
 
@@ -120,10 +120,12 @@ Apple 子规则存在重叠，匹配顺序为 iCloud → AppleDirect → ApplePr
 
 ## Clash 兼容输出
 
+本节适用于当前 `develop` 中的转换器；Git `master` 尚不提供 Clash 输出。分支基线、生产/预览对照和验证边界见 [兼容性核对](client-compatibility.md)。
+
 Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析为结构化对象并用 YAML 序列化器输出 Clash。没有另一份需要同步维护的 Clash 分流模板。已支持的配置值、节点和规则变动会自动进入两种订阅。
 
 - 支持 VMess AEAD（TCP / WebSocket）、Trojan、常用 Shadowsocks、HTTP / HTTPS、SOCKS5 / SOCKS5-TLS。保留可映射的认证、TLS 校验、证书指纹、ALPN、WebSocket、UDP 和 TCP Fast Open 参数；未知连接参数或不支持的协议会移除整个节点，并清理无效成员、空组和相关规则。`sni=off` 无等价映射时移除节点，不能把 `off` 当成服务器名称。
-- VMess、Trojan 按 [Surge 的协议默认能力](https://manual.nssurge.com/policies/udp.html)输出 `udp: true`；显式 `udp-relay=false` 仍保留为关闭，Shadowsocks、SOCKS5 / SOCKS5-TLS 仍需显式启用。缺少 UDP 支持会使 [Mihomo 跳过指向该代理的 UDP 规则](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)，即使 Claude 的域名和 IP 已在 AI 规则中，也可能最终直连。
+- VMess、Trojan 按 [Surge 的协议默认能力](https://manual.nssurge.com/policies/udp.html)输出 `udp: true`；转换器将显式 `udp-relay=false` 保留为关闭，但不能依赖该开关在 Surge 的 VMess / Trojan 上禁用 UDP；Surge 官方将它列为其他协议的可选能力。Shadowsocks、SOCKS5 / SOCKS5-TLS 仍需显式启用。缺少 UDP 支持会使 [Mihomo 跳过指向该代理的 UDP 规则](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)，即使 Claude 的域名和 IP 已在 AI 规则中，也可能最终直连。
 - 保留节点与策略组的排列、用户主备顺序、`select` / `fallback` / `url-test`。本项目生成的精确名称 `1、2、3…` 或开发环境的 `1、3、9…` 顺序权重 `smart` 转换为 `fallback`；不带权重的 `smart`（如 `Auto`）近似为仅含代理节点的 `url-test`，不复现真实连接评分。其他 `policy-priority` 写法暂不支持，相关组会省略并产生不含节点信息的警告。`FINAL` 转为 `MATCH`，省略 Surge 专有的 `dns-failed`；缺少可用兜底策略时不生成配置。
 - 映射普通 / 加密 DNS、系统 hosts、IPv6、GeoIP 数据库、全局代理测试地址和测试超时。DNS 劫持配置放入 `tun.dns-hijack`，TUN 是否启用由客户端决定。
 - 两种 DNS 模式都显式设置 `dns.proxy-server-nameserver`；DoH 跟随出站规则时，节点域名仍使用普通 DNS 引导，只有加密上游追加 `#RULES`。`[Host]` 中精确域名和 `*.` 子域名的 IPv4 DNS 服务器分配映射为 `dns.nameserver-policy`；Surge 的 `*.zslab.ai` 转为 Mihomo 的 `.zslab.ai`，覆盖所有层级子域名且不匹配根域名。其他 Host 写法暂不支持。iOS [Clash 的远程配置识别逻辑](https://github.com/ProjectClash/Clash-Client/blob/main/apple/ClashClientKit/Sources/ClashClientKit/ConfigurationImport.swift)依赖显式的节点解析服务器，缺失时可能把完整订阅当成节点来源并另选规则方案。此前已套用客户端默认方案、只显示 `AUTO` / `PROXY` 的配置，需要重新导入完整订阅并选中使用，确认出现 `AIProxy`、`Telegram`、`YouTube` 等业务组。
@@ -138,7 +140,7 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 
 | 项目 | Surge 默认或语义 | Clash 输出 |
 | --- | --- | --- |
-| VMess / Trojan UDP | 自动支持 UDP | 显式 `udp: true`；保留显式关闭 |
+| VMess / Trojan UDP | 自动支持 UDP | 显式 `udp: true`；显式关闭的跨客户端限制见上文 |
 | Shadowsocks / SOCKS5 UDP | 需 `udp-relay=true` | 仅显式启用时开启 |
 | VMess 握手 / 加密 | `vmess-aead=false`、`aes-128-gcm` | 仅转换显式 AEAD；不推测旧握手的 `alterId`，加密保持 AES-128-GCM |
 | VMess TLS / WebSocket | 都默认关闭；WS 路径 `/` | 保留相同默认值；Trojan / HTTPS / SOCKS5-TLS 强制 TLS |
@@ -156,9 +158,11 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 - Surge 组级 `timeout` 是测速结果的延迟筛选阈值，Mihomo 同名字段是健康检查请求的超时。转换只使用全局 `test-timeout`，省略延迟筛选并写入警告。节点级 `test-url` / `test-timeout` 覆盖也会警告；DIRECT 的独立测速参数及两端测速调度方式尚未对齐。当前 Surge 已不使用组级旧 `url`，转换遵循 `proxy-test-url`，旧值冲突时警告。
 - QUIC 拦截映射依赖 ProjectClash 扩展，通用 Mihomo 或不支持该字段的旧客户端可能忽略它；输出会注明这一兼容性要求。`per-policy` 的节点级或自适应行为未映射，显式使用时保留警告，不能把它转换成关闭拦截。两端对 QUIC 版本的识别范围仍由各自内核决定。
 - 节点不支持 UDP 时，Mihomo 会继续匹配后续规则；这与 Surge 的 `udp-policy-not-supported-behaviour` 不等价。修复 VMess / Trojan 的默认开关并不保证服务端 UDP 实际可用。
+- 健康检查调度不能等价：Surge Smart 固定每 5 分钟重测，Clash 未显式设置 `lazy`，按 Mihomo 默认 `true`，未选中的组不测试。Surge 原生 fallback / url-test 的 `interval` 是结果有效期，并非固定轮询时钟。Mihomo 的 `max-failed-times` 默认 5 是触发强制健康检查的失败阈值，不是“健康检查连续失败 5 次才换节点”，当前没有配置可保证单次测速失败后保持原 IP。
+- MagicRule 使用各客户端各自的完整产物，规则名与引用顺序一致不代表条目逐条相同；其他远程规则中的不支持条目会被省略。客户端图标、隐藏属性和保存的手动选择也取决于客户端版本及本地状态。
 - DNS 当前使用 `redir-host`，不是 Surge VIF 的 fake-IP 机制；`SYSTEM`、`FINAL,dns-failed`、`skip-proxy`、模块、脚本和 MitM 等仍按上述限制处理。
 
-测速语义参见 [Surge 公共组参数](https://manual.nssurge.com/policy-groups/parameters.html)；QUIC 与 UDP 回退语义参见 [Surge General](https://manual.nssurge.com/profile/general.html)及 [Mihomo 规则优先级](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)。
+Mihomo 检测默认值见 [代理组公共参数](https://wiki.metacubex.one/en/config/proxy-groups/)。测速语义参见 [Surge 公共组参数](https://manual.nssurge.com/policy-groups/parameters.html)；QUIC 与 UDP 回退语义参见 [Surge General](https://manual.nssurge.com/profile/general.html)及 [Mihomo 规则优先级](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)。
 
 Worker 规则入口只允许已部署模板 / 规则清单中的来源，不接受用户传入任意下载地址。MagicRule 入口还校验清单的客户端、规则名称、产物角色与格式，产物仅允许 `magicrule.pages.dev/data/_shared/artifacts/` 下的对应规则文件。清单最多 256 KiB、规则最多 4 MiB，整次获取限时 10 秒。不转发用户 Cookie、token 或 Access Header，不跟随上游跳转；上游公共内容可缓存一小时。重置 token 或停用用户会同时撤销两种订阅、模块和 Worker 规则入口；上游公共规则本身不需要鉴权。
 

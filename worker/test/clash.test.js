@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { parse } from "yaml";
 import { convertClashNode } from "../src/clash-nodes.js";
@@ -150,6 +151,41 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     }
     assert.match(output, /General skip-proxy: unsupported setting omitted/);
     assert.doesNotMatch(output, /#!MANAGED-CONFIG|\.sgmodule|{{|💎 Select/);
+  }
+});
+
+test("native production and Preview profiles differ only in addresses, tokens and Surge priority factors", async () => {
+  // Compare the current source under both deployments, not the historical master branch.
+  const deployment = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+  const environments = [
+    { vars: deployment.vars, origin: "https://atlas.example", token: `ar_${"a".repeat(64)}` },
+    { vars: deployment.previews.vars, origin: "https://develop.atlas.example", token: `ar_${"b".repeat(64)}` },
+  ];
+  assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME ?? "linear", "linear");
+  assert.equal(environments[1].vars.SMART_PRIORITY_SCHEME, "geometric-3");
+  const input = profile();
+  for (const doh of [false, true]) for (const tencentOa of [false, true]) {
+    const rendered = [];
+    for (const { vars, origin, token } of environments) {
+      const requestUrl = `${origin}${vars.SUBSCRIPTION_PATH}`;
+      const options = { doh, tencentOa };
+      const source = renderSurgeProfile({ ...input, requestUrl, token, options, smartPriorityScheme: vars.SMART_PRIORITY_SCHEME });
+      const normalizeAddress = (text) => text.replaceAll(requestUrl, "https://profile.example/SUBSCRIPTION").replaceAll(token, "TEST_TOKEN");
+      assert.equal(source.match(/^#!MANAGED-CONFIG (\S+)/)[1], buildSubscriptionUrl(requestUrl, token, options));
+      assert.match(source, /^block-quic = all-proxy$/m);
+      assert.match(source, /^FINAL,Proxy,dns-failed$/m);
+      const result = { surge: normalizeAddress(source).replace(/policy-priority="(?:\\.|[^"\\])*"/g, 'policy-priority="CHECKED_SEPARATELY"') };
+      if (!tencentOa) {
+        const { config, warnings } = await convertSurgeToClash(source, { requestUrl, token });
+        assert.equal(config["x-clash-block-quic"], "all-proxy");
+        assert.equal(config.rules.at(-1), "MATCH,Proxy");
+        assert.ok(config.proxies.filter(({ type }) => ["vmess", "trojan"].includes(type)).every(({ udp }) => udp === true));
+        result.clash = normalizeAddress(JSON.stringify(config));
+        result.warnings = warnings;
+      }
+      rendered.push(result);
+    }
+    assert.deepEqual(rendered[0], rendered[1], `environment drift for doh=${doh}, tencentOa=${tencentOa}`);
   }
 });
 

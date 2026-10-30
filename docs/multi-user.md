@@ -68,11 +68,11 @@ VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、�
 
 ## 模板和版本范围
 
-自动订阅沿用 `surge/template.conf` 的通用配置与规则区，用 `surge/pool-groups.conf` 替换策略组区。主节点优先，不加入会绕过顺序的自动测速组。规则引用的旧地区名称映射为当前组，缺少对应地区时回退 `Proxy`。`RULE-SET`、`GEOIP` 和 `FINAL` 仍在主模板，零散规则仍在 `surge/rules.list`。
+自动订阅沿用 `surge/template.conf` 的通用配置与规则区，用 `surge/pool-groups.conf` 替换策略组区。地区/IP 类型组按个人主备顺序赋权；业务 `Proxy` 另提供放在所有地区组之后的 `Auto` 选项，手动选择它会使用全部节点。规则引用的旧地区名称映射为当前组，缺少对应地区时回退 `Proxy`。`RULE-SET`、`GEOIP` 和 `FINAL` 仍在主模板，零散规则仍在 `surge/rules.list`。
 
-`AIProxy`、`GlobalMedia`、`X` 的选项统一按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组。`AppleProxy` 按 `Proxy` → ISP → WARP → IDC → `DIRECT` 排列，默认选择 `Proxy`。`Proxy` 自身按 ISP → WARP → IDC → `DIRECT` 排列，默认选择首个可用的 ISP 组。地区/IP 类型选项先按 IP 类型排序，同一类型内按美国 → 香港 → 新加坡 → 日本 → 其他地区排列，其他地区按两位地区代码的字母升序排列。只列出当前可用组，缺少某类节点时跳过。所有可选策略组均不提供 `REJECT` 选项。
+`AIProxy`、`GlobalMedia`、`X` 的选项统一按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组。`AppleProxy` 按 `Proxy` → ISP → WARP → IDC → `DIRECT` 排列，默认选择 `Proxy`。`Proxy` 自身按 ISP → WARP → IDC → `Auto` → `DIRECT` 排列，默认选择首个可用的 ISP 组。地区/IP 类型选项先按 IP 类型排序，同一类型内按美国 → 香港 → 新加坡 → 日本 → 其他地区排列，其他地区按两位地区代码的字母升序排列。只列出当前可用组，缺少某类节点时跳过。所有可选策略组均不提供 `REJECT` 选项。这里的“可用组”指有启用节点并生成到订阅中的组，不代表客户端已测速通过；`select` 不会因当前地区组失效而自动切换到下一个地区组。
 
-`WeChat` 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连，并接收 WeChat 规则集的流量。`Telegram` 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组。这两个策略组均可见。Apple 分组按 `iCloud` → `AppleProxy` → `AppleDirect` 定义：iCloud 可见，先列 `DIRECT`，然后按 IDC → WARP → ISP 列出可用组；AppleProxy、AppleDirect 隐藏，AppleDirect 仅保留 `DIRECT`，固定直连。模板规则行中的 `hidden=true` 由 Worker 转换为对应策略组的隐藏属性，规则继续参与分流。同一 IP 类型内均使用上述地区顺序。`💎 Select` 已移除。
+`WeChat` 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连，并接收 WeChat 规则集的流量。`Telegram` 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组。这两个策略组均可见。Apple 分组按 `iCloud` → `AppleDirect` → `AppleProxy` 定义：iCloud 可见，先列 `DIRECT`，然后按 IDC → WARP → ISP 列出可用组；AppleProxy、AppleDirect 隐藏，AppleDirect 仅保留 `DIRECT`，固定直连。模板规则行中的 `hidden=true` 由 Worker 转换为对应策略组的隐藏属性，规则继续参与分流。同一 IP 类型内均使用上述地区顺序。`💎 Select` 已移除。
 
 `YouTube` 使用可见的独立策略组和品牌 Logo，选项按 WARP → IDC → ISP 排列，缺少某类节点时跳过，只列出当前可用的地区/IP 类型组。YouTube 规则在 Google、GlobalMedia 之前匹配，使用 MagicRule 的原生 Surge / Mihomo 完整规则。
 
