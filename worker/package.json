@@ -4,12 +4,29 @@
   "type": "module",
   "scripts": {
     "generate": "node scripts/generate-assets.js",
-    "test": "npm run generate && node --test",
+    "test": "npm run test:unit && npm run test:runtime",
+    "test:unit": "npm run generate && node --test test/*.test.js",
+    "test:runtime": "npm run build && node --test test-runtime/*.test.js",
+    "build": "npm run generate && wrangler deploy --dry-run --outdir .wrangler/test-dist",
+    "build:branches": "node scripts/build-branches.js",
+    "setup:builds": "node scripts/setup-builds.js",
     "check:live-security": "node --env-file-if-exists=.env scripts/check-live-security.js",
-    "dev": "npm run generate && npx wrangler dev",
-    "deploy": "npm run generate && npx wrangler deploy"
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "dev": "npm run generate && npm run db:migrate:local && wrangler dev",
+    "deploy": "node scripts/deploy.js",
+    "deploy:preview": "npm run generate && node scripts/deploy-preview.js",
+    "deploy:branches": "node scripts/deploy-branches.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "miniflare": "5.20261023.0-beta",
+    "wrangler": "4.153.0"
   },
   "dependencies": {
-    "node-forge": "^1.4.0"
+    "yaml": "2.9.1"
   }
 }

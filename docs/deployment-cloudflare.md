@@ -1,149 +1,59 @@
 # Cloudflare Deployment
 
-初版部署链路：
+使用已有的 `atlas-router` Worker。Cloudflare Workers Builds 直接监听 GitHub：`master` 是生产分支，`develop` 发布到同一 Worker 的原生 Preview。GitHub Actions 只做验证。
 
-```text
-GitHub main
-  -> Cloudflare Workers Builds
-  -> Cloudflare Worker
-```
+当前代码已准备好开发发布命令，但本文不表示账号侧连接或预览已经部署。生产发布仍暂停，现有 `master` 还需先对齐经过核对的生产源码；不能直接用旧分支覆盖线上。分支差异见 [兼容性核对](client-compatibility.md)。本地 `npm run deploy` 会直接拒绝发布，避免误用旧组合部署流程。
 
-## 1. 导入 GitHub 仓库
+## 1. 域名
 
-在 Cloudflare Dashboard 中：
+进入 Workers & Pages → `atlas-router` → Domains，在 Custom Domains and Routes 中找到 `atlasrouter.zslab.ai`，将 Enable for 设为 **Production and Preview**。保留原生产域名，不需要创建第二个 Worker，也不要把 `develop.atlasrouter.zslab.ai` 作为另一个生产 Custom Domain 添加。
 
-```text
-Workers & Pages
-  -> Create application
-  -> Import a repository
-  -> 选择 jarieshan/AtlasRouter
-```
+原生 Preview 名称固定为 `develop`，预览域名因此是 `develop.atlasrouter.zslab.ai`。确认域名和证书生效后再使用该地址；更深的子域名可能需要额外的证书覆盖，不能只凭生产 HTTPS 正常就认为预览 HTTPS 正常。参见 [Cloudflare 预览域名](https://developers.cloudflare.com/workers/previews/custom-domains/)。
 
-构建配置：
+## 2. Git 连接与构建
 
-```text
-Root directory: worker
-Build command: npm run generate
-Deploy command: npx wrangler deploy
-```
+如果仍连接着之前使用 `setup:builds` 的自定义双分支触发器，先在 Settings → Builds 中 Disconnect，再连接同一个 `jarieshan/AtlasRouter` 仓库，以清除旧的触发器配置。这不删除 Worker 或 D1。不要再次运行旧设置脚本。参见 [断开 Builds](https://developers.cloudflare.com/workers/ci-cd/builds/#disconnecting-builds)。
 
-Worker 名称使用 `worker/wrangler.jsonc` 中的 `atlas-router`。
+在该 Worker 的 Settings → Builds 中设置：
 
-## 2. 配置 KV
+| 设置 | 值 |
+| --- | --- |
+| Repository | `jarieshan/AtlasRouter` |
+| Production branch | `master` |
+| Root directory | `worker` |
+| Build command | `npm ci && npm test` |
+| Deploy command（生产暂停期间） | `npx wrangler deploy --dry-run` |
+| Preview Builds | 开启 |
+| Preview command | `npm run deploy:preview` |
 
-创建一个 KV namespace，并把 namespace ID 填入 `worker/wrangler.jsonc` 的 `ATLAS_ROUTER` binding。
+`master` 保持生产分支，不再临时填写 `develop`。生产命令中的 `--dry-run` 保证不发布代码或绑定配置。旧 `master` 尚未完成适配时，其构建可能失败；不要为了变绿而将生产分支改成 `develop`。
 
-```sh
-cd worker
-npx wrangler kv namespace create ATLAS_ROUTER
-```
+如果页面出现 **Set up Worker Previews**，按提示切换到原生 Worker Previews，然后再次确认 Preview command 为 `npm run deploy:preview`。这是 Cloudflare 的一次性切换，不能切回旧 Version URL 预览模型。参见 [Build branches](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)。
 
-在 `ATLAS_ROUTER` 中写入固定 key `router-config`。值为 JSON 对象：
+开启 Preview Builds 后，其他非生产分支也可能触发构建，但本项目发布脚本只在 `WORKERS_CI_BRANCH=develop` 时迁移或发布；其他分支跳过。每次 develop 推送更新同一个固定预览地址。
 
-```json
-{
-  "profiles": [
-    {
-      "id": "primary",
-      "name": "Primary",
-      "subscribeToken": "REPLACE_WITH_SUBSCRIBE_TOKEN",
-      "nodes": [
-        {
-          "group": "🇺🇸 US",
-          "value": [
-            "US-01 = trojan, us.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us.example.com"
-          ]
-        },
-        {
-          "group": "🇯🇵 JP",
-          "value": [
-            "JP-01 = trojan, jp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=jp.example.com"
-          ]
-        },
-        {
-          "group": "🇺🇸🏠 US ISP",
-          "value": [
-            "US-ISP-01 = trojan, us-isp.example.com, 443, password=REPLACE_WITH_PASSWORD, sni=us-isp.example.com"
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
+## 3. 构建 Token 与 D1
 
-也可以用 Wrangler 写入：
+继续使用 Builds 当前选择的用户 API token。到 My Profile → API Tokens 编辑**同一个 token**，在原有权限之外补 **Account → D1 → Edit**，使预览发布命令能执行开发库迁移。不需要新建一个独立 token，不需要把 token 填入 GitHub、聊天或 `.env`。原先为旧设置脚本添加的 Workers Builds Configuration → Edit 不再是本流程所需权限。Cloudflare 的默认 Builds token 权限不含 D1，参见 [Builds API token](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)。
 
-```sh
-npx wrangler kv key put --binding=ATLAS_ROUTER router-config "$(cat router-config.json)"
-```
+沿用独立的 `atlas-router-dev` 数据库。[wrangler.jsonc](../worker/wrangler.jsonc) 已配置：
 
-## 3. 配置 Cloudflare Access
+- 生产 `DB` → `atlas-router`；生产 `DEV_DB` → `atlas-router-dev`，供生产 UI 管理测试用户和节点。
+- 原生 Preview `DB` → `atlas-router-dev`；Preview 不绑定生产数据库。
+- Preview `UI_ENABLED=false`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`、`SMART_PRIORITY_SCHEME=geometric-3`。
 
-在 Cloudflare Zero Trust 中为管理页创建 Access application，保护 Worker 域名下的管理路径：
+不用在手机上逐项填写这些 bindings 和 variables。开发发布脚本先核对 `DEV_DB` 与 Preview `DB` 指向同一个开发库、且不同于生产库，再执行开发库迁移，最后上传 Preview。它不会执行生产 D1 迁移，也不上传生产版本。
 
-```text
-https://<worker-domain>/AtlasRouter/admin
-https://<worker-domain>/AtlasRouter/admin/config
-https://<worker-domain>/AtlasRouter/admin/certificates
-```
+生产新增的 `DEV_DB` binding 和 Dev 按钮，需要以后更新生产版本才生效。当前生产 dry-run 不会应用这些变更。开发库节点和用户保持独立，不自动复制生产数据。
 
-Access policy 只允许自己的账号访问。然后在 Worker 的 Settings -> Variables and Secrets 中配置：
+## 4. Access 与验证
 
-```text
-ACCESS_TEAM_DOMAIN=https://<team>.cloudflareaccess.com
-ACCESS_AUD=REPLACE_WITH_ACCESS_APPLICATION_AUD
-ADMIN_EMAILS=you@example.com
-```
+保留生产页面、`/api` 和已有订阅路径的 Access 配置。开发 Preview 默认没有管理页面；如果账号的 Access 设置覆盖了开发域名，给 `develop.atlasrouter.zslab.ai/AtlasRouter-Dev` 及其子路径配置精确的 Bypass（Everyone），让订阅客户端可以访问。应用仍校验个人订阅 Token。不要放开整个生产域名或生产 `/api`。
 
-不要把这些真实值写进 `worker/wrangler.jsonc`。`ACCESS_AUD` 使用 Access application 详情页里的 Audience (AUD)。`ADMIN_EMAILS` 是 Worker 内部的二次白名单，用来避免 Access policy 配错时放大管理面。
+在完成配置、并确认 develop 已包含 `deploy:preview` 后，触发一次 develop 的新构建。检查构建日志：运行测试 → 迁移 `DEV_DB` → 发布 `develop` Preview；不应出现生产 `wrangler deploy` 上传。
 
-部署后也可以打开管理页，粘贴完整 JSON 并保存到 `router-config`：
+- `https://develop.atlasrouter.zslab.ai/` 返回 404，是关闭 UI 的预期结果。
+- `https://develop.atlasrouter.zslab.ai/AtlasRouter-Dev` 未携带 Token 时返回 401，是鉴权生效的预期结果。
+- 成功订阅还需测试库有可用节点及有效测试 Token。生产页面的 Dev 按钮在后续生产更新后负责生成链接，不能用生产 Token 替代测试 Token。
 
-```text
-https://<worker-domain>/AtlasRouter/admin
-```
-
-通过 Cloudflare Access 登录后，管理页会读取或保存 `router-config`。Worker 不再接收管理 token，也不接受 URL 查询参数或 `Authorization: Bearer` 作为管理凭证。
-
-## 4. 本地验证
-
-```sh
-cd worker
-npm test
-npm run dev
-```
-
-本地调试时可以使用 Wrangler 的本地变量机制，但不要提交 `.dev.vars*` 或 `.env*`。
-
-线上部署后可以手动运行非破坏性安全探测，确认管理页被 Cloudflare Access 保护、旧管理路径已退役、无 token 的订阅和模块入口不会泄露内容。这个命令不会被 `npm test` 默认执行：
-
-```sh
-cd worker
-npm run check:live-security -- https://<worker-domain>
-```
-
-也可以把目标域名放在本地 `worker/.env` 的 `ATLAS_ROUTER_BASE_URL` 中，避免把真实域名写进文档或脚本：
-
-```sh
-ATLAS_ROUTER_BASE_URL=https://<worker-domain>
-```
-
-`worker/.env` 会被 `npm run check:live-security` 自动读取，且 `.env*` 已被 git 忽略。也可以临时用环境变量传入：
-
-```sh
-ATLAS_ROUTER_BASE_URL=https://<worker-domain> npm run check:live-security
-```
-
-完整渗透测试流程见 `docs/security-pentest.md`。
-
-## 5. 部署
-
-合并到 `main` 后，Cloudflare Workers Builds 会自动构建和部署。
-
-手动部署：
-
-```sh
-cd worker
-npm run deploy
-```
+代码准备、开发预览部署和生产页面更新是不同步骤。生产暂停期间，只接通 develop 自动更新；不要去掉生产命令中的 `--dry-run`。

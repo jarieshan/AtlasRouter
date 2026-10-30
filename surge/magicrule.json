@@ -1,0 +1,90 @@
+{
+  "Binance": {
+    "surge": "4e9a94ba442ad6a6f999d0dd",
+    "mihomo": "adb35ee125847f494c4e50e6"
+  },
+  "iCloud": {
+    "surge": "9d4d9b3f0482a5f641bc661d",
+    "mihomo": "2193b70ddecc8e473c65013f"
+  },
+  "AppleDirect": {
+    "surge": "b76d359227add52b116a442e",
+    "mihomo": "5e976a2983d7934d25a416bc"
+  },
+  "AppleProxy": {
+    "surge": "d2db650d955d574d6cdfd28a",
+    "mihomo": "a5a9b05ef8cd3f9b750de234"
+  },
+  "Apple": {
+    "surge": "d4a1a49a4f9301369ccbdd07",
+    "mihomo": "b2261511504559990e0aa6c2"
+  },
+  "Direct": {
+    "surge": "ebcad06afe41e90eb7c458c6",
+    "mihomo": "28d7e954e540500404fb0596"
+  },
+  "OpenAI": {
+    "surge": "4c1d8b995467164e963303c7",
+    "mihomo": "061c95bbc13be9748fe57368"
+  },
+  "Bing": {
+    "surge": "a3883f020257ce3879bd9de2",
+    "mihomo": "5a4259fbd0648d6da6e9edca"
+  },
+  "Copilot": {
+    "surge": "4f32d9bbb9f0f720920fffe3",
+    "mihomo": "45cae762d7cb6faaa62386af"
+  },
+  "Anthropic": {
+    "surge": "8369068e24d25c302aac61f4",
+    "mihomo": "3ff599b48d821c429a504e28"
+  },
+  "Gemini": {
+    "surge": "8de44444d4a4780c33c398a7",
+    "mihomo": "e7044fe6ee6caa9ace69d968"
+  },
+  "Telegram": {
+    "surge": "7dd68efe605596f2a48e96d1",
+    "mihomo": "032dffc4064edc7b7007bfd1"
+  },
+  "Twitter": {
+    "surge": "cfc49340994011b20ee559f3",
+    "mihomo": "7978590f66f1bb7c6d5eb3da"
+  },
+  "Discord": {
+    "surge": "1df652f115d9be2694c58056",
+    "mihomo": "3d50b46a7f99ccba5cae36d6"
+  },
+  "YouTube": {
+    "surge": "c85f9c240d90c5205bad91c6",
+    "mihomo": "1a6ba4dd16046f0804a68c62"
+  },
+  "Google": {
+    "surge": "00188b3b72353741ae311885",
+    "mihomo": "8e48c8103a6e2ec062aa8a78"
+  },
+  "Cloudflare": {
+    "surge": "534fa8682ff5a4171e21af88",
+    "mihomo": "20a7f0833e30cce2260cc511"
+  },
+  "Netflix": {
+    "surge": "5f5a7c13c4bb96d5ac4d0e09",
+    "mihomo": "f0a6a79aef98b32470e3c653"
+  },
+  "Disney": {
+    "surge": "1ea6258bb62b99df154f6003",
+    "mihomo": "203f2074430b82b0c69bc3cd"
+  },
+  "Hulu": {
+    "surge": "8429cffac7b8adccd2901c60",
+    "mihomo": "be42d24a4345f02c30adae5d"
+  },
+  "IMDB": {
+    "surge": "ebd72e81a1972573f4ef912b",
+    "mihomo": "508c489da8de679cc204cffd"
+  },
+  "GlobalMedia": {
+    "surge": "d4ebc6d5779db345a0689d53",
+    "mihomo": "c65052025f410efdebf1ad6e"
+  }
+}

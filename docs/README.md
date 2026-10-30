@@ -5,15 +5,19 @@
 建议放在这里的内容：
 
 - 架构设计：订阅生成流程、目录职责、数据流。
-- 部署说明：Cloudflare Workers Git Integration 和 KV 配置。
+- 部署说明：Cloudflare Workers Builds、Git 分支隔离、Cloudflare Access、D1 配置和数据库迁移。
 - 运维手册：订阅地址、鉴权方式、常见故障排查。
 - 决策记录：规则组织、策略组命名、Worker 数据格式等需要长期保留的取舍。
 
 当前文档：
 
-- `deployment-cloudflare.md`：Cloudflare Worker 部署流程。
-- `env.md`：Worker 运行时 KV 和节点数据格式。
-- `subscription.md`：Surge 订阅地址和路由说明。
+- [部署说明](deployment-cloudflare.md)：Cloudflare Builds、原生 Preview 接入与生产暂停边界。
+- [原生预览方案](native-previews.md)：生产 UI、开发域名、两库隔离与 URL 生成。
+- [环境与存储](env.md)：运行时变量、Secrets、D1 表和本地排除文件。
+- [订阅说明](subscription.md)：Surge / Clash 路由、选项、默认值与兼容范围。
+- [兼容性核对](client-compatibility.md)：master / develop 基线、客户端差异及验证边界。
+- [多用户与节点池](multi-user.md)：邮箱身份、主备分配、共享容量和均衡回退。
+- [安全验证](security-pentest.md)：本地测试和线上人工验收。
 
 不建议放在这里的内容：
 

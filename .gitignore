@@ -1,7 +1,8 @@
 .DS_Store
-.env
+.env*
 .dev.vars*
+/local-private/
 worker/.wrangler/
 worker/node_modules/
-worker/src/generated/assets.js
+worker/src/generated/
 coverage/

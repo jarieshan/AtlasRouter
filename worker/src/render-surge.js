@@ -1,55 +1,88 @@
 import { ASSETS } from "./generated/assets.js";
-import { HttpError } from "./errors.js";
 import { renderProxyLines } from "./nodes.js";
-import { SUBSCRIPTION_PATH } from "./routes.js";
+import { subscriptionPath } from "./routes.js";
+import { buildSubscriptionUrl } from "./subscription-options.js";
+import { magicRuleUrl } from "./magic-rules.js";
+import { appendTencentOaSkipProxy } from "./tencent-oa.js";
+import { applyRuleSetVisibility } from "./rule-visibility.js";
+import { inheritBranch } from "./branch-query.js";
 
-const NODE_GROUP_PATTERN = /{{NODE_GROUP:([^}\r\n]+)}}/g;
-const FALLBACK_POLICY = "🚀 Proxy";
+const FALLBACK_POLICY = "Proxy";
+const REGION_ORDER = { US: 0, HK: 1, SG: 2, JP: 3 };
+const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
+const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
+const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
-export function renderSurgeProfile({ requestUrl, token, nodes, mitm = null }) {
-  const nodeGroupState = getNodeGroupState(ASSETS.template, nodes);
-  const template = renderNodeGroups(ASSETS.template, nodeGroupState);
+export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {} }) {
   const replacements = {
-    MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildUrl(requestUrl, SUBSCRIPTION_PATH, token)} interval=86400 strict=false`,
-    MITM_LINES: renderMitmLines(mitm),
-    MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token),
-    PROXY_LINES: renderProxyLines(nodes),
-    RULE_LINES: renderRuleLines(ASSETS.rules, nodeGroupState.emptyGroups),
+    MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
+    MITM_LINES: "enable = false",
+    MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
+    PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
+    RULE_LINES: renderPoolRules(ASSETS.rules, groups),
+    ...Object.fromEntries(Object.keys(ASSETS.magicRules).map((name) => [
+      `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl, token),
+    ])),
   };
-
-  return replaceTemplate(template, replacements);
+  const template = renderPoolTemplate(groups).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
+    let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${options.doh ? "" : "# "}${setting}`);
+    if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=[ \t]*(.*)$/m, (_, value) => `skip-proxy = ${appendTencentOaSkipProxy(value)}`);
+    return heading + general;
+  });
+  return applyRuleSetVisibility(replaceTemplate(template, replacements));
 }
 
-function renderMitmLines(mitm) {
-  if (!mitm || !mitm.enabled || !mitm.caP12 || !mitm.caPassphrase) {
-    return "enable = false";
-  }
+function renderPoolTemplate(groups) {
+  const orderedGroups = [...groups].sort(compareNodeGroups);
+  const groupNamesByIpType = (order) => [...orderedGroups].sort((a, b) =>
+    order[a.nodes[0].ipType] - order[b.nodes[0].ipType]
+    || compareNodeGroups(a, b)).map(({ group }) => group).join(", ");
+  const section = replaceTemplate(ASSETS.poolGroups, {
+    POOL_GROUP_LINES: orderedGroups.map(({ group, nodes }) => `${group} = fallback, ${nodes.map((node) => node.name).join(", ")}, url=http://www.gstatic.com/generate_204, interval=300, hidden=true`).join("\n"),
+    POOL_GROUPS: groupNamesByIpType(IP_TYPE_ORDER),
+    IDC_FIRST_POOL_GROUPS: groupNamesByIpType(IDC_FIRST_IP_TYPE_ORDER),
+    WARP_FIRST_POOL_GROUPS: groupNamesByIpType(WARP_FIRST_IP_TYPE_ORDER),
+  });
+  return ASSETS.template.replace(/^\[Proxy Group\]\n[\s\S]*?(?=^\[Rule\]$)/m, () => `${section}\n`);
+}
 
-  const lines = [
-    "enable = true",
-    `ca-p12 = ${mitm.caP12}`,
-    `ca-passphrase = ${mitm.caPassphrase}`,
-  ];
+function compareNodes(left, right) {
+  return (REGION_ORDER[left.region] ?? 4) - (REGION_ORDER[right.region] ?? 4)
+    || left.region.localeCompare(right.region)
+    || IP_TYPE_ORDER[left.ipType] - IP_TYPE_ORDER[right.ipType];
+}
 
-  if (mitm.hostname) {
-    lines.push(`hostname = ${mitm.hostname}`);
-  }
+function compareNodeGroups(a, b) {
+  return compareNodes(a.nodes[0], b.nodes[0]);
+}
 
-  return lines.join("\n");
+function renderPoolRules(rules, groups) {
+  const aliases = new Map([
+    ["🇺🇸 US", groups.find(({ nodes }) => nodes[0].region === "US")?.group ?? FALLBACK_POLICY],
+    ["🇯🇵 JP", groups.find(({ nodes }) => nodes[0].region === "JP")?.group ?? FALLBACK_POLICY],
+    ["🇺🇸🏠 US ISP", groups.find(({ nodes }) => nodes[0].region === "US" && nodes[0].ipType === "ISP")?.group ?? FALLBACK_POLICY],
+  ]);
+  return rules.split("\n").map((line) => {
+    if (line.trimStart().startsWith("#")) return line;
+    const parts = line.split(",");
+    const policy = aliases.get(parts[2]?.trim());
+    if (policy) parts[2] = policy;
+    return parts.join(",");
+  }).join("\n");
 }
 
 export function getModule(name) {
   return ASSETS.modules[name] ?? null;
 }
 
-function renderModuleUrlLines(requestUrl, token) {
+function renderModuleUrlLines(requestUrl, token, modulePath) {
   const moduleEntries = Object.entries(ASSETS.modules).sort(([left], [right]) => left.localeCompare(right));
   if (moduleEntries.length === 0) {
     return "# - None";
   }
 
   return moduleEntries
-    .map(([moduleName, content]) => `# - ${moduleDisplayName(moduleName, content)}: ${buildUrl(requestUrl, `/modules/${moduleName}`, token)}`)
+    .map(([moduleName, content]) => `# - ${moduleDisplayName(moduleName, content)}: ${buildUrl(requestUrl, `${modulePath}/${moduleName}`, token)}`)
     .join("\n");
 }
 
@@ -62,147 +95,21 @@ function buildUrl(requestUrl, pathname, token) {
   const url = new URL(requestUrl);
   url.pathname = pathname;
   url.search = "";
+  url.hash = "";
   url.searchParams.set("token", token);
-  return url.toString();
+  return inheritBranch(url, requestUrl).toString();
 }
 
 function replaceTemplate(template, replacements) {
   let output = template;
   for (const [name, value] of Object.entries(replacements)) {
-    output = output.replaceAll(`{{${name}}}`, value);
+    output = output.replaceAll(`{{${name}}}`, () => value);
   }
 
-  const unresolved = output.match(/{{[A-Z0-9_]+}}/g);
+  const unresolved = output.match(/{{[A-Za-z0-9_]+}}/g);
   if (unresolved) {
     throw new Error(`Unresolved Surge template placeholders: ${unresolved.join(", ")}`);
   }
 
   return output.trimEnd() + "\n";
-}
-
-function getNodeGroupState(template, nodes) {
-  const nodeGroups = getTemplateNodeGroups(template);
-  const nodesByGroup = new Map(nodeGroups.map((group) => [group, []]));
-
-  for (const node of nodes) {
-    const groupNodes = nodesByGroup.get(node.group);
-    if (!groupNodes) {
-      throw new HttpError(500, `Node ${node.name} references unknown node group: ${node.group}`);
-    }
-    groupNodes.push(node.name);
-  }
-
-  return {
-    nodesByGroup,
-    emptyGroups: new Set(nodeGroups.filter((group) => nodesByGroup.get(group).length === 0)),
-  };
-}
-
-function renderNodeGroups(template, nodeGroupState) {
-  const prunedTemplate = removeEmptyNodeGroupReferences(template, nodeGroupState.emptyGroups);
-
-  return prunedTemplate.replace(NODE_GROUP_PATTERN, (_placeholder, rawGroup) => {
-    const group = rawGroup.trim();
-    const groupNodes = nodeGroupState.nodesByGroup.get(group);
-    return groupNodes.join(", ");
-  });
-}
-
-function getTemplateNodeGroups(template) {
-  const nodeGroups = [];
-  const seen = new Set();
-
-  for (const match of template.matchAll(NODE_GROUP_PATTERN)) {
-    const group = match[1].trim();
-    if (!group) {
-      throw new HttpError(500, "NODE_GROUP placeholder must include a group name");
-    }
-    if (group.includes(",")) {
-      throw new HttpError(500, `NODE_GROUP cannot contain a comma: ${group}`);
-    }
-    if (seen.has(group)) {
-      throw new HttpError(500, `Duplicate NODE_GROUP placeholder: ${group}`);
-    }
-    seen.add(group);
-    nodeGroups.push(group);
-  }
-
-  return nodeGroups;
-}
-
-function removeEmptyNodeGroupReferences(template, emptyGroups) {
-  if (emptyGroups.size === 0) {
-    return template;
-  }
-
-  let section = "";
-  return template
-    .split("\n")
-    .map((line) => {
-      const nextSection = line.match(/^\[([^\]]+)\]$/);
-      if (nextSection) {
-        section = nextSection[1];
-        return line;
-      }
-      if (section !== "Proxy Group") {
-        return line;
-      }
-      if (definesEmptyNodeGroup(line, emptyGroups)) {
-        return "";
-      }
-      return removeCommaSeparatedValues(line, emptyGroups);
-    })
-    .join("\n");
-}
-
-function definesEmptyNodeGroup(line, emptyGroups) {
-  const separatorIndex = line.indexOf("=");
-  if (separatorIndex === -1) {
-    return false;
-  }
-
-  const groupName = line.slice(0, separatorIndex).trim();
-  return emptyGroups.has(groupName)
-    && Array.from(line.matchAll(NODE_GROUP_PATTERN)).some((match) => match[1].trim() === groupName);
-}
-
-function renderRuleLines(rules, emptyGroups) {
-  if (emptyGroups.size === 0) {
-    return rules;
-  }
-
-  return rules
-    .split("\n")
-    .map((line) => replaceRulePolicy(line, emptyGroups))
-    .join("\n");
-}
-
-function replaceRulePolicy(line, emptyGroups) {
-  if (!line.trim() || line.trimStart().startsWith("#")) {
-    return line;
-  }
-
-  const parts = line.split(",");
-  if (parts.length < 3 || !emptyGroups.has(parts[2].trim())) {
-    return line;
-  }
-
-  parts[2] = FALLBACK_POLICY;
-  return parts.map((part) => part.trim()).join(",");
-}
-
-function removeCommaSeparatedValues(line, valuesToRemove) {
-  const separatorIndex = line.indexOf("=");
-  if (separatorIndex === -1) {
-    return line;
-  }
-
-  const left = line.slice(0, separatorIndex).trimEnd();
-  const values = line
-    .slice(separatorIndex + 1)
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value && !valuesToRemove.has(value));
-
-  return `${left} = ${values.join(", ")}`;
 }
