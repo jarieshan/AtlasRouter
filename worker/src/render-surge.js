@@ -41,7 +41,7 @@ function renderPoolTemplate(groups, smartPriorityScheme) {
   const section = replaceTemplate(ASSETS.poolGroups, {
     POOL_GROUP_LINES: orderedGroups.map(({ group, nodes }) => {
       const names = nodes.map((node) => node.name);
-      return `${group} = smart, ${names.join(", ")}, policy-priority=${JSON.stringify(orderedSmartPriority(names, smartPriorityScheme))}, hidden=true`;
+      return `${group} = smart, ${names.join(", ")}, policy-priority=${JSON.stringify(orderedSmartPriority(names, smartPriorityScheme))}`;
     }).join("\n"),
     POOL_GROUPS: groupNamesByIpType(IP_TYPE_ORDER),
     IDC_FIRST_POOL_GROUPS: groupNamesByIpType(IDC_FIRST_IP_TYPE_ORDER),

@@ -7,6 +7,7 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | 项目 | master / 生产 | develop / 原生 Preview |
 | --- | --- | --- |
 | 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、3、9…；Clash 为同顺序 fallback |
+| 地区组显示 | ISP、IDC、WARP 地区组隐藏 | 全部显示，可展开查看组内节点 |
 | Auto | Surge Smart；Clash url-test | 同左 |
 | UI | 开启，Dev 按钮可管理测试数据 | 关闭 |
 | 订阅 | `/AtlasRouter`，生产 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |

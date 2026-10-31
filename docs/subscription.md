@@ -100,7 +100,7 @@ master 按地区/IP 类型生成顺序 `fallback` 组，成员依照每位用户
 
 `hsbc.com`、`hsbcnet.com`、`sc.com`、`standardchartered.com` 等为银行共用域名，其下的其他地区服务也会直连。这里控制的是规则模式下的分流，不修改 `skip-proxy`，也不启用 MitM。
 
-地区/IP 类型组设置 `hidden=true`，只隐藏 Surge / 支持该属性的 Mihomo 面板中的独立分组，仍可作为其他策略组的选项；账户网页和管理员节点清单继续展示分配信息。Apple 的三个分组按 `iCloud` → `AppleDirect` → `AppleProxy` 定义，其中 iCloud 可见，AppleProxy、AppleDirect 隐藏。iCloud 首项为 `DIRECT`，其余选项先按 IDC → WARP → ISP，再按地区顺序排列；AppleProxy 首项为 `Proxy`；AppleDirect 仅保留 `DIRECT` 一个选项，固定直连。这里的顺序是手动选择项顺序，不是 DIRECT 失败后的自动切换顺序；客户端已有且仍有效的手动选择可能被保留。
+master 的地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中的独立分组，仍可作为其他策略组的选项。develop 生成的 Dev 订阅省略这些组的隐藏属性，ISP、IDC、WARP 地区组直接显示，可展开查看组内节点；Surge 与 Clash 输出保持一致，更新 Dev 订阅后生效。账户网页和管理员节点清单继续展示分配信息。Apple 的三个分组按 `iCloud` → `AppleDirect` → `AppleProxy` 定义，其中 iCloud 可见，AppleProxy、AppleDirect 隐藏。iCloud 首项为 `DIRECT`，其余选项先按 IDC → WARP → ISP，再按地区顺序排列；AppleProxy 首项为 `Proxy`；AppleDirect 仅保留 `DIRECT` 一个选项，固定直连。这里的顺序是手动选择项顺序，不是 DIRECT 失败后的自动切换顺序；客户端已有且仍有效的手动选择可能被保留。
 
 模板支持在 `[Rule]` 的 `RULE-SET` / `DOMAIN-SET` 行上追加 `hidden=true` 或 `hidden=false`，作为 AtlasRouter 对所引用策略组的显示设置。生成时会移除规则行的该参数，将其应用到对应 `[Proxy Group]` 定义，再转换为 Clash 的 `hidden` 属性；规则、策略引用和匹配顺序保持有效。`hidden=false` 会移除组上的隐藏参数，使用默认可见行为。此写法不是 Surge 原生规则参数；原生 `hidden` 属于[策略组参数](https://manual.nssurge.com/policy-groups/parameters.html#hidden)。同一组被多条规则引用时，未标记的规则不覆盖显式设置，多个显式设置必须一致；不能用于 `DIRECT`、`REJECT` 或不存在的组。
 

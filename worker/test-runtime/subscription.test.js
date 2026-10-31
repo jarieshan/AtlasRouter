@@ -33,6 +33,7 @@ function orderedSmartMembers(profile, name, expectedWeights) {
   const parts = splitSurgeList(surgeAssignment(line)[1]).slice(1);
   const members = parts.filter((part) => !part.includes("="));
   const options = surgeOptions(parts.filter((part) => part.includes("=")));
+  assert.equal(options.get("hidden"), undefined);
   const weights = options.get("policy-priority").split(";").map((entry) => entry.split(":"));
   assert.equal(weights.length, members.length);
   for (const [index, member] of members.entries()) {
@@ -576,7 +577,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},Auto`));
         assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
         assert.equal(config.rules.at(-1), "MATCH,Proxy");
-        for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, true);
+        for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
         assert.equal(config["proxy-groups"].find((group) => group.name === "AppleProxy").proxies[0], "Proxy");
         assert.deepEqual(config["proxy-groups"].find((group) => group.name === "AppleDirect").proxies, ["DIRECT"]);
         for (const name of ["AppleProxy", "AppleDirect"]) assert.equal(config["proxy-groups"].find((group) => group.name === name).hidden, true);
