@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importPoolNodes } from "../src/node-import.js";
+import { copyPoolNodes, importPoolNodes } from "../src/node-import.js";
 import { parsePoolNodes } from "../src/node-pool.js";
 
 const UUID = "00000000-0000-4000-8000-000000000001";
@@ -16,6 +16,39 @@ function native(name = "🇺🇸 Existing - ISP 1", extras = "") {
   return `${name} = vmess, node.example.com, 443, username=${UUID}, tls=true, vmess-aead=true${extras}`;
 }
 function unreachable() { assert.fail("must not fetch"); }
+
+test("copying stored nodes appends independent definitions, deduplicates connections and preserves disabled entries", () => {
+  const existing = [{ id: "keep", line: native(), enabled: false }];
+  const source = [
+    { id: "production-id", line: native("🇺🇸 Renamed - ISP", ", encrypt-method=aes-128-gcm"), enabled: true },
+    { id: "production-other", line: "🇺🇸 Existing - ISP 1 = trojan, second.example.com, 443, password=TEST_ONLY", enabled: false,
+      ownerIds: ["production-user"], assignmentCount: 99 },
+    { line: "🇭🇰 Third - IDC = trojan, third.example.com, 443, password=TEST_ONLY", enabled: true },
+  ];
+  const before = structuredClone({ existing, source });
+  const copied = copyPoolNodes(source, existing);
+  assert.equal(copied.added, 2);
+  assert.equal(copied.duplicates, 1);
+  assert.deepEqual(copied.nodes[0], existing[0]);
+  assert.match(copied.nodes[1].line, /^🇺🇸 Existing - ISP 1 \(2\) = trojan,/);
+  assert.equal(copied.nodes[1].enabled, false);
+  assert.equal(copied.nodes[2].enabled, true);
+  assert.ok(!["keep", ...source.map((node) => node.id)].includes(copied.nodes[1].id));
+  assert.deepEqual(Object.keys(copied.nodes[1]).sort(), ["enabled", "id", "line"]);
+  assert.deepEqual({ existing, source }, before);
+  const repeated = copyPoolNodes(source, copied.nodes);
+  assert.equal(repeated.added, 0);
+  assert.equal(repeated.duplicates, 3);
+  assert.deepEqual(repeated.nodes, copied.nodes);
+  assert.deepEqual(copyPoolNodes([], existing), { nodes: existing, added: 0, duplicates: 0 });
+});
+
+test("copying nodes refuses an oversized merged inventory without changing existing nodes", () => {
+  const nodes = Array.from({ length: 1000 }, (_, index) => ({ id: String(index),
+    line: `🇺🇸 ISP ${index} = trojan, node-${index}.example.com, 443, password=TEST_ONLY`, enabled: true }));
+  assert.throws(() => copyPoolNodes([{ line: "🇺🇸 Extra ISP = trojan, extra.example.com, 443, password=TEST_ONLY", enabled: true }], nodes), /1000/);
+  assert.equal(nodes.length, 1000);
+});
 
 test("converts one Base64 subscription without persisting its URL or forwarding credentials", async () => {
   const link = vmess({ alpn: "h2,http/1.1", fp: "chrome" });

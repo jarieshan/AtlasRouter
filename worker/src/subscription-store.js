@@ -2,6 +2,7 @@ import { HttpError } from "./errors.js";
 import { accountView, allocateNodes, parsePoolNodes, userGroups } from "./node-pool.js";
 import { readSubscriptionState, readUserState, writeSubscriptionState } from "./subscription-db.js";
 import { isPreviewIdentity } from "./page-preview.js";
+import { copyPoolNodes } from "./node-import.js";
 
 const MAX_WRITE_ATTEMPTS = 12;
 
@@ -60,6 +61,18 @@ function operate(state, input) {
       allocateNodes(state, now);
       state.revision += 1;
       return { value: inventoryView(state), changed: true };
+    }
+    case "copy-nodes": {
+      if (!Number.isInteger(input.revision) || input.revision !== state.revision) {
+        throw new HttpError(409, "Inventory changed; reload before copying");
+      }
+      const copied = copyPoolNodes(input.nodes, state.nodes);
+      if (copied.added) {
+        state.nodes = parsePoolNodes(copied.nodes, state.nodes);
+        allocateNodes(state, now);
+        state.revision += 1;
+      }
+      return { value: { ...inventoryView(state), added: copied.added, duplicates: copied.duplicates }, changed: copied.added > 0 };
     }
     case "set-user": {
       const user = state.users.find((candidate) => candidate.id === input.id);

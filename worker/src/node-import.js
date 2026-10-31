@@ -83,6 +83,32 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch) {
   return { nodes: result, added: result.length - nodes.length, duplicates, warnings: [...new Set(warnings)] };
 }
 
+// Copy stored definitions without carrying source identities or allocation history.
+export function copyPoolNodes(source, nodes) {
+  const result = nodes.map(({ id, line, enabled }) => ({ id, line, enabled }));
+  const keys = new Set(result.map((node) => connectionKey(parseLine(node.line))));
+  const names = new Set(result.map((node) => parseLine(node.line).name));
+  let duplicates = 0;
+  for (const node of source) {
+    const item = parseLine(node.line);
+    const key = connectionKey(item);
+    if (keys.has(key)) { duplicates += 1; continue; }
+    if (result.length >= MAX_NODES) throw invalid("节点总数不能超过 1000。");
+    let name = item.name;
+    let suffix = 2;
+    while (names.has(name)) name = `${item.name} (${suffix++})`;
+    const line = `${name} = ${item.value}`;
+    parseLine(line);
+    result.push({ id: crypto.randomUUID(), line, enabled: node.enabled });
+    keys.add(key);
+    names.add(name);
+  }
+  if (new TextEncoder().encode(JSON.stringify({ nodes: result, revision: Number.MAX_SAFE_INTEGER })).length > MAX_BYTES) {
+    throw invalid("复制后的清单超过 512 KiB，请减少节点后重试。");
+  }
+  return { nodes: result, added: result.length - nodes.length, duplicates };
+}
+
 function parseContent(content, name) {
   let text = content.trim();
   if (/^[A-Za-z0-9+/_=\s-]+$/.test(text)) text = decodeBase64(text);

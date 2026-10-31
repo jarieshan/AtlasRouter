@@ -27,7 +27,7 @@ test("subscription controls customize copied URLs and retain choices across toke
   assert.match(html, /关闭增强模式/);
   assert.match(html, /Surge Mac 仅开启系统代理，关闭增强模式；iOA需设置为全局模式/);
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
-    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element },
+    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
     URL, location: { href: "https://atlas.example/" }, confirm: () => true,
     navigator: { clipboard: { writeText: async (value) => { copied = value; } } },
     fetch: async (path, options) => {
@@ -76,7 +76,7 @@ test("development account calls, copied links and token rotation stay on develop
   let copied;
   let calls = 0;
   vm.runInNewContext(renderAccountPage().match(/<script>([\s\S]*?)<\/script>/)[1], {
-    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element },
+    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
     URL, location: { href: "https://atlas.example/?dev=1" }, confirm: () => true,
     navigator: { clipboard: { writeText: async (value) => { copied = value; } } },
     fetch: async (path, options) => {
@@ -110,7 +110,7 @@ test("page previews keep all interactions in memory and reset on a new page load
     const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
     fields.get("#subscription-client").value = "surge";
     const storage = new Proxy({}, { get() { storageAccesses += 1; throw new Error("Preview must not use browser storage"); } });
-    const document = { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element };
+    const document = { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} };
     Object.defineProperty(document, "cookie", { set() { storageAccesses += 1; throw new Error("Preview must not save cookies"); } });
     vm.runInNewContext(script, {
       document, URL, confirm: () => true, localStorage: storage, sessionStorage: storage, indexedDB: storage,
@@ -154,7 +154,7 @@ test("Dev controls use development credentials while subscription links point di
   assert.match(html, /Dev · 开发环境/);
   assert.doesNotMatch(renderAccountPage({ preview: true, developmentAvailable: true }), /切换到开发环境/);
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
-    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element },
+    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
     URL, location: { href: "https://atlas.example/?environment=development" }, confirm: () => true,
     navigator: { clipboard: { writeText: async (value) => { copied = value; } } },
     fetch: async (path, options) => {
@@ -191,7 +191,7 @@ test("database node labels render as text and preview interactions stay in the p
   const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
-    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element },
+    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
     URL, confirm: () => true, crypto: { randomUUID: () => "test-only" },
     fetch: () => assert.fail("Preview interactions must not send requests"),
   });
@@ -202,4 +202,32 @@ test("database node labels render as text and preview interactions stay in the p
   await fields.get("#rotate").onclick();
   assert.equal(nodeName(), name);
   assert.equal(new URL(fields.get("#subscription").value).hostname, "preview.invalid");
+});
+
+
+test("inventory updates refresh the account without rotating its token or resetting options", async () => {
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  fields.get("#subscription-client").value = "surge";
+  const listeners = new Map();
+  let requests = 0;
+  vm.runInNewContext(renderAccountPage({ development: true }).match(/<script>([\s\S]*?)<\/script>/)[1], {
+    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element,
+      addEventListener: (name, listener) => listeners.set(name, listener) },
+    URL, location: { href: "https://atlas.example/?environment=development" },
+    fetch: async (path, options) => {
+      assert.equal(path, `${ACCOUNT_PROFILE_PATH}?environment=development`);
+      assert.equal(options.method, "GET");
+      requests += 1;
+      return Response.json({ email: "member@example.com", status: requests === 1 ? "pending" : "active", groups: [],
+        subscriptionUrl: "https://develop.atlas.example/AtlasRouter-Dev?token=TEST_ONLY" });
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.match(fields.get(".status").textContent, /等待管理员/);
+  fields.get("#subscription-client").value = "clash";
+  fields.get("#enable-doh").checked = true;
+  await listeners.get("atlasrouter:inventory")();
+  assert.equal(requests, 2);
+  assert.match(fields.get(".status").textContent, /配置已就绪/);
+  assert.equal(fields.get("#subscription").value, "https://develop.atlas.example/AtlasRouter-Dev?token=TEST_ONLY&client=clash&doh=1");
 });
