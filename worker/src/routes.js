@@ -15,5 +15,6 @@ export function getAdminRoutes(env) {
   const slug = env.ADMIN_API_SLUG;
   if (typeof slug !== "string" || !/^[a-f0-9]{32}$/.test(slug)) return null;
   const prefix = `${API_PATH}/${slug}/pool`;
-  return { state: `${prefix}/state`, nodes: `${prefix}/nodes`, users: `${prefix}/users`, import: `${prefix}/import` };
+  return { state: `${prefix}/state`, nodes: `${prefix}/nodes`, users: `${prefix}/users`, import: `${prefix}/import`,
+    copyProduction: `${prefix}/copy-production` };
 }

@@ -42,6 +42,13 @@ export async function readPreviewNodes(env) {
   return results.map(({ id, name, group_name }) => ({ id, name, group: group_name }));
 }
 
+export async function readNodeDefinitions(env) {
+  const { results } = await database(env).prepare(
+    "SELECT name, value, enabled FROM nodes ORDER BY sort_order",
+  ).all();
+  return results.map(({ name, value, enabled }) => ({ line: `${name} = ${value}`, enabled: enabled === 1 }));
+}
+
 function stateFromRows(rows, revision = 0) {
   const nodes = rows.nodes.map((row) => ({
     id: row.id, name: row.name, group: row.group_name, region: row.region, ipType: row.ip_type,

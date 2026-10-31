@@ -8,6 +8,7 @@ import { isPreviewIdentity, readPreviewProfile } from "./page-preview.js";
 import { renderClashProfile } from "./render-clash.js";
 import { getModule, renderSurgeProfile } from "./render-surge.js";
 import { callSubscriptionStore } from "./subscription-store.js";
+import { readNodeDefinitions } from "./subscription-db.js";
 import { buildSubscriptionUrl, readSubscriptionOptions } from "./subscription-options.js";
 import { uiEnvironment } from "./ui-environment.js";
 import {
@@ -46,7 +47,15 @@ export async function handlePoolRequest(request, env) {
   if (adminRoutes && Object.values(adminRoutes).includes(path)) {
     await requireAccessAdmin(request, env);
     const target = uiEnvironment(request.url, env);
-    requireMethod(request, path === adminRoutes.nodes ? "PUT" : path === adminRoutes.users ? "PATCH" : path === adminRoutes.import ? "POST" : "GET");
+    requireMethod(request, path === adminRoutes.nodes ? "PUT" : path === adminRoutes.users ? "PATCH"
+      : [adminRoutes.import, adminRoutes.copyProduction].includes(path) ? "POST" : "GET");
+    if (path === adminRoutes.copyProduction) {
+      if (!target.development || env.UI_ENABLED === "false") throw new HttpError(400, "Copying production nodes requires the development UI");
+      const body = await readMutation(request);
+      if (!Number.isSafeInteger(body.revision) || body.revision < 0) throw new HttpError(400, "Invalid inventory revision");
+      const nodes = await readNodeDefinitions(env);
+      return Response.json(await callSubscriptionStore(target.env, { action: "copy-nodes", nodes, revision: body.revision }));
+    }
     if (path === adminRoutes.import) {
       return Response.json(await importPoolNodes(await readMutation(request)));
     }

@@ -16,7 +16,8 @@ import {
 } from "../src/routes.js";
 
 const ADMIN_API_SLUG = "0123456789abcdef0123456789abcdef";
-const { state: POOL_STATE_PATH, nodes: POOL_NODES_PATH, users: POOL_USERS_PATH, import: POOL_IMPORT_PATH } = getAdminRoutes({ ADMIN_API_SLUG });
+const { state: POOL_STATE_PATH, nodes: POOL_NODES_PATH, users: POOL_USERS_PATH, import: POOL_IMPORT_PATH,
+  copyProduction: POOL_COPY_PATH } = getAdminRoutes({ ADMIN_API_SLUG });
 const ORIGIN = "https://atlas.example";
 
 const WECHAT_URL = "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list";
@@ -114,6 +115,56 @@ async function save(mf, entries = nodes(), revision = 0) {
 async function account(mf, subject = "alice", claims) {
   return json(await request(mf, ACCOUNT_PROFILE_PATH, { subject, claims }));
 }
+
+test("one-click production node copying activates an existing development subscription without copying identities", async (t) => {
+  const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
+  const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
+    { ...common, name: "production", d1Databases: { DB: "production", DEV_DB: "development" },
+      bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
+        ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG, DEV_SUBSCRIPTION_ORIGIN: "https://develop.atlas.example" } },
+    { ...common, name: "development", d1Databases: { DB: "development" },
+      bindings: { UI_ENABLED: "false", SUBSCRIPTION_PATH: "/AtlasRouter-Dev" } },
+  ] }));
+  t.after(() => mf.dispose());
+  const prodDb = await mf.getD1Database("DB", "production");
+  const devDb = await mf.getD1Database("DB", "development");
+  await applyMigrations(prodDb);
+  await applyMigrations(devDb);
+  const preview = await mf.getWorker("development");
+  await save(mf, [...nodes(2), { id: "disabled", enabled: false,
+    line: "🇭🇰 Disabled IDC = trojan, disabled.example.com, 443, password=TEST_ONLY" }]);
+  const production = await account(mf, "alice");
+  const dev = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "bob" }));
+  assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 503);
+  const before = await readSubscriptionState({ DB: prodDb });
+  const copied = await json(await request(mf, `${POOL_COPY_PATH}?environment=development`, {
+    subject: "admin", method: "POST", body: { revision: 0 },
+  }));
+  assert.equal(copied.added, 3);
+  assert.equal(copied.duplicates, 0);
+  assert.deepEqual(copied.users.map((user) => user.email), ["bob@example.com"]);
+  assert.equal(copied.users[0].status, "active");
+  assert.equal(copied.nodes[2].enabled, false);
+  assert.ok(copied.nodes.every((node) => !before.state.nodes.some((source) => source.id === node.id)));
+  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), before);
+  const current = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "bob" }));
+  assert.equal(current.subscriptionUrl, dev.subscriptionUrl);
+  const surge = await preview.fetch(dev.subscriptionUrl);
+  assert.equal(surge.status, 200);
+  assert.doesNotMatch(await surge.text(), /disabled\.example\.com/);
+  assert.equal((await preview.fetch(`${dev.subscriptionUrl}&client=clash`)).status, 200);
+  const productionUrl = new URL(production.subscriptionUrl);
+  const wrongToken = new URL(dev.subscriptionUrl);
+  wrongToken.searchParams.set("token", productionUrl.searchParams.get("token"));
+  assert.equal((await preview.fetch(wrongToken.toString())).status, 401);
+  const after = await readSubscriptionState({ DB: devDb });
+  const repeated = await json(await request(mf, `${POOL_COPY_PATH}?environment=development`, {
+    subject: "admin", method: "POST", body: { revision: copied.revision },
+  }));
+  assert.equal(repeated.added, 0);
+  assert.equal(repeated.duplicates, 3);
+  assert.deepEqual(await readSubscriptionState({ DB: devDb }), after);
+});
 
 test("native preview consumes links from the production UI with separate D1 data and no preview UI", async (t) => {
   const config = JSON.parse(await readFile("wrangler.jsonc", "utf8"));
