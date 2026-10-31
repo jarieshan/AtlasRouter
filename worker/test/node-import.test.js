@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { copyPoolNodes, importPoolNodes } from "../src/node-import.js";
+import { resetPoolNodes, importPoolNodes } from "../src/node-import.js";
 import { parsePoolNodes } from "../src/node-pool.js";
 
 const UUID = "00000000-0000-4000-8000-000000000001";
@@ -17,37 +17,32 @@ function native(name = "🇺🇸 Existing - ISP 1", extras = "") {
 }
 function unreachable() { assert.fail("must not fetch"); }
 
-test("copying stored nodes appends independent definitions, deduplicates connections and preserves disabled entries", () => {
-  const existing = [{ id: "keep", line: native(), enabled: false }];
+test("resetting keeps every production definition in order with fresh identities and no source history", () => {
   const source = [
-    { id: "production-id", line: native("🇺🇸 Renamed - ISP", ", encrypt-method=aes-128-gcm"), enabled: true },
-    { id: "production-other", line: "🇺🇸 Existing - ISP 1 = trojan, second.example.com, 443, password=TEST_ONLY", enabled: false,
+    { id: "production-id", line: native("🇺🇸 Production - ISP"), enabled: true },
+    { id: "production-alias", line: native("🇺🇸 Alias - ISP"), enabled: false,
       ownerIds: ["production-user"], assignmentCount: 99 },
     { line: "🇭🇰 Third - IDC = trojan, third.example.com, 443, password=TEST_ONLY", enabled: true },
   ];
-  const before = structuredClone({ existing, source });
-  const copied = copyPoolNodes(source, existing);
-  assert.equal(copied.added, 2);
-  assert.equal(copied.duplicates, 1);
-  assert.deepEqual(copied.nodes[0], existing[0]);
-  assert.match(copied.nodes[1].line, /^🇺🇸 Existing - ISP 1 \(2\) = trojan,/);
-  assert.equal(copied.nodes[1].enabled, false);
-  assert.equal(copied.nodes[2].enabled, true);
-  assert.ok(!["keep", ...source.map((node) => node.id)].includes(copied.nodes[1].id));
-  assert.deepEqual(Object.keys(copied.nodes[1]).sort(), ["enabled", "id", "line"]);
-  assert.deepEqual({ existing, source }, before);
-  const repeated = copyPoolNodes(source, copied.nodes);
-  assert.equal(repeated.added, 0);
-  assert.equal(repeated.duplicates, 3);
-  assert.deepEqual(repeated.nodes, copied.nodes);
-  assert.deepEqual(copyPoolNodes([], existing), { nodes: existing, added: 0, duplicates: 0 });
+  const before = structuredClone(source);
+  const reset = resetPoolNodes(source);
+  const definitions = (nodes) => nodes.map(({ line, enabled }) => ({ line, enabled }));
+  assert.deepEqual(definitions(reset), definitions(source));
+  assert.ok(reset.every((node) => !source.some((item) => item.id === node.id)));
+  assert.ok(reset.every((node) => Object.keys(node).sort().join() === "enabled,id,line"));
+  assert.equal(new Set(reset.map((node) => node.id)).size, 3);
+  assert.deepEqual(source, before);
+  const repeated = resetPoolNodes(source);
+  assert.deepEqual(definitions(repeated), definitions(source));
+  assert.ok(repeated.every((node) => !reset.some((item) => item.id === node.id)));
+  assert.deepEqual(resetPoolNodes([]), []);
 });
 
-test("copying nodes refuses an oversized merged inventory without changing existing nodes", () => {
-  const nodes = Array.from({ length: 1000 }, (_, index) => ({ id: String(index),
-    line: `🇺🇸 ISP ${index} = trojan, node-${index}.example.com, 443, password=TEST_ONLY`, enabled: true }));
-  assert.throws(() => copyPoolNodes([{ line: "🇺🇸 Extra ISP = trojan, extra.example.com, 443, password=TEST_ONLY", enabled: true }], nodes), /1000/);
-  assert.equal(nodes.length, 1000);
+test("resetting refuses oversized production inventories", () => {
+  const node = { line: "🇺🇸 ISP = trojan, node.example.com, 443, password=TEST_ONLY", enabled: true };
+  assert.throws(() => resetPoolNodes(Array(1001).fill(node)), /1000/);
+  const large = { ...node, line: node.line.replace("TEST_ONLY", "x".repeat(3500)) };
+  assert.throws(() => resetPoolNodes(Array(160).fill(large)), /512 KiB/);
 });
 
 test("converts one Base64 subscription without persisting its URL or forwarding credentials", async () => {

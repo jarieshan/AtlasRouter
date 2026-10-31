@@ -151,7 +151,7 @@ test("knowing the random route never grants administrator access", async () => {
 test("Access authorization runs before method handling on management routes", async () => {
   const env = unreadableEnv();
   for (const path of Object.values(routes)) {
-    for (const method of ["DELETE", "OPTIONS", [routes.import, routes.copyProduction].includes(path) ? "GET" : "POST"]) {
+    for (const method of ["DELETE", "OPTIONS", [routes.import, routes.resetProduction].includes(path) ? "GET" : "POST"]) {
       assert.equal((await request(path, { method }, env)).status, 403);
       assert.equal((await request(path, { method, headers: accessHeaders() }, env)).status, 405);
     }
@@ -178,16 +178,17 @@ test("import requires administrator, same-origin JSON and POST before any subscr
   }
 });
 
-test("production copying requires an admin, development target and same-origin POST before reading either database", async () => {
+test("production resetting requires an admin, development target and same-origin POST before reading either database", async () => {
   const env = unreadableEnv();
   env.DEV_DB = { prepare() { assert.fail("must not read development data"); }, batch() { assert.fail("must not write development data"); } };
   env.DEV_SUBSCRIPTION_ORIGIN = "https://develop.atlas.example";
   const headers = { ...accessHeaders(), origin: "https://atlas.example", "content-type": "application/json" };
-  const path = `${routes.copyProduction}?environment=development`;
+  const path = `${routes.resetProduction}?environment=development`;
+  assert.equal((await request(path.replace("reset-production", "copy-production"), { method: "POST", headers, body: '{"revision":0}' }, env)).status, 404);
   for (const [url, options, status] of [
     [path, { method: "POST", body: '{"revision":0}' }, 403],
     [path, { method: "POST", headers: { ...headers, ...accessHeaders({ email: "member@example.com" }) }, body: '{"revision":0}' }, 403],
-    [routes.copyProduction, { method: "POST", headers, body: '{"revision":0}' }, 400],
+    [routes.resetProduction, { method: "POST", headers, body: '{"revision":0}' }, 400],
     [path, { method: "GET", headers }, 405],
     [path, { method: "POST", headers: { ...headers, origin: "https://foreign.example" }, body: '{"revision":0}' }, 403],
     [path, { method: "POST", headers: { ...headers, "content-type": "text/plain" }, body: '{"revision":0}' }, 415],
@@ -197,19 +198,23 @@ test("production copying requires an admin, development target and same-origin P
   assert.equal((await request(path, { method: "POST", headers, body: '{"revision":0}' }, { ...env, UI_ENABLED: "false" })).status, 400);
 });
 
-test("copying reads only production node definitions and writes only development allocations", async () => {
+test("resetting reads only production definitions and replaces only development allocations", async () => {
   const env = createEnv();
   const dev = createD1Env();
   env.DEV_DB = dev.DB;
   env.DEV_SUBSCRIPTION_ORIGIN = "https://develop.atlas.example";
   const headers = { ...accessHeaders(), origin: "https://atlas.example", "content-type": "application/json" };
-  const saved = await request(routes.nodes, { method: "PUT", headers, body: JSON.stringify({ revision: 0, nodes: [
+  const source = [
     { id: "prod", line: "🇺🇸 Production ISP = trojan, production.example.com, 443, password=TEST_ONLY", enabled: true },
     { id: "disabled", line: "🇭🇰 Disabled IDC = trojan, disabled.example.com, 443, password=TEST_ONLY", enabled: false },
-  ] }) }, env);
-  assert.equal(saved.status, 200);
+  ];
+  assert.equal((await request(routes.nodes, { method: "PUT", headers, body: JSON.stringify({ revision: 0, nodes: source }) }, env)).status, 200);
   await request(ACCOUNT_PROFILE_PATH, { headers }, env);
   const account = await (await request(`${ACCOUNT_PROFILE_PATH}?environment=development`, { headers }, env)).json();
+  assert.equal((await request(`${routes.nodes}?environment=development`, { method: "PUT", headers, body: JSON.stringify({ revision: 0, nodes: [
+    { ...source[0], id: "old-dev", line: source[0].line.replace("production.example.com", "old.example.com"), enabled: false },
+    { id: "dev-only", line: "🇸🇬 Dev WARP = trojan, dev.example.com, 443, password=TEST_ONLY", enabled: true },
+  ] }) }, env)).status, 200);
   const before = await readSubscriptionState(env);
   const prepare = env.DB.prepare;
   let sourceReads = 0;
@@ -218,32 +223,36 @@ test("copying reads only production node definitions and writes only development
     sourceReads += 1;
     return prepare(sql);
   };
-  const response = await request(`${routes.copyProduction}?environment=development`, {
-    method: "POST", headers, body: '{"revision":0}',
+  const response = await request(`${routes.resetProduction}?environment=development`, {
+    method: "POST", headers, body: '{"revision":1}',
   }, env);
   assert.equal(response.status, 200);
   assertSecurityHeaders(response);
-  const copied = await response.json();
-  assert.equal(copied.added, 2);
-  assert.equal(copied.duplicates, 0);
-  assert.equal(copied.users.length, 1);
-  assert.equal(copied.users[0].status, "active");
-  assert.equal(copied.nodes[1].enabled, false);
+  const reset = await response.json();
+  const definitions = (nodes) => nodes.map(({ line, enabled }) => ({ line, enabled }));
+  assert.deepEqual(definitions(reset.nodes), definitions(source));
+  assert.ok(reset.nodes.every((node) => !["old-dev", "dev-only", "prod", "disabled"].includes(node.id)));
+  assert.equal(reset.users.length, 1);
+  assert.equal(reset.users[0].status, "active");
   assert.equal(sourceReads, 1);
   env.DB.prepare = prepare;
   assert.deepEqual(await readSubscriptionState(env), before);
   const after = await (await request(`${ACCOUNT_PROFILE_PATH}?environment=development`, { headers }, env)).json();
   assert.equal(after.subscriptionUrl, account.subscriptionUrl);
   const devBeforeRetry = await readSubscriptionState(dev);
-  const retry = await request(`${routes.copyProduction}?environment=development`, {
-    method: "POST", headers, body: JSON.stringify({ revision: copied.revision }),
-  }, env);
-  assert.equal((await retry.json()).added, 0);
-  assert.deepEqual(await readSubscriptionState(dev), devBeforeRetry);
-  assert.equal((await request(`${routes.copyProduction}?environment=development`, {
-    method: "POST", headers, body: '{"revision":0}',
+  assert.equal((await request(`${routes.resetProduction}?environment=development`, {
+    method: "POST", headers, body: '{"revision":1}',
   }, env)).status, 409);
   assert.deepEqual(await readSubscriptionState(dev), devBeforeRetry);
+  const retry = await request(`${routes.resetProduction}?environment=development`, {
+    method: "POST", headers, body: JSON.stringify({ revision: reset.revision }),
+  }, env);
+  assert.equal(retry.status, 200);
+  const repeated = await retry.json();
+  assert.deepEqual(definitions(repeated.nodes), definitions(source));
+  assert.equal(repeated.revision, reset.revision + 1);
+  assert.ok(repeated.nodes.every((node) => !reset.nodes.some((old) => old.id === node.id)));
+  assert.deepEqual(await readSubscriptionState(env), before);
 });
 
 test("import fetches a subscription and returns a private draft without touching D1", async (t) => {

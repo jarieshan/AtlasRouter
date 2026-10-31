@@ -48,13 +48,13 @@ export async function handlePoolRequest(request, env) {
     await requireAccessAdmin(request, env);
     const target = uiEnvironment(request.url, env);
     requireMethod(request, path === adminRoutes.nodes ? "PUT" : path === adminRoutes.users ? "PATCH"
-      : [adminRoutes.import, adminRoutes.copyProduction].includes(path) ? "POST" : "GET");
-    if (path === adminRoutes.copyProduction) {
-      if (!target.development || env.UI_ENABLED === "false") throw new HttpError(400, "Copying production nodes requires the development UI");
+      : [adminRoutes.import, adminRoutes.resetProduction].includes(path) ? "POST" : "GET");
+    if (path === adminRoutes.resetProduction) {
+      if (!target.development || env.UI_ENABLED === "false") throw new HttpError(400, "Resetting to production nodes requires the development UI");
       const body = await readMutation(request);
       if (!Number.isSafeInteger(body.revision) || body.revision < 0) throw new HttpError(400, "Invalid inventory revision");
       const nodes = await readNodeDefinitions(env);
-      return Response.json(await callSubscriptionStore(target.env, { action: "copy-nodes", nodes, revision: body.revision }));
+      return Response.json(await callSubscriptionStore(target.env, { action: "reset-nodes", nodes, revision: body.revision }));
     }
     if (path === adminRoutes.import) {
       return Response.json(await importPoolNodes(await readMutation(request)));

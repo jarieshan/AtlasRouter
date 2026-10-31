@@ -79,7 +79,7 @@ npm run check:live-security -- https://<worker-domain>
 
 一个 `atlas-router` Worker 使用生产与原生 Preview 两套运行环境：`master` 为生产分支，`develop` 为开发分支。Cloudflare Workers Builds 直接监听推送，GitHub Actions 只运行验证。`master` 使用 Smart 权重实验之前的 D1／Clash 稳定行为：地区/IP 类型组为顺序 fallback；`develop` 保留 Smart 权重实验。基线来源见 [生产基线](docs/production-baseline.md)。分支差异及两种客户端的非等价行为见 [兼容性核对](docs/client-compatibility.md)。
 
-生产页面的 Dev 按钮进入 `/?environment=development`，通过 `DEV_DB` 管理测试节点和凭据，生成开发域名下的 `/AtlasRouter-Dev` 链接。客户端直接请求原生 Preview；无需组合分支代码或生产反向代理。正式订阅仍使用 `/AtlasRouter`，两库 token 不能互换。 管理员可在 Dev 节点池点击“从生产复制节点”，追加去重后的节点并立即分配，生产数据保持不变。
+生产页面的 Dev 按钮进入 `/?environment=development`，通过 `DEV_DB` 管理测试节点和凭据，生成开发域名下的 `/AtlasRouter-Dev` 链接。客户端直接请求原生 Preview；无需组合分支代码或生产反向代理。正式订阅仍使用 `/AtlasRouter`，两库 token 不能互换。管理员可在 Dev 节点池点击“重置为生产节点”，按当前生产节点完整替换开发节点池并重新分配；仅点击时同步，生产数据保持不变。
 
 ```sh
 npm --prefix worker run deploy:preview -- --dry-run

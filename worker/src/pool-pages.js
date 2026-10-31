@@ -428,8 +428,8 @@ function poolPanel(adminRoutes, development) {
   <article class="card">
     <header class="card-head"><h3>录入节点</h3><p>每行粘贴一个 HTTPS 订阅链接（VMess 内容）、vmess:// 链接或完整 Surge 节点。自动转换并跳过已有连接配置，每次最多 20 个订阅链接。</p></header>
     <div class="card-body">
-      ${development ? `<div class="actions"><button id="copy-production" class="secondary" disabled>${icon("copy")}从生产复制节点</button></div>
-      <p class="hint">追加生产节点并保留启停状态，跳过相同连接配置；自动保存并分配给开发环境用户。</p>` : ""}
+      ${development ? `<div class="actions"><button id="reset-production" class="secondary" disabled>${icon("refresh")}重置为生产节点</button></div>
+      <p class="hint">仅点击时同步：用生产节点完整覆盖开发节点池和未保存的清单修改，并重新分配。保留开发用户和 Token；生产节点池为空时将清空开发节点池。</p>` : ""}
       <label class="field-label" for="import">节点链接或 Surge 节点清单</label>
       <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="每行一条：HTTPS 订阅链接、vmess:// 链接或 Surge 节点"></textarea>
       <p class="hint">按节点名称中的地区旗帜和 IDC / ISP / WARP 关键词分组。可用“节点名 = 链接”指定名称，例如：<code>🇺🇸 LosAngeles - ISP 1 = https://subscription.example.com/node</code></p>
@@ -467,7 +467,7 @@ function poolPanel(adminRoutes, development) {
     const importNotes = root.querySelector("#import-notes");
     const save = root.querySelector("#save");
     const append = root.querySelector("#append");
-    const copyProduction = root.querySelector("#copy-production");
+    const resetProduction = root.querySelector("#reset-production");
     function emptyRow(columns, text) {
       const row = element("tr");
       const node = cell(row, text);
@@ -572,7 +572,7 @@ function poolPanel(adminRoutes, development) {
         editor.readOnly = false; importer.readOnly = false;
         root.querySelectorAll("button").forEach((button) => { button.disabled = false; });
         save.disabled = !state; append.disabled = !state;
-        if (copyProduction) copyProduction.disabled = !state;
+        if (resetProduction) resetProduction.disabled = !state;
       }
     }
     function load() { return run(async () => { render(await api(${JSON.stringify(adminRoutes.state)})); message("节点池已加载。"); }); }
@@ -597,18 +597,14 @@ function poolPanel(adminRoutes, development) {
       render(await api(${JSON.stringify(adminRoutes.nodes)}, "PUT", { revision: editorRevision, nodes }));
       message("节点清单已保存，主节点与备份顺序已更新。");
     });
-    if (copyProduction) copyProduction.onclick = () => run(async () => {
-      const saved = state.nodes.map(({ id, line, enabled }) => ({ id, line, enabled }));
-      if (JSON.stringify(JSON.parse(editor.value)) !== JSON.stringify(saved)) {
-        throw new Error("请先保存节点清单中的修改，再从生产复制。");
-      }
-      message("正在从生产复制节点…");
-      const result = await api(${JSON.stringify(adminRoutes.copyProduction)}, "POST", { revision: editorRevision });
+    if (resetProduction) resetProduction.onclick = () => run(async () => {
+      message("正在重置为生产节点…");
+      const result = await api(${JSON.stringify(adminRoutes.resetProduction)}, "POST", { revision: editorRevision });
       render(result);
-      message(result.added
-        ? "已复制 " + result.added + " 条节点，跳过 " + result.duplicates + " 条重复配置；已保存并分配。"
-        : result.duplicates ? "生产节点均已存在，跳过 " + result.duplicates + " 条重复配置。"
-        : "生产节点池为空，未复制任何节点。");
+      importNotes.replaceChildren();
+      message(result.nodes.length
+        ? "已重置为生产节点，共 " + result.nodes.length + " 条；已保存并重新分配。"
+        : "生产节点池为空，开发节点池已清空。");
       document.dispatchEvent(new Event("atlasrouter:inventory"));
     });
     load();
