@@ -15,11 +15,11 @@ function element(tagName) {
 async function portal(respond, { initialState = { nodes: [], users: [], revision: 3 }, confirm = () => true, development = false, nativeDevelopment = false } = {}) {
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
   const fields = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
-  if (nativeDevelopment) fields.set("#copy-production", element("button"));
+  if (nativeDevelopment) fields.set("#reset-production", element("button"));
   const details = { open: false };
   fields.get("#inventory").closest = () => details;
   const buttons = ["#save", "#append", "#pool-reload"].map((id) => fields.get(id));
-  if (nativeDevelopment) buttons.push(fields.get("#copy-production"));
+  if (nativeDevelopment) buttons.push(fields.get("#reset-production"));
   const nestedButtons = (node) => [...(node.tagName === "button" ? [node] : []), ...node.children.flatMap(nestedButtons)];
   const root = { querySelector: (id) => fields.get(id), querySelectorAll: () => [
     ...buttons, ...nestedButtons(fields.get("#nodes")), ...nestedButtons(fields.get("#users")),
@@ -35,7 +35,7 @@ async function portal(respond, { initialState = { nodes: [], users: [], revision
       calls.push({ path, options });
       path = new URL(path, "https://atlas.example").pathname;
       if (path === routes.state) return Response.json(initialState);
-      assert.ok([routes.import, routes.nodes, routes.copyProduction].includes(path));
+      assert.ok([routes.import, routes.nodes, routes.resetProduction].includes(path));
       return respond(path, options);
     },
   });
@@ -43,50 +43,68 @@ async function portal(respond, { initialState = { nodes: [], users: [], revision
   return { fields, details, calls, routes, events, html };
 }
 
-test("only development administrators see the production copy button", () => {
+test("only development administrators see the production reset button", () => {
   const adminRoutes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
   for (const options of [{}, { isAdmin: true, adminRoutes }, { development: true }, { isAdmin: true, adminRoutes, development: true, preview: true }]) {
-    assert.doesNotMatch(renderAccountPage(options), /id="copy-production"/);
+    assert.doesNotMatch(renderAccountPage(options), /id="reset-production"/);
   }
-  assert.match(renderAccountPage({ isAdmin: true, adminRoutes, development: true }), /id="copy-production"/);
+  assert.match(renderAccountPage({ isAdmin: true, adminRoutes, development: true }), /id="reset-production"/);
 });
 
-test("one click copies and saves on the development endpoint then refreshes the account", async () => {
+test("only a click resets and saves the development pool, replaces drafts and refreshes the account", async () => {
   let finish;
-  const { fields, calls, routes, events } = await portal(() => new Promise((resolve) => { finish = resolve; }), { nativeDevelopment: true });
+  const { fields, calls, routes, events, html } = await portal(() => new Promise((resolve) => { finish = resolve; }), {
+    nativeDevelopment: true, initialState: inventory(),
+  });
+  assert.match(html, /重置为生产节点/);
+  assert.match(html, /仅点击时同步/);
+  assert.match(html, /覆盖开发节点池和未保存的清单修改/);
+  assert.equal(calls.length, 1, "loading the page must not reset nodes");
+  assert.equal(calls[0].options.method, "GET");
+  assert.deepEqual(events, []);
+  fields.get("#inventory").value = "[{";
   fields.get("#import").value = "unsaved pasted text";
-  const copying = fields.get("#copy-production").onclick();
-  assert.equal(fields.get("#copy-production").disabled, true);
-  await fields.get("#copy-production").onclick();
+  fields.get("#import-notes").append(element("li"));
+  const resetting = fields.get("#reset-production").onclick();
+  assert.equal(fields.get("#reset-production").disabled, true);
+  await fields.get("#reset-production").onclick();
   assert.equal(calls.length, 2);
-  assert.equal(calls[1].path, `${routes.copyProduction}?environment=development`);
+  assert.equal(calls[1].path, `${routes.resetProduction}?environment=development`);
   assert.equal(calls[1].options.method, "POST");
   assert.deepEqual(JSON.parse(calls[1].options.body), { revision: 3 });
-  finish(Response.json({ ...inventory(), revision: 4, added: 3, duplicates: 0 }));
-  await copying;
-  assert.equal(fields.get("#nodes").children.length, 3);
+  const result = { ...inventory(), revision: 4, nodes: inventory().nodes.slice(0, 2) };
+  finish(Response.json(result));
+  await resetting;
+  assert.equal(fields.get("#nodes").children.length, 2);
+  assert.deepEqual(JSON.parse(fields.get("#inventory").value), result.nodes.map(({ id, line, enabled }) => ({ id, line, enabled })));
   assert.equal(fields.get("#import").value, "unsaved pasted text");
-  assert.match(fields.get(".status").textContent, /已复制 3 条节点/);
-  assert.equal(fields.get("#copy-production").disabled, false);
+  assert.equal(fields.get("#import-notes").children.length, 0);
+  assert.match(fields.get(".status").textContent, /已重置为生产节点，共 2 条/);
+  assert.equal(fields.get("#reset-production").disabled, false);
   assert.deepEqual(events, ["atlasrouter:inventory"]);
-  assert.equal(calls.length, 2, "copying must not require a second save request");
+  assert.equal(calls.length, 2, "resetting must not require a second save request");
 });
 
-test("copying preserves unsaved edits and failed requests never replace the editor", async () => {
-  const { fields, calls, events } = await portal(() => new Response("Inventory changed; reload before copying", { status: 409 }), { nativeDevelopment: true });
+test("failed resets preserve the editor and do not refresh account state", async () => {
+  const { fields, calls, events } = await portal(() => new Response("Inventory changed; reload before resetting", { status: 409 }), { nativeDevelopment: true });
   const draft = '[{"id":"draft","line":"test = direct","enabled":true}]';
   fields.get("#inventory").value = draft;
-  await fields.get("#copy-production").onclick();
-  assert.equal(calls.length, 1);
-  assert.equal(fields.get("#inventory").value, draft);
-  assert.match(fields.get(".status").textContent, /请先保存/);
-  fields.get("#inventory").value = "[]";
-  await fields.get("#copy-production").onclick();
+  await fields.get("#reset-production").onclick();
   assert.equal(calls.length, 2);
-  assert.equal(fields.get("#inventory").value, "[]");
+  assert.equal(fields.get("#inventory").value, draft);
   assert.match(fields.get(".status").textContent, /Inventory changed/);
-  assert.equal(fields.get("#copy-production").disabled, false);
+  assert.equal(fields.get("#reset-production").disabled, false);
   assert.deepEqual(events, []);
+});
+
+test("resetting from an empty production pool clears the editor with an explicit message", async () => {
+  const { fields, events } = await portal(() => Response.json({ nodes: [], users: [], revision: 4 }), {
+    nativeDevelopment: true, initialState: inventory(),
+  });
+  await fields.get("#reset-production").onclick();
+  assert.equal(fields.get("#inventory").value, "[]");
+  assert.match(fields.get(".status").textContent, /生产节点池为空，开发节点池已清空/);
+  assert.deepEqual(events, ["atlasrouter:inventory"]);
 });
 
 function inventory() {

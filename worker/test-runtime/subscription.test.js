@@ -17,7 +17,7 @@ import {
 
 const ADMIN_API_SLUG = "0123456789abcdef0123456789abcdef";
 const { state: POOL_STATE_PATH, nodes: POOL_NODES_PATH, users: POOL_USERS_PATH, import: POOL_IMPORT_PATH,
-  copyProduction: POOL_COPY_PATH } = getAdminRoutes({ ADMIN_API_SLUG });
+  resetProduction: POOL_RESET_PATH } = getAdminRoutes({ ADMIN_API_SLUG });
 const ORIGIN = "https://atlas.example";
 
 const WECHAT_URL = "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list";
@@ -116,7 +116,7 @@ async function account(mf, subject = "alice", claims) {
   return json(await request(mf, ACCOUNT_PROFILE_PATH, { subject, claims }));
 }
 
-test("one-click production node copying activates an existing development subscription without copying identities", async (t) => {
+test("explicit resets replace development nodes from production without syncing users or subsequent edits", async (t) => {
   const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
     { ...common, name: "production", d1Databases: { DB: "production", DEV_DB: "development" },
@@ -131,21 +131,21 @@ test("one-click production node copying activates an existing development subscr
   await applyMigrations(prodDb);
   await applyMigrations(devDb);
   const preview = await mf.getWorker("development");
-  await save(mf, [...nodes(2), { id: "disabled", enabled: false,
-    line: "🇭🇰 Disabled IDC = trojan, disabled.example.com, 443, password=TEST_ONLY" }]);
+  const source = [...nodes(2), { id: "disabled", enabled: false,
+    line: "🇭🇰 Disabled IDC = trojan, disabled.example.com, 443, password=TEST_ONLY" }];
+  const definitions = (nodes) => nodes.map(({ line, enabled }) => ({ line, enabled }));
+  await save(mf, source);
   const production = await account(mf, "alice");
   const dev = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "bob" }));
   assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 503);
   const before = await readSubscriptionState({ DB: prodDb });
-  const copied = await json(await request(mf, `${POOL_COPY_PATH}?environment=development`, {
+  const reset = await json(await request(mf, `${POOL_RESET_PATH}?environment=development`, {
     subject: "admin", method: "POST", body: { revision: 0 },
   }));
-  assert.equal(copied.added, 3);
-  assert.equal(copied.duplicates, 0);
-  assert.deepEqual(copied.users.map((user) => user.email), ["bob@example.com"]);
-  assert.equal(copied.users[0].status, "active");
-  assert.equal(copied.nodes[2].enabled, false);
-  assert.ok(copied.nodes.every((node) => !before.state.nodes.some((source) => source.id === node.id)));
+  assert.deepEqual(definitions(reset.nodes), definitions(source));
+  assert.deepEqual(reset.users.map((user) => user.email), ["bob@example.com"]);
+  assert.equal(reset.users[0].status, "active");
+  assert.ok(reset.nodes.every((node) => !before.state.nodes.some((source) => source.id === node.id)));
   assert.deepEqual(await readSubscriptionState({ DB: prodDb }), before);
   const current = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "bob" }));
   assert.equal(current.subscriptionUrl, dev.subscriptionUrl);
@@ -157,13 +157,50 @@ test("one-click production node copying activates an existing development subscr
   const wrongToken = new URL(dev.subscriptionUrl);
   wrongToken.searchParams.set("token", productionUrl.searchParams.get("token"));
   assert.equal((await preview.fetch(wrongToken.toString())).status, 401);
-  const after = await readSubscriptionState({ DB: devDb });
-  const repeated = await json(await request(mf, `${POOL_COPY_PATH}?environment=development`, {
-    subject: "admin", method: "POST", body: { revision: copied.revision },
+
+  // Manual development edits remain local until the next explicit reset.
+  const edited = [...reset.nodes].reverse().map((node) => ({ ...node, enabled: !node.enabled }));
+  const draft = [...edited, ...nodes(1, "WARP", "🇸🇬")];
+  const saved = await json(await request(mf, `${POOL_NODES_PATH}?environment=development`, {
+    subject: "admin", method: "PUT", body: { revision: reset.revision, nodes: draft },
   }));
-  assert.equal(repeated.added, 0);
-  assert.equal(repeated.duplicates, 3);
-  assert.deepEqual(await readSubscriptionState({ DB: devDb }), after);
+  const devBeforeReset = await readSubscriptionState({ DB: devDb });
+  const changedSource = [
+    { ...source[1], line: source[1].line.replace("node-2.example.com", "updated.example.com"), enabled: false },
+    { ...source[2], enabled: true },
+    { ...source[2], id: "alias", line: source[2].line.replace("Disabled IDC", "Alias IDC"), enabled: true },
+  ];
+  await save(mf, changedSource, 1);
+  const productionBeforeReset = await readSubscriptionState({ DB: prodDb });
+  assert.deepEqual(productionBeforeReset.state.users, before.state.users);
+  await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "bob" }));
+  await json(await request(mf, `${POOL_STATE_PATH}?environment=development`, { subject: "admin" }));
+  assert.equal((await request(mf, "/?environment=development", { subject: "admin" })).status, 200);
+  assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 200);
+  assert.deepEqual(await readSubscriptionState({ DB: devDb }), devBeforeReset, "production edits and page reads must never sync nodes");
+  const replaced = await json(await request(mf, `${POOL_RESET_PATH}?environment=development`, {
+    subject: "admin", method: "POST", body: { revision: saved.revision },
+  }));
+  assert.deepEqual(definitions(replaced.nodes), definitions(changedSource));
+  assert.ok(replaced.nodes.every((node) => !devBeforeReset.state.nodes.some((old) => old.id === node.id)));
+  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), productionBeforeReset);
+  assert.deepEqual((await readSubscriptionState({ DB: devDb })).state.users, devBeforeReset.state.users);
+  assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 200);
+  assert.equal((await preview.fetch(`${dev.subscriptionUrl}&client=clash`)).status, 200);
+
+  // An empty production snapshot is also an exact replacement, with no stale allocations.
+  await save(mf, [], 2);
+  const emptyProduction = await readSubscriptionState({ DB: prodDb });
+  const cleared = await json(await request(mf, `${POOL_RESET_PATH}?environment=development`, {
+    subject: "admin", method: "POST", body: { revision: replaced.revision },
+  }));
+  assert.deepEqual(cleared.nodes, []);
+  assert.equal(cleared.users[0].status, "pending");
+  const emptyDev = await readSubscriptionState({ DB: devDb });
+  assert.deepEqual(emptyDev.rows.assignments, []);
+  assert.deepEqual(emptyDev.state.users, devBeforeReset.state.users);
+  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), emptyProduction);
+  assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 503);
 });
 
 test("native preview consumes links from the production UI with separate D1 data and no preview UI", async (t) => {
