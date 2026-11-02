@@ -576,6 +576,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
         assert.deepEqual(config.dns["nameserver-policy"], {
           "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
+          "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
           [`rule-set:${DIRECT_RULE_ID}`]: doh === "1"
             ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
             : ["223.5.5.5", "119.29.29.29"],
@@ -632,7 +633,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
         assert.ok(text.split("\n").includes("DoH Proxy = smart, 🇭🇰 Example - IDC 1, hidden=true"));
-        assert.deepEqual(text.match(/^PROTOCOL,DOH,.*$/gm), ["PROTOCOL,DOH,DoH Proxy"]);
+        assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
         assert.ok(text.split("\n").includes(`DOMAIN-SET:${DIRECT_URL} = server:${directDns}`));
@@ -640,7 +641,10 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         for (const hostname of ["dns.alidns.com", "doh.pub"]) {
           const rule = `DOMAIN,${hostname},DIRECT\n`;
           assert.ok(text.includes(rule));
-          assert.ok(text.indexOf(rule) < text.indexOf("PROTOCOL,DOH,DoH Proxy"));
+          const hosts = text.split("[Host]\n")[1].split("[Proxy]\n")[0];
+          const mapping = `${hostname} = server:223.5.5.5, 119.29.29.29`;
+          assert.ok(hosts.split("\n").includes(mapping));
+          assert.ok(hosts.indexOf(mapping) < hosts.indexOf(`DOMAIN-SET:${DIRECT_URL}`));
         }
         assert.deepEqual(text.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
         const managed = new URL(text.match(/^#!MANAGED-CONFIG (\S+)/)[1]);

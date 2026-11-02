@@ -50,16 +50,21 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
     assert.ok(config.split("\n").includes("DoH Proxy = smart, 🇭🇰 HK IDC, hidden=true"));
-    assert.deepEqual(config.match(/^PROTOCOL,DOH,.*$/gm), ["PROTOCOL,DOH,DoH Proxy"]);
+    assert.doesNotMatch(config, /^PROTOCOL,DOH,/m);
+    const hosts = config.split("[Host]\n")[1].split("[Proxy]\n")[0];
+    for (const hostname of ["dns.alidns.com", "doh.pub"]) {
+      const mapping = `${hostname} = server:223.5.5.5, 119.29.29.29`;
+      assert.ok(hosts.split("\n").includes(mapping));
+      assert.ok(hosts.indexOf(mapping) < hosts.indexOf(`DOMAIN-SET:${directUrl}`));
+    }
     for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
       const directRule = `DOMAIN,${hostname},DIRECT`;
       assert.ok(config.indexOf(directRule) >= 0);
-      assert.ok(config.indexOf(directRule) < config.indexOf("PROTOCOL,DOH,DoH Proxy"));
+      assert.ok(config.indexOf(directRule) < config.indexOf("DOMAIN,dns.alidns.com,DIRECT"));
     }
     for (const [hostname, policy] of [["cloudflare-dns.com", "DoH Proxy"], ["dns.google", "DoH Proxy"], ["dns.alidns.com", "DIRECT"], ["doh.pub", "DIRECT"]]) {
       const rule = `DOMAIN,${hostname},${policy}`;
       assert.ok(config.includes(rule));
-      assert.equal(config.indexOf(rule) < config.indexOf("PROTOCOL,DOH,DoH Proxy"), policy === "DIRECT");
       assert.ok(config.indexOf(rule) < config.indexOf("RULE-SET,https://"));
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
@@ -132,6 +137,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
     assert.deepEqual(config.dns["nameserver-policy"], {
       "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
+      "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
       [`rule-set:${directSource.id}`]: doh
         ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
         : ["223.5.5.5", "119.29.29.29"],
@@ -212,7 +218,7 @@ test("subscriptions without IDC nodes reject foreign DoH while retaining domesti
   for (const doh of [false, true]) {
     const source = renderSurgeProfile({ ...input, groups, nodes: groups.flatMap((group) => group.nodes), options: { doh } });
     assert.doesNotMatch(source, /^DoH Proxy =/m);
-    assert.match(source, /^PROTOCOL,DOH,REJECT$/m);
+    assert.doesNotMatch(source, /^PROTOCOL,DOH,/m);
     assert.match(source, /^FINAL,Proxy,dns-failed$/m);
     const { config } = await convertSurgeToClash(source, context);
     assert.ok(!config["proxy-groups"].some(({ name }) => name === "DoH Proxy"));

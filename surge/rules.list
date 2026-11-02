@@ -2,11 +2,9 @@
 DOMAIN,atlasrouter.zslab.ai,DIRECT
 DOMAIN,develop.atlasrouter.zslab.ai,DIRECT
 
-# Domestic DoH must match before the general DoH proxy rule.
+# Route DoH upstreams by hostname in both Surge and Clash.
 DOMAIN,dns.alidns.com,DIRECT
 DOMAIN,doh.pub,DIRECT
-PROTOCOL,DOH,DoH Proxy
-# Hostname rules retain DoH routing in Clash, which omits Surge PROTOCOL rules.
 DOMAIN,cloudflare-dns.com,DoH Proxy
 DOMAIN,dns.google,DoH Proxy
 
