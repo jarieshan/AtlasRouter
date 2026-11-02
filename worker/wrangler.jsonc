@@ -40,7 +40,8 @@
     "vars": {
       "UI_ENABLED": "false",
       "SUBSCRIPTION_PATH": "/AtlasRouter-Dev",
-      "SMART_PRIORITY_SCHEME": "geometric-10"
+      "SMART_PRIORITY_SCHEME": "geometric-10",
+      "SHOW_ALL_PROXY_GROUPS": "true"
     },
     "d1_databases": [
       {

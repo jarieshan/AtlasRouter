@@ -14,7 +14,7 @@ const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
 const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
 const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
-export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme }) {
+export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false }) {
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
@@ -34,7 +34,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=[ \t]*(.*)$/m, (_, value) => `skip-proxy = ${appendTencentOaSkipProxy(value)}`);
     return heading + general;
   });
-  return applyRuleSetVisibility(replaceTemplate(template, replacements));
+  return applyRuleSetVisibility(replaceTemplate(template, replacements), { showAllGroups });
 }
 
 function renderPoolTemplate(groups, smartPriorityScheme, idcNames) {

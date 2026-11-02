@@ -12,6 +12,7 @@
 | `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` | `/AtlasRouter-Dev` |
 | `DEV_SUBSCRIPTION_ORIGIN`（变量） | 开发预览的固定 HTTPS origin | 不需要 |
 | `SMART_PRIORITY_SCHEME`（变量） | 不读取，不启用权重实验 | develop 源码使用 `geometric-10`：1、10、100、1000… |
+| `SHOW_ALL_PROXY_GROUPS`（变量） | 不启用，使用模板中的可见性设置 | `true`，统一移除所有策略组的隐藏属性，Surge / Clash 全部可见 |
 
 `geometric-10` 按每位用户的主节点、备用节点顺序赋权；受安全整数校验限制，单组最多 16 个节点，最后一个系数为 `10^15`，超过后订阅生成会报错。
 

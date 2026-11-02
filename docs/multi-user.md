@@ -76,11 +76,11 @@ VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、�
 
 `AIProxy`、`GlobalMedia`、`X` 的选项统一按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组。`AppleProxy` 按 `Proxy` → ISP → WARP → IDC → `DIRECT` 排列，默认选择 `Proxy`。`Proxy` 自身按 ISP → WARP → IDC → `Auto` → `DIRECT` 排列，默认选择首个可用的 ISP 组。地区/IP 类型选项先按 IP 类型排序，同一类型内按美国 → 香港 → 新加坡 → 日本 → 其他地区排列，其他地区按两位地区代码的字母升序排列。只列出当前可用组，缺少某类节点时跳过。所有可选策略组均不提供 `REJECT` 选项。这里的“可用组”指有启用节点并生成到订阅中的组，不代表客户端已测速通过；`select` 不会因当前地区组失效而自动切换到下一个地区组。
 
-`WeChat` 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连，并接收 WeChat 规则集的流量。`Telegram` 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组。这两个策略组均可见。Apple 分组按 `iCloud` → `AppleDirect` → `AppleProxy` 定义：iCloud 可见，先列 `DIRECT`，然后按 IDC → WARP → ISP 列出可用组；AppleProxy、AppleDirect 隐藏，AppleDirect 仅保留 `DIRECT`，固定直连。模板规则行中的 `hidden=true` 由 Worker 转换为对应策略组的隐藏属性，规则继续参与分流。同一 IP 类型内均使用上述地区顺序。`💎 Select` 已移除。
+`WeChat` 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连，并接收 WeChat 规则集的流量。`Telegram` 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组。这两个策略组均可见。Apple 分组按 `iCloud` → `AppleDirect` → `AppleProxy` 定义：iCloud 可见，先列 `DIRECT`，然后按 IDC → WARP → ISP 列出可用组；生产环境中 AppleProxy、AppleDirect 隐藏，Dev 全部可见；AppleDirect 仅保留 `DIRECT`，固定直连。模板规则行中的 `hidden=true` 由 Worker 转换为对应策略组的隐藏属性，规则继续参与分流。同一 IP 类型内均使用上述地区顺序。`💎 Select` 已移除。
 
 `YouTube` 使用可见的独立策略组和品牌 Logo，选项按 WARP → IDC → ISP 排列，缺少某类节点时跳过，只列出当前可用的地区/IP 类型组。YouTube 规则在 Google、GlobalMedia 之前匹配，使用 MagicRule 的原生 Surge / Mihomo 完整规则。
 
-地区组定义按地区、IP 类型顺序输出。master 设置 `hidden=true`，仅隐藏客户端主面板中的独立分组；develop 的 Dev 订阅不隐藏 ISP、IDC、WARP 地区组，更新订阅后可直接展开查看组内节点。两者均保留其他策略中的地区组选项，账户网页和管理员页面继续展示节点分配。各组内部的主节点与备用顺序不受影响。Surge 的 [`select` 组](https://manual.nssurge.com/policy-groups/select.html)会保存已有选择，更新订阅不会强制重置已选策略。iCloud 的 DIRECT → IDC → WARP → ISP 是手动选项顺序，组内节点由 Surge / Clash 的同顺序 fallback 选择。
+地区组定义按地区、IP 类型顺序输出。master 设置 `hidden=true`，仅隐藏客户端主面板中的独立分组；develop 的 Dev 订阅通过 `SHOW_ALL_PROXY_GROUPS=true` 统一显示所有策略组，覆盖模板和规则中的隐藏设置；更新订阅后可展开查看各组节点。两者均保留其他策略中的地区组选项，账户网页和管理员页面继续展示节点分配。各组内部的主节点与备用顺序不受影响。Surge 的 [`select` 组](https://manual.nssurge.com/policy-groups/select.html)会保存已有选择，更新订阅不会强制重置已选策略。iCloud 的 DIRECT → IDC → WARP → ISP 是手动选项顺序，组内节点由 Surge / Clash 的同顺序 fallback 选择。
 
 `[Proxy]` 中的节点行也先按上述国家/地区顺序、再按 ISP → WARP → IDC 输出；同一地区、同一 IP 类型的节点保持原有相对顺序，不改变策略组的主备关系。
 

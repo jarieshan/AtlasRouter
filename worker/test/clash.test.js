@@ -250,7 +250,7 @@ test("Clash rejects foreign DoH if all IDC nodes are unsupported and retains any
   }
 });
 
-test("native production and Preview profiles differ only in addresses, tokens and Surge priority factors", async () => {
+test("native production and Preview profiles differ only in addresses, tokens, visibility and Surge priority factors", async () => {
   // Compare the current source under both deployments, not the historical master branch.
   const deployment = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   const environments = [
@@ -259,23 +259,30 @@ test("native production and Preview profiles differ only in addresses, tokens an
   ];
   assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME ?? "linear", "linear");
   assert.equal(environments[1].vars.SMART_PRIORITY_SCHEME, "geometric-10");
+  assert.equal(environments[0].vars.SHOW_ALL_PROXY_GROUPS, undefined);
+  assert.equal(environments[1].vars.SHOW_ALL_PROXY_GROUPS, "true");
   const input = profile();
   for (const doh of [false, true]) for (const tencentOa of [false, true]) {
     const rendered = [];
     for (const { vars, origin, token } of environments) {
       const requestUrl = `${origin}${vars.SUBSCRIPTION_PATH}`;
       const options = { doh, tencentOa };
-      const source = renderSurgeProfile({ ...input, requestUrl, token, options, smartPriorityScheme: vars.SMART_PRIORITY_SCHEME });
+      const showAllGroups = vars.SHOW_ALL_PROXY_GROUPS === "true";
+      const source = renderSurgeProfile({ ...input, requestUrl, token, options, smartPriorityScheme: vars.SMART_PRIORITY_SCHEME, showAllGroups });
       const normalizeAddress = (text) => text.replaceAll(requestUrl, "https://profile.example/SUBSCRIPTION").replaceAll(token, "TEST_TOKEN");
       assert.equal(source.match(/^#!MANAGED-CONFIG (\S+)/)[1], buildSubscriptionUrl(requestUrl, token, options));
       assert.match(source, /^block-quic = all-proxy$/m);
       assert.match(source, /^FINAL,Proxy,dns-failed$/m);
-      const result = { surge: normalizeAddress(source).replace(/policy-priority="(?:\\.|[^"\\])*"/g, 'policy-priority="CHECKED_SEPARATELY"') };
+      const groupSection = source.split("[Proxy Group]\n")[1].split("[Rule]\n")[0];
+      assert.equal(/hidden\s*=/i.test(groupSection), !showAllGroups);
+      const result = { surge: normalizeAddress(source).replace(/policy-priority="(?:\\.|[^"\\])*"/g, 'policy-priority="CHECKED_SEPARATELY"').replace(/, hidden=true$/gm, "") };
       if (!tencentOa) {
         const { config, warnings } = await convertSurgeToClash(source, { requestUrl, token });
         assert.equal(config["x-clash-block-quic"], "all-proxy");
         assert.equal(config.rules.at(-1), "MATCH,Proxy");
         assert.ok(config.proxies.filter(({ type }) => ["vmess", "trojan"].includes(type)).every(({ udp }) => udp === true));
+        assert.equal(config["proxy-groups"].some((group) => group.hidden === true), !showAllGroups);
+        for (const group of config["proxy-groups"]) delete group.hidden;
         result.clash = normalizeAddress(JSON.stringify(config));
         result.warnings = warnings;
       }

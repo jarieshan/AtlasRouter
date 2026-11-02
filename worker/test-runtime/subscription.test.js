@@ -227,7 +227,7 @@ test("native preview consumes links from the production UI with separate D1 data
   const production = await account(mf);
   const before = await readSubscriptionState({ DB: prodDb });
   await json(await request(mf, `${POOL_NODES_PATH}?environment=development`, { subject: "admin", method: "PUT",
-    body: { revision: 0, nodes: nodes(5, "WARP") } }));
+    body: { revision: 0, nodes: [...nodes(5, "WARP"), ...nodes(1, "IDC", "🇭🇰")] } }));
   const dev = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "alice" }));
   const url = new URL(dev.subscriptionUrl);
   assert.equal(url.origin, devOrigin);
@@ -238,11 +238,15 @@ test("native preview consumes links from the production UI with separate D1 data
   const surge = await response.text();
   orderedSmartMembers(surge, "🇺🇸USA-WARP", [1, 10, 100, 1000, 10000]);
   assert.doesNotMatch(surge, /Example - ISP/);
+  assert.ok(surge.split("\n").includes("DoH Proxy = smart, 🇭🇰 Example - IDC 1"));
+  assert.doesNotMatch(surge.split("[Proxy Group]\n")[1].split("[Rule]\n")[0], /hidden\s*=/i);
   const moduleUrl = surge.match(/https:\/\/develop\.atlas\.example\/AtlasRouter-Dev\/modules\/[^\s]+/)[0];
   assert.equal((await preview.fetch(moduleUrl)).status, 200);
   const clashResponse = await preview.fetch(`${dev.subscriptionUrl}&client=clash`);
   assert.equal(clashResponse.status, 200);
   const clash = parseYaml(await clashResponse.text());
+  assert.ok(clash["proxy-groups"].every((group) => group.hidden === undefined));
+  assert.deepEqual(clash["proxy-groups"].find(({ name }) => name === "DoH Proxy").proxies, ["🇭🇰 Example - IDC 1"]);
   assert.ok(Object.values(clash["rule-providers"]).every(({ url }) => url.startsWith(`${devOrigin}/AtlasRouter-Dev/rules/`)));
   assert.equal((await preview.fetch(`${devOrigin}/`)).status, 404);
   assert.equal((await preview.fetch(`${devOrigin}/missing`)).status, 404);

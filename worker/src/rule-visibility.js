@@ -1,7 +1,7 @@
 import { splitSurgeList, surgeAssignment, surgeBoolean, surgeValue } from "./surge-format.js";
 
 // Rule-set visibility is an AtlasRouter shorthand for the target group's visibility.
-export function applyRuleSetVisibility(profile) {
+export function applyRuleSetVisibility(profile, { showAllGroups = false } = {}) {
   const visibility = new Map();
   let section = "";
   const lines = profile.split("\n").map((line) => {
@@ -18,7 +18,7 @@ export function applyRuleSetVisibility(profile) {
     visibility.set(policy, hidden);
     return parts.filter((part, index) => index < 3 || !/^hidden\s*=/i.test(part)).join(",");
   });
-  if (!visibility.size) return profile;
+  if (!visibility.size && !showAllGroups) return profile;
   const remaining = new Set(visibility.keys());
   section = "";
   const result = lines.map((line) => {
@@ -27,9 +27,9 @@ export function applyRuleSetVisibility(profile) {
     if (section !== "proxy group" || /^\s*(?:[#;]|\/\/)/.test(line) || !line.includes("=")) return line;
     const [name, value] = surgeAssignment(line);
     const policy = surgeValue(name);
-    if (!visibility.has(policy)) return line;
+    if (!visibility.has(policy) && !showAllGroups) return line;
     const parts = splitSurgeList(value).filter((part, index) => index === 0 || !/^hidden\s*=/i.test(part));
-    if (visibility.get(policy)) parts.push("hidden=true");
+    if (!showAllGroups && visibility.get(policy)) parts.push("hidden=true");
     remaining.delete(policy);
     return `${name} = ${parts.join(", ")}`;
   });

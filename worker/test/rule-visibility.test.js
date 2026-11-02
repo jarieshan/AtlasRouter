@@ -35,6 +35,25 @@ test("explicit false restores group visibility without a default flag and respec
   assert.equal(applyRuleSetVisibility(normalized), normalized);
 });
 
+test("show-all override exposes every group without changing nodes, policies or rules", async () => {
+  for (const rules of ["RULE-SET,https://example.com/rules.list,Group,no-resolve,hidden=true", "DOMAIN,example.com,Group"]) {
+    const source = profile(rules, "true").replace("[Rule]\n", "Future Group = smart, node, HIDDEN = true\n[Rule]\n");
+    const normalized = applyRuleSetVisibility(source, { showAllGroups: true });
+    assert.equal(normalized.split("[Proxy Group]")[0], source.split("[Proxy Group]")[0]);
+    const groupSection = normalized.split("[Proxy Group]\n")[1].split("[Rule]\n")[0];
+    assert.doesNotMatch(groupSection, /hidden\s*=/i);
+    assert.match(normalized, /^Future Group = smart, node$/m);
+    assert.equal(applyRuleSetVisibility(normalized, { showAllGroups: true }), normalized);
+    const context = { requestUrl: "https://atlas.example/AtlasRouter", token: "TEST_ONLY" };
+    const { config } = await convertSurgeToClash(normalized, context);
+    const { config: baseline } = await convertSurgeToClash(source, context);
+    assert.ok(config["proxy-groups"].every((group) => group.hidden === undefined));
+    for (const group of baseline["proxy-groups"]) delete group.hidden;
+    assert.deepEqual(config, baseline);
+    assert.equal(applyRuleSetVisibility(source, { showAllGroups: false }), applyRuleSetVisibility(source));
+  }
+});
+
 test("ambiguous, invalid or untargetable visibility annotations are rejected", () => {
   for (const rules of [
     "RULE-SET,https://example.com/rules.list,Group,hidden=true,hidden=false",
@@ -42,7 +61,7 @@ test("ambiguous, invalid or untargetable visibility annotations are rejected", (
     "RULE-SET,https://example.com/rules.list,Group,hidden=invalid",
     "RULE-SET,https://example.com/rules.list,DIRECT,hidden=true",
     "RULE-SET,https://example.com/rules.list,Missing,hidden=true",
-  ]) assert.throws(() => applyRuleSetVisibility(profile(rules)));
+  ]) for (const showAllGroups of [false, true]) assert.throws(() => applyRuleSetVisibility(profile(rules), { showAllGroups }));
   const source = profile("# RULE-SET,https://example.com/rules.list,Group,hidden=true\nDOMAIN,example.com,Group");
   assert.equal(applyRuleSetVisibility(source), source);
 });

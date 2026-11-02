@@ -29,6 +29,7 @@ Dev 按钮切换整个管理页面的数据环境，节点清单、个人订阅�
 | `DEV_DB` | 测试 D1，仅用于生产 UI 管理 | 无 |
 | `DEV_SUBSCRIPTION_ORIGIN` | 开发预览的固定 HTTPS origin | 无 |
 | 地区组策略 | master 固定顺序 fallback | develop 使用 Smart，`geometric-10` |
+| 策略组可见性 | 按模板设置 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见 |
 
 `DEV_SUBSCRIPTION_ORIGIN` 只能包含 HTTPS origin，不能带凭据、路径、查询或片段。开发配置缺失时，开发页面和 API 返回 503，不回退到生产库。生产 UI 的管理员身份继续由生产 Access 配置与 `ADMIN_EMAILS` 决定。独立 D1 隔离用户、Token、节点和分配；测试库的账号与节点表必须保持与生产管理页面兼容，订阅转换实现可以独立变化。修改测试库结构时需审查这一管理接口的兼容性。
 
