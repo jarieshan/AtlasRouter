@@ -1,6 +1,6 @@
 import { stringify } from "yaml";
 import { convertClashNode } from "./clash-nodes.js";
-import { convertClashRules } from "./clash-rules.js";
+import { convertClashRules, ruleSource } from "./clash-rules.js";
 import { HttpError } from "./errors.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority, positiveInteger, splitSurgeList, surgeAssignment, surgeBoolean, surgeOptions, surgeSections } from "./surge-format.js";
@@ -15,8 +15,6 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
     catch { warn(`General entry ${index + 1}: invalid setting omitted`); }
   }
   const config = convertGeneral(general, warn);
-  const hostDns = convertHostDns(sections.get("host") ?? [], warn);
-  if (Object.keys(hostDns).length) config.dns["nameserver-policy"] = hostDns;
   const proxies = [];
   for (const [index, line] of (sections.get("proxy") ?? []).entries()) {
     try {
@@ -29,6 +27,8 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const groups = convertGroups(sections.get("proxy group") ?? [], proxies, general, warn);
   const policies = new Set(["DIRECT", "REJECT", ...proxies.map(({ name }) => name), ...groups.map(({ name }) => name)]);
   const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn);
+  const hostDns = await convertHostDns(sections.get("host") ?? [], providers, general, warn);
+  if (Object.keys(hostDns).length) config.dns["nameserver-policy"] = hostDns;
   for (const name of sections.keys()) {
     if (!["general", "host", "proxy", "proxy group", "rule"].includes(name)) {
       // Section names are syntax labels, never include section contents in diagnostics.
@@ -103,17 +103,29 @@ function convertGeneral(general, warn) {
   return config;
 }
 
-function convertHostDns(lines, warn) {
+async function convertHostDns(lines, providers, general, warn) {
   const policies = Object.create(null);
   for (const [index, line] of lines.entries()) {
     try {
       const [name, value] = surgeAssignment(line);
-      if (!/^(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*$/i.test(name) || !value.startsWith("server:")) throw new Error();
-      const servers = splitSurgeList(value.slice(7));
-      if (servers.some((server) => !/^(?:\d{1,3}\.){3}\d{1,3}$/.test(server)
-        || server.split(".").some((part) => Number(part) > 255))) throw new Error();
-      // Surge *.example.com includes all subdomain levels, unlike Mihomo's *.
-      const pattern = name.toLowerCase().replace(/^\*\./, ".");
+      if (!value.startsWith("server:")) throw new Error();
+      const servers = splitSurgeList(value.slice(7)).map((server) => {
+        if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(server)
+          && server.split(".").every((part) => Number(part) <= 255)) return server;
+        const url = new URL(server);
+        if (url.protocol !== "https:" || url.username || url.password || url.hash) throw new Error();
+        return url.toString() + (surgeBoolean(general.get("encrypted-dns-follow-outbound-mode") ?? "false") ? "#RULES" : "");
+      });
+      let pattern;
+      if (name.startsWith("DOMAIN-SET:")) {
+        const source = await ruleSource(["DOMAIN-SET", name.slice("DOMAIN-SET:".length)]);
+        if (!source || !Object.hasOwn(providers, source.id)) throw new Error();
+        pattern = `rule-set:${source.id}`;
+      } else {
+        if (!/^(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*$/i.test(name)) throw new Error();
+        // Surge *.example.com includes all subdomain levels, unlike Mihomo's *.
+        pattern = name.toLowerCase().replace(/^\*\./, ".");
+      }
       policies[pattern] ??= servers;
     } catch { warn(`Host entry ${index + 1}: unsupported DNS mapping omitted`); }
   }

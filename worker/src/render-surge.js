@@ -21,6 +21,9 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
     RULE_LINES: renderPoolRules(ASSETS.rules, groups),
+    DIRECT_DNS_SERVERS: (options.doh
+      ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
+      : ["223.5.5.5", "119.29.29.29"]).join(", "),
     ...Object.fromEntries(Object.keys(ASSETS.magicRules).map((name) => [
       `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl, token),
     ])),

@@ -13,6 +13,7 @@ import { orderedSmartPriority, splitSurgeList, surgeAssignment, surgeOptions } f
 
 const context = { requestUrl: "https://atlas.example/AtlasRouter", token: `ar_${"a".repeat(64)}` };
 const wechatUrl = "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list";
+const directUrl = "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt";
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
 const vmess = `vmess, vmess.example.com, 443, username=${uuid}, vmess-aead=true, tls=true`;
@@ -42,6 +43,8 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   assert.deepEqual(plain.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.match(encrypted, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
   assert.match(encrypted, /^encrypted-dns-follow-outbound-mode = true$/m);
+  assert.ok(plain.split("\n").includes(`DOMAIN-SET:${directUrl} = server:223.5.5.5, 119.29.29.29`));
+  assert.ok(encrypted.split("\n").includes(`DOMAIN-SET:${directUrl} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query`));
   for (const config of [plain, encrypted]) {
     assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${iconBase}Auto.png`));
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
@@ -52,7 +55,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(directRule) >= 0);
       assert.ok(config.indexOf(directRule) < config.indexOf("PROTOCOL,DOH,Auto"));
     }
-    for (const hostname of ["cloudflare-dns.com", "dns.google"]) {
+    for (const hostname of ["cloudflare-dns.com", "dns.google", "dns.alidns.com", "doh.pub"]) {
       const rule = `DOMAIN,${hostname},Auto`;
       assert.ok(config.includes(rule));
       assert.ok(config.indexOf("PROTOCOL,DOH,Auto") < config.indexOf(rule));
@@ -69,7 +72,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
 test("Clash output is derived from the rendered Surge profile and retains sorting, allocation and rules", async () => {
   const input = profile();
   const wechatSource = await ruleSource(["RULE-SET", wechatUrl]);
-  const directSource = await ruleSource(["DOMAIN-SET", "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt"]);
+  const directSource = await ruleSource(["DOMAIN-SET", directUrl]);
   assert.deepEqual(await findClashRuleSource(`${wechatSource.id}.txt`), wechatSource);
   for (const doh of [false, true]) {
     const surge = renderSurgeProfile({ ...input, options: { doh } });
@@ -126,7 +129,12 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.dns.nameserver, doh ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
     // Node bootstrap must not depend on the proxy used by encrypted DNS.
     assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
-    assert.deepEqual(config.dns["nameserver-policy"], { "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"] });
+    assert.deepEqual(config.dns["nameserver-policy"], {
+      "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
+      [`rule-set:${directSource.id}`]: doh
+        ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
+        : ["223.5.5.5", "119.29.29.29"],
+    });
     const auto = config["proxy-groups"].find((group) => group.name === "Auto");
     assert.equal(auto.type, "url-test");
     assert.equal(auto.icon, `${iconBase}Auto.png`);
@@ -134,7 +142,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(auto.interval, 300);
     assert.equal(auto.tolerance, 0);
     assert.ok(!auto.hidden);
-    for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},Auto`));
+    for (const hostname of ["cloudflare-dns.com", "dns.google", "dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},Auto`));
     assert.ok(config.rules.every((rule) => !rule.startsWith("PROTOCOL,")));
     assert.match(output, /smart approximated by url-test/);
     assert.match(output, /ordered smart converted to fallback/);
@@ -207,6 +215,25 @@ test("Host UDP DNS mappings preserve suffix depth and omit unsupported values wi
   assert.deepEqual({ ...config.dns["nameserver-policy"] }, { "example.com": ["223.5.5.5", "119.29.29.29"], ".example.com": ["9.9.9.9"] });
   assert.equal(warnings.length, 2);
   assert.doesNotMatch(warnings.join("\n"), /secret\.example|NEVER_LOG_THIS|999\.1\.1\.1/);
+});
+
+test("Host DoH mappings follow the outbound setting and only reuse declared domain-set providers", async () => {
+  const source = `[Host]\nDOMAIN-SET:${directUrl} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query\nDOMAIN-SET:${directUrl} = server:8.8.8.8\nDOMAIN-SET:https://rules.example.com/unregistered.txt = server:223.5.5.5\nprivate.example = server:https://user:NEVER_LOG_THIS@dns.example.com/dns-query\nunsafe.example = server:https://dns.example.com/dns-query#skip-cert-verify\nhttp.example = server:http://dns.example.com/dns-query\n[Proxy]\nnode = ${vmess}\n[Rule]\nDOMAIN-SET,${directUrl},DIRECT\nFINAL,node\n`;
+  const directSource = await ruleSource(["DOMAIN-SET", directUrl]);
+  for (const follow of [false, true]) {
+    const { config, warnings } = await convertSurgeToClash(`[General]\nencrypted-dns-follow-outbound-mode = ${follow}\n${source}`, context);
+    const suffix = follow ? "#RULES" : "";
+    assert.deepEqual({ ...config.dns["nameserver-policy"] }, {
+      [`rule-set:${directSource.id}`]: [`https://dns.alidns.com/dns-query${suffix}`, `https://doh.pub/dns-query${suffix}`],
+    });
+    assert.deepEqual(Object.keys(config["rule-providers"]), [directSource.id]);
+    assert.equal(warnings.length, 4);
+    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS|private\.example|unregistered|skip-cert-verify/);
+  }
+  const { config, warnings } = await convertSurgeToClash(source.replace(`DOMAIN-SET,${directUrl},DIRECT\n`, ""), context);
+  assert.equal(config.dns["nameserver-policy"], undefined);
+  assert.deepEqual(Object.keys(config["rule-providers"]), []);
+  assert.equal(warnings.length, 6);
 });
 
 test("smart conversion includes only proxy nodes and retains automatic selection references", async () => {

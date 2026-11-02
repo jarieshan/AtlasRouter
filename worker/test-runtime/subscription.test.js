@@ -22,6 +22,8 @@ const ORIGIN = "https://atlas.example";
 
 const WECHAT_URL = "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list";
 const WECHAT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${WECHAT_URL}`).digest("hex").slice(0, 32)}`;
+const DIRECT_URL = "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt";
+const DIRECT_RULE_ID = `rule-${createHash("sha256").update(`DOMAIN-SET:${DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const TEAM = "https://test.cloudflareaccess.com";
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -568,13 +570,19 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(config.dns.nameserver.every((server) => server.startsWith("https://")), doh === "1");
         assert.deepEqual(config.dns.nameserver, doh === "1" ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
         assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
-        assert.deepEqual(config.dns["nameserver-policy"], { "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"] });
+        assert.deepEqual(config.dns["nameserver-policy"], {
+          "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
+          [`rule-set:${DIRECT_RULE_ID}`]: doh === "1"
+            ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
+            : ["223.5.5.5", "119.29.29.29"],
+        });
+        assert.equal(config["rule-providers"][DIRECT_RULE_ID].url, `${profile.subscriptionUrl.split("?")[0]}/rules/${DIRECT_RULE_ID}.txt${new URL(profile.subscriptionUrl).search}`);
         const auto = config["proxy-groups"].find(({ name }) => name === "Auto");
         assert.equal(auto.type, "url-test");
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
         assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Proxy").proxies, ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "Auto", "DIRECT"]);
-        for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},Auto`));
+        for (const hostname of ["cloudflare-dns.com", "dns.google", "dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},Auto`));
         assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
         assert.equal(config.rules.at(-1), "MATCH,Proxy");
         for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
@@ -616,7 +624,9 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
         assert.deepEqual(text.match(/^PROTOCOL,DOH,.*$/gm), ["PROTOCOL,DOH,Auto"]);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
-        for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(text.includes(`DOMAIN,${hostname},Auto\n`));
+        const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
+        assert.ok(text.split("\n").includes(`DOMAIN-SET:${DIRECT_URL} = server:${directDns}`));
+        for (const hostname of ["cloudflare-dns.com", "dns.google", "dns.alidns.com", "doh.pub"]) assert.ok(text.includes(`DOMAIN,${hostname},Auto\n`));
         assert.deepEqual(text.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
         const managed = new URL(text.match(/^#!MANAGED-CONFIG (\S+)/)[1]);
         assert.equal(managed.searchParams.get("doh"), doh === "1" ? "1" : null);

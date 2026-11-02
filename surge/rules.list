@@ -7,6 +7,8 @@ PROTOCOL,DOH,Auto
 # Hostname rules retain DoH routing in Clash, which omits Surge PROTOCOL rules.
 DOMAIN,cloudflare-dns.com,Auto
 DOMAIN,dns.google,Auto
+DOMAIN,dns.alidns.com,Auto
+DOMAIN,doh.pub,Auto
 
 DOMAIN-SUFFIX,longbridge.global,DIRECT
 DOMAIN-SUFFIX,ibkr.com,DIRECT

@@ -33,7 +33,7 @@ master 同一份源码在生产/Preview 参数下均不生成节点权重。真�
 | 节点传输默认值 | VMess AES-128-GCM；TLS/WS 默认关闭；TLS 校验开启；TFO 默认关闭；保留显式值 | VMess 仅转换显式 AEAD；不支持的协议、连接选项或 `sni=off` 会删去节点，并清理空组/失效规则；所有节点不可转换时返回 422 |
 | 测速参数 | 全局测试 URL 与 5 秒超时映射；fallback/url-test 省略间隔时 600 秒；url-test 默认容差 100 ms | Surge 组级 timeout 是结果延迟筛选，不能映射为 Mihomo 请求超时；节点测速覆盖、DIRECT 独立测速不等价 |
 | 调度与失败次数 | Smart 转换后的组输出间隔 300 秒 | Surge Smart 固定五分钟重测；Clash 保留 Mihomo 的 lazy 默认 true，未选中组不测。max-failed-times 默认 5 触发强制健康检查，不表示容忍五次测速失败后才切换；当前无固定失败次数/固定 IP 保证 |
-| DNS | 普通 DNS、两组 DoH、节点引导 DNS、系统 hosts、IPv6 关闭、两项 DNS 劫持目标已映射 | Clash 使用 redir-host；TUN 是否开启由客户端控制。Surge `PROTOCOL,DOH` 省略，以已知上游域名规则和 `#RULES` 近似；不能泛化为所有应用 DoH 一致 |
+| DNS | 普通 DNS、默认与直连域名集的 DoH、节点引导 DNS、系统 hosts、IPv6 关闭、两项 DNS 劫持目标已映射 | Clash 使用 redir-host；域名集 DNS 复用规则提供器；TUN 是否开启由客户端控制。Surge `PROTOCOL,DOH` 省略，以已知上游域名规则和 `#RULES` 近似；不能泛化为所有应用 DoH 一致 |
 | 规则内容 | 同名 MagicRule 列表分别获取 Surge / Mihomo 完整产物，保留引用顺序及 no-resolve | 上游两种产物不保证逐条相同；其他远程列表过滤不支持类型，如 WeChat 的 USER-AGENT。上游更新后仍可能出现覆盖差异 |
 | 专用功能 | 可映射项保留；YAML 注释列出省略或近似项 | SYSTEM、FINAL 的 dns-failed、skip-proxy、脚本、模块、MitM 等不能等价转换。Tencent OA 与 Clash 组合明确返回 400；图标/隐藏属性由面板支持决定 |
 
