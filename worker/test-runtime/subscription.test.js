@@ -238,7 +238,7 @@ test("native preview consumes links from the production UI with separate D1 data
   const surge = await response.text();
   orderedSmartMembers(surge, "🇺🇸USA-WARP", [1, 10, 100, 1000, 10000]);
   assert.doesNotMatch(surge, /Example - ISP/);
-  assert.ok(surge.split("\n").includes("DoH Proxy = smart, 🇭🇰 Example - IDC 1"));
+  assert.ok(surge.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png`));
   assert.doesNotMatch(surge.split("[Proxy Group]\n")[1].split("[Rule]\n")[0], /hidden\s*=/i);
   const moduleUrl = surge.match(/https:\/\/develop\.atlas\.example\/AtlasRouter-Dev\/modules\/[^\s]+/)[0];
   assert.equal((await preview.fetch(moduleUrl)).status, 200);
@@ -247,6 +247,7 @@ test("native preview consumes links from the production UI with separate D1 data
   const clash = parseYaml(await clashResponse.text());
   assert.ok(clash["proxy-groups"].every((group) => group.hidden === undefined));
   assert.deepEqual(clash["proxy-groups"].find(({ name }) => name === "DoH Proxy").proxies, ["🇭🇰 Example - IDC 1"]);
+  assert.equal(clash["proxy-groups"].find(({ name }) => name === "DoH Proxy").icon, `${ICON_BASE}Server.png`);
   assert.ok(Object.values(clash["rule-providers"]).every(({ url }) => url.startsWith(`${devOrigin}/AtlasRouter-Dev/rules/`)));
   assert.equal((await preview.fetch(`${devOrigin}/`)).status, 404);
   assert.equal((await preview.fetch(`${devOrigin}/missing`)).status, 404);
@@ -589,6 +590,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Proxy").proxies, ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "Auto", "DIRECT"]);
         const dohProxy = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
         assert.equal(dohProxy.type, "url-test");
+        assert.equal(dohProxy.icon, `${ICON_BASE}Server.png`);
         assert.equal(dohProxy.hidden, true);
         assert.deepEqual(dohProxy.proxies, ["🇭🇰 Example - IDC 1"]);
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
@@ -632,7 +634,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), doh === "1");
         assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
-        assert.ok(text.split("\n").includes("DoH Proxy = smart, 🇭🇰 Example - IDC 1, hidden=true"));
+        assert.ok(text.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png, hidden=true`));
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";

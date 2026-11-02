@@ -49,7 +49,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${iconBase}Auto.png`));
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
-    assert.ok(config.split("\n").includes("DoH Proxy = smart, 🇭🇰 HK IDC, hidden=true"));
+    assert.ok(config.split("\n").includes(`DoH Proxy = smart, 🇭🇰 HK IDC, icon-url=${iconBase}Server.png, hidden=true`));
     assert.doesNotMatch(config, /^PROTOCOL,DOH,/m);
     const hosts = config.split("[Host]\n")[1].split("[Proxy]\n")[0];
     for (const hostname of ["dns.alidns.com", "doh.pub"]) {
@@ -151,6 +151,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(!auto.hidden);
     const dohProxy = config["proxy-groups"].find((group) => group.name === "DoH Proxy");
     assert.equal(dohProxy.type, "url-test");
+    assert.equal(dohProxy.icon, `${iconBase}Server.png`);
     assert.equal(dohProxy.hidden, true);
     assert.deepEqual(dohProxy.proxies, ["🇭🇰 HK IDC"]);
     assert.equal(dohProxy.interval, 300);
@@ -203,7 +204,7 @@ test("hidden DoH Proxy contains only enabled IDC nodes across regions for each u
     const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), options: { doh }, smartPriorityScheme: "geometric-10" });
     const members = ["🇺🇸 US IDC", ...["🇭🇰 HK IDC 1", "🇭🇰 HK IDC 2"].slice(index), ...["🇭🇰 HK IDC 1", "🇭🇰 HK IDC 2"].slice(0, index)];
     const line = source.split("\n").find((line) => line.startsWith("DoH Proxy = "));
-    assert.deepEqual(splitSurgeList(surgeAssignment(line)[1]), ["smart", ...members, "hidden=true"]);
+    assert.deepEqual(splitSurgeList(surgeAssignment(line)[1]), ["smart", ...members, `icon-url=${iconBase}Server.png`, "hidden=true"]);
     const { config } = await convertSurgeToClash(source, context);
     const group = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
     assert.equal(group.type, "url-test");

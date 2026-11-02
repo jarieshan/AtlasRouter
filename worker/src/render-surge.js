@@ -48,7 +48,7 @@ function renderPoolTemplate(groups, smartPriorityScheme, idcNames) {
       return `${group} = smart, ${names.join(", ")}, policy-priority=${JSON.stringify(orderedSmartPriority(names, smartPriorityScheme))}`;
     }).join("\n"),
     // An empty Surge Smart group substitutes DIRECT, so omit it and reject its traffic instead.
-    DOH_PROXY_GROUP_LINE: idcNames.length ? `DoH Proxy = smart, ${idcNames.join(", ")}, hidden=true` : "",
+    DOH_PROXY_GROUP_LINE: idcNames.length ? `DoH Proxy = smart, ${idcNames.join(", ")}, icon-url=https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Server.png, hidden=true` : "",
     POOL_GROUPS: groupNamesByIpType(IP_TYPE_ORDER),
     IDC_FIRST_POOL_GROUPS: groupNamesByIpType(IDC_FIRST_IP_TYPE_ORDER),
     WARP_FIRST_POOL_GROUPS: groupNamesByIpType(WARP_FIRST_IP_TYPE_ORDER),
