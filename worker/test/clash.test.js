@@ -69,6 +69,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
 test("Clash output is derived from the rendered Surge profile and retains sorting, allocation and rules", async () => {
   const input = profile();
   const wechatSource = await ruleSource(["RULE-SET", wechatUrl]);
+  const directSource = await ruleSource(["DOMAIN-SET", "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt"]);
   assert.deepEqual(await findClashRuleSource(`${wechatSource.id}.txt`), wechatSource);
   for (const doh of [false, true]) {
     const surge = renderSurgeProfile({ ...input, options: { doh } });
@@ -140,7 +141,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.doesNotMatch(output, /Host entry|Section host|encrypted-dns-follow-outbound-mode: unsupported/);
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
-    assert.deepEqual(Object.keys(config["rule-providers"]), [wechatSource.id, "Binance", "iCloud", "AppleDirect", "AppleProxy", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Google", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [wechatSource.id, "Binance", "iCloud", "AppleDirect", "AppleProxy", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Google", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", directSource.id]);
     assert.ok(config.rules.includes("RULE-SET,Copilot,AIProxy,no-resolve"));
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:iCloud|AppleDirect|AppleProxy|Apple|Direct),/.test(rule)), [
       "RULE-SET,iCloud,iCloud,no-resolve",
@@ -151,12 +152,13 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     ]);
     for (const [name, provider] of Object.entries(config["rule-providers"])) {
       const url = new URL(provider.url);
-      assert.equal(url.toString(), name === wechatSource.id
-        ? `${context.requestUrl}/rules/${wechatSource.id}.txt?token=${context.token}`
+      const external = [wechatSource.id, directSource.id].includes(name);
+      assert.equal(url.toString(), external
+        ? `${context.requestUrl}/rules/${name}.txt?token=${context.token}`
         : magicRuleUrl(name, "mihomo", context.requestUrl, context.token));
       assert.equal(url.searchParams.get("token"), context.token);
       assert.equal(provider.behavior, "classical");
-      assert.equal(provider.format, name === wechatSource.id ? "text" : "yaml");
+      assert.equal(provider.format, external ? "text" : "yaml");
       assert.equal(provider.interval, 86400);
     }
     assert.match(output, /General skip-proxy: unsupported setting omitted/);
