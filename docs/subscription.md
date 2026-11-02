@@ -39,13 +39,13 @@ AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配�
 
 例如 `/AtlasRouter?token=<token>&client=clash&doh=1` 同时启用 Clash 输出和 DoH。这些参数重复、为空或使用其他值时返回 400；无效 token 仍先返回 401。默认选项省略于页面生成的 URL，现有订阅无需调整。
 
-默认 DoH 上游使用 [Cloudflare](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/) 的 `https://cloudflare-dns.com/dns-query` 和 [Google](https://developers.google.com/speed/public-dns/docs/secure-transports) 的 `https://dns.google/dns-query`，地址维护在 `surge/template.conf`。`doh=1` 同时激活 `encrypted-dns-server` 和 `encrypted-dns-follow-outbound-mode = true`；托管更新地址保留该选项。`surge/rules.list` 前部使用 `PROTOCOL,DOH,Auto`，在规则模式下将 Surge 自身发起的 DoH 请求统一交给 `Auto` 自动选择代理节点，证书校验保持开启。该规则先于各上游域名规则及外部规则集；域名规则用于 Clash 转换时的兼容处理。参见 [Surge 协议规则](https://manual.nssurge.com/rules/protocol-and-network.html#protocol)和[加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html)。
+默认 DoH 上游使用 [Cloudflare](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/) 的 `https://cloudflare-dns.com/dns-query` 和 [Google](https://developers.google.com/speed/public-dns/docs/secure-transports) 的 `https://dns.google/dns-query`，地址维护在 `surge/template.conf`。`doh=1` 同时激活 `encrypted-dns-server` 和 `encrypted-dns-follow-outbound-mode = true`；托管更新地址保留该选项。`surge/rules.list` 前部先将国内上游 `dns.alidns.com`、`doh.pub` 精确匹配到 `DIRECT`，再用 `PROTOCOL,DOH,DoH Proxy` 将其余 Surge 自身发起的 DoH 请求交给隐藏的 IDC 专用组，证书校验保持开启。国外上游 `cloudflare-dns.com`、`dns.google` 同时有指向 `DoH Proxy` 的域名规则，供 Clash 转换保留；以上规则均先于外部规则集。参见 [Surge 协议规则](https://manual.nssurge.com/rules/protocol-and-network.html#protocol)和[加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html)。
 
-`[Host]` 引用 `DOMAIN-SET:https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt` 为名单内域名分配 DNS：`doh=0` 使用 `223.5.5.5, 119.29.29.29`，`doh=1` 使用 `https://dns.alidns.com/dns-query, https://doh.pub/dns-query`。开关由订阅生成器渲染为具体的 `server:` 值；这些 DoH 请求同样经 `Auto` 出站。该映射位于现有 `zslab.ai` 专用映射之后，专用映射优先；名单外域名沿用默认 DNS。
+`[Host]` 引用 `DOMAIN-SET:https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt` 为名单内域名分配 DNS：`doh=0` 使用 `223.5.5.5, 119.29.29.29`，`doh=1` 使用 `https://dns.alidns.com/dns-query, https://doh.pub/dns-query`。开关由订阅生成器渲染为具体的 `server:` 值；这两个国内 DoH 上游经 `DIRECT` 出站。该映射位于现有 `zslab.ai` 专用映射之后，专用映射优先；名单外域名沿用默认 DNS。
 
 `[Host]` 固定为 `zslab.ai` 和 `*.zslab.ai` 指定 `server:223.5.5.5, 119.29.29.29`，覆盖根域名及所有层级子域名，不受 DoH 开关影响；这是 DNS 服务器分配，不是把域名绑定到这两个 IP。按 [Surge Host 语法](https://manual.nssurge.com/dns/local-dns-mapping.html)，多 DNS 服务器需要 Surge Mac 6.8.0+ / iOS 5.21.0+。节点使用域名时，需要普通 DNS 映射或 IP 地址完成引导解析，避免“连接代理前先通过该代理解析节点”的循环；`zslab.ai` 下的节点由上述映射覆盖，其他节点域名需另配映射。相关行为见 [Surge Mac 版本说明](https://kb.nssurge.com/surge-knowledge-base/release-notes/surge-mac-legacy#version-5.6.0)。
 
-Clash 转换跳过 Surge 专用的 `PROTOCOL,DOH` 规则，将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用保留的上游域名规则选择 `Auto`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，直连域名集复用现有规则提供器，生成 `rule-set:<提供器名>` 项；下载地址继续携带同一订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
+Clash 转换跳过 Surge 专用的 `PROTOCOL,DOH` 规则，将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用保留的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，直连域名集复用现有规则提供器，生成 `rule-set:<提供器名>` 项；下载地址继续携带同一订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
 
 DNS 劫持固定为以下两个目标，不随 DoH 或 Tencent OA Compatibility 开关关闭；DoH 开关只控制加密 DNS 上游：
 
@@ -87,6 +87,8 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 master 按地区/IP 类型生成顺序 `fallback` 组，成员依照每位用户的主节点、备用节点排列，间隔为 300 秒，不生成 `policy-priority`。develop 独立试验 Smart 权重，生产源码不读取 `SMART_PRIORITY_SCHEME`，遗留变量不会启用实验。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL,Proxy,dns-failed`。MitM 默认关闭。
 
 可见的 `Auto` 使用 `smart, include-all-proxies=true`，包含当前订阅 `[Proxy]` 中的所有节点，不包含 `DIRECT` 或其他策略组；在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留；从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge [smart 组](https://manual.nssurge.com/policy-groups/smart.html)结合测速延迟、真实连接响应和丢包择优，并自动重试；它不是始终固定选择单次测速最低的节点。Clash 无等价 smart 类型，转换为每 300 秒测速、容差为 0 的 `url-test`，输出注释说明差异。地区/IP 类型组的主备顺序保持原样。
+
+develop 的隐藏组 `DoH Proxy` 仅列出当前订阅中已启用的 IDC 节点，跨地区汇集，不包含 ISP、WARP、`DIRECT`、`REJECT` 或其他策略组。Surge 使用不带权重的 `smart`，Clash 使用隐藏的 `url-test`（间隔 300 秒、容差 0）。没有 IDC 节点时不输出空组，将原本指向该组的国外 DoH 规则改为 `REJECT`，国内 DNS 和其余订阅照常生成，避免 [Surge 空组自动替换为直连](https://manual.nssurge.com/policy-groups/overview.html)。Clash 过滤掉全部不兼容 IDC 节点时同样保留这些拒绝规则；只过滤部分节点时继续使用剩余 IDC。
 
 香港银行与政府使用 `surge/rules.list` 中的固定 `DIRECT` 规则，位于 SYSTEM / LAN 之后、所有外部规则集之前；Surge 和 Clash 均生效。不创建可选策略组，因此客户端策略面板没有对应项目。当前范围如下，域名后缀包含根域名及其子域名：
 

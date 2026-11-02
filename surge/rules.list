@@ -2,13 +2,13 @@
 DOMAIN,atlasrouter.zslab.ai,DIRECT
 DOMAIN,develop.atlasrouter.zslab.ai,DIRECT
 
-# DoH upstream connections use automatic proxy selection.
-PROTOCOL,DOH,Auto
+# Domestic DoH must match before the general DoH proxy rule.
+DOMAIN,dns.alidns.com,DIRECT
+DOMAIN,doh.pub,DIRECT
+PROTOCOL,DOH,DoH Proxy
 # Hostname rules retain DoH routing in Clash, which omits Surge PROTOCOL rules.
-DOMAIN,cloudflare-dns.com,Auto
-DOMAIN,dns.google,Auto
-DOMAIN,dns.alidns.com,Auto
-DOMAIN,doh.pub,Auto
+DOMAIN,cloudflare-dns.com,DoH Proxy
+DOMAIN,dns.google,DoH Proxy
 
 DOMAIN-SUFFIX,longbridge.global,DIRECT
 DOMAIN-SUFFIX,ibkr.com,DIRECT

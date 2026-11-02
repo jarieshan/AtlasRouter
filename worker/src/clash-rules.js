@@ -62,6 +62,11 @@ export async function convertClashRules(lines, policies, requestUrl, token, warn
         rules.push(`MATCH,${parts[1]}`);
         continue;
       }
+      // Filtering unsupported IDC nodes must not let DoH fall through to another outbound.
+      if (parts[2] === "DoH Proxy" && !policies.has(parts[2])) {
+        parts[2] = "REJECT";
+        warn(`Rule entry ${index + 1}: no compatible DoH proxy; using REJECT`);
+      }
       if (!policies.has(parts[2])) throw new Error();
       if (["RULE-SET", "DOMAIN-SET"].includes(parts[0])) {
         if (parts[1] === "LAN" && parts[0] === "RULE-SET") {

@@ -49,16 +49,17 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${iconBase}Auto.png`));
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
-    assert.deepEqual(config.match(/^PROTOCOL,DOH,.*$/gm), ["PROTOCOL,DOH,Auto"]);
+    assert.ok(config.split("\n").includes("DoH Proxy = smart, 🇭🇰 HK IDC, hidden=true"));
+    assert.deepEqual(config.match(/^PROTOCOL,DOH,.*$/gm), ["PROTOCOL,DOH,DoH Proxy"]);
     for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
       const directRule = `DOMAIN,${hostname},DIRECT`;
       assert.ok(config.indexOf(directRule) >= 0);
-      assert.ok(config.indexOf(directRule) < config.indexOf("PROTOCOL,DOH,Auto"));
+      assert.ok(config.indexOf(directRule) < config.indexOf("PROTOCOL,DOH,DoH Proxy"));
     }
-    for (const hostname of ["cloudflare-dns.com", "dns.google", "dns.alidns.com", "doh.pub"]) {
-      const rule = `DOMAIN,${hostname},Auto`;
+    for (const [hostname, policy] of [["cloudflare-dns.com", "DoH Proxy"], ["dns.google", "DoH Proxy"], ["dns.alidns.com", "DIRECT"], ["doh.pub", "DIRECT"]]) {
+      const rule = `DOMAIN,${hostname},${policy}`;
       assert.ok(config.includes(rule));
-      assert.ok(config.indexOf("PROTOCOL,DOH,Auto") < config.indexOf(rule));
+      assert.equal(config.indexOf(rule) < config.indexOf("PROTOCOL,DOH,DoH Proxy"), policy === "DIRECT");
       assert.ok(config.indexOf(rule) < config.indexOf("RULE-SET,https://"));
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
@@ -142,7 +143,14 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(auto.interval, 300);
     assert.equal(auto.tolerance, 0);
     assert.ok(!auto.hidden);
-    for (const hostname of ["cloudflare-dns.com", "dns.google", "dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},Auto`));
+    const dohProxy = config["proxy-groups"].find((group) => group.name === "DoH Proxy");
+    assert.equal(dohProxy.type, "url-test");
+    assert.equal(dohProxy.hidden, true);
+    assert.deepEqual(dohProxy.proxies, ["🇭🇰 HK IDC"]);
+    assert.equal(dohProxy.interval, 300);
+    assert.equal(dohProxy.tolerance, 0);
+    for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
+    for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
     assert.ok(config.rules.every((rule) => !rule.startsWith("PROTOCOL,")));
     assert.match(output, /smart approximated by url-test/);
     assert.match(output, /ordered smart converted to fallback/);
@@ -171,6 +179,74 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     }
     assert.match(output, /General skip-proxy: unsupported setting omitted/);
     assert.doesNotMatch(output, /#!MANAGED-CONFIG|\.sgmodule|{{|💎 Select/);
+  }
+});
+
+test("hidden DoH Proxy contains only enabled IDC nodes across regions for each user", async () => {
+  const state = { nodes: parsePoolNodes([
+    { id: "hk1", line: `🇭🇰 HK IDC 1 = ${vmess}` },
+    { id: "hk2", line: `🇭🇰 HK IDC 2 = ${vmess}` },
+    { id: "us", line: `🇺🇸 US IDC = ${vmess}` },
+    { id: "isp", line: `🇺🇸 US ISP = ${vmess}` },
+    { id: "warp", line: `🇺🇸 US WARP = ${vmess}` },
+    { id: "disabled", line: `🇸🇬 SG IDC = ${vmess}`, enabled: false },
+  ]), users: [{ id: "alice", enabled: true }, { id: "bob", enabled: true }] };
+  allocateNodes(state, "2026-01-01T00:00:00Z");
+  for (const [index, user] of state.users.entries()) for (const doh of [false, true]) {
+    const groups = userGroups(state, user.id);
+    const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), options: { doh }, smartPriorityScheme: "geometric-10" });
+    const members = ["🇺🇸 US IDC", ...["🇭🇰 HK IDC 1", "🇭🇰 HK IDC 2"].slice(index), ...["🇭🇰 HK IDC 1", "🇭🇰 HK IDC 2"].slice(0, index)];
+    const line = source.split("\n").find((line) => line.startsWith("DoH Proxy = "));
+    assert.deepEqual(splitSurgeList(surgeAssignment(line)[1]), ["smart", ...members, "hidden=true"]);
+    const { config } = await convertSurgeToClash(source, context);
+    const group = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
+    assert.equal(group.type, "url-test");
+    assert.equal(group.hidden, true);
+    assert.deepEqual(group.proxies, members);
+  }
+});
+
+test("subscriptions without IDC nodes reject foreign DoH while retaining domestic DNS and other policies", async () => {
+  const input = profile();
+  const groups = input.groups.filter((group) => group.nodes[0].ipType !== "IDC");
+  for (const doh of [false, true]) {
+    const source = renderSurgeProfile({ ...input, groups, nodes: groups.flatMap((group) => group.nodes), options: { doh } });
+    assert.doesNotMatch(source, /^DoH Proxy =/m);
+    assert.match(source, /^PROTOCOL,DOH,REJECT$/m);
+    assert.match(source, /^FINAL,Proxy,dns-failed$/m);
+    const { config } = await convertSurgeToClash(source, context);
+    assert.ok(!config["proxy-groups"].some(({ name }) => name === "DoH Proxy"));
+    assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    for (const [hostname, policy] of [["cloudflare-dns.com", "REJECT"], ["dns.google", "REJECT"], ["dns.alidns.com", "DIRECT"], ["doh.pub", "DIRECT"]]) {
+      const rule = `DOMAIN,${hostname},${policy}`;
+      assert.ok(source.split("\n").includes(rule));
+      assert.ok(config.rules.includes(rule));
+      assert.ok(config.rules.indexOf(rule) < config.rules.findIndex((line) => line.startsWith("RULE-SET,")));
+    }
+  }
+});
+
+test("Clash rejects foreign DoH if all IDC nodes are unsupported and retains any compatible IDC member", async () => {
+  const input = profile();
+  const source = renderSurgeProfile({ ...input, options: { doh: true } });
+  for (const keepCompatible of [false, true]) {
+    const changed = source.replace("🇭🇰 HK IDC = trojan, hk.example.com, 443, password=TEST_ONLY", "🇭🇰 HK IDC = trojan, hk.example.com, 443, password=TEST_ONLY, unsupported-option=NEVER_LOG_THIS")
+      .replace("[Proxy]\n", `[Proxy]\n${keepCompatible ? `🇯🇵 JP IDC = ${vmess}\n` : ""}`)
+      .replace("DoH Proxy = smart, 🇭🇰 HK IDC,", `DoH Proxy = smart, 🇭🇰 HK IDC,${keepCompatible ? " 🇯🇵 JP IDC," : ""}`);
+    const { config, warnings } = await convertSurgeToClash(changed, context);
+    const group = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
+    if (keepCompatible) {
+      assert.equal(group.type, "url-test");
+      assert.equal(group.hidden, true);
+      assert.deepEqual(group.proxies, ["🇯🇵 JP IDC"]);
+    } else {
+      assert.equal(group, undefined);
+      assert.ok(warnings.some((warning) => warning.includes("no compatible DoH proxy; using REJECT")));
+    }
+    for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},${keepCompatible ? "DoH Proxy" : "REJECT"}`));
+    for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
+    assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
   }
 });
 

@@ -15,12 +15,13 @@ const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
 const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
 export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme }) {
+  const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
     MITM_LINES: "enable = false",
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
-    RULE_LINES: renderPoolRules(ASSETS.rules, groups),
+    RULE_LINES: renderPoolRules(ASSETS.rules, groups, idcNames.length ? "DoH Proxy" : "REJECT"),
     DIRECT_DNS_SERVERS: (options.doh
       ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
       : ["223.5.5.5", "119.29.29.29"]).join(", "),
@@ -28,7 +29,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
       `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl, token),
     ])),
   };
-  const template = renderPoolTemplate(groups, smartPriorityScheme).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
+  const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${options.doh ? "" : "# "}${setting}`);
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=[ \t]*(.*)$/m, (_, value) => `skip-proxy = ${appendTencentOaSkipProxy(value)}`);
     return heading + general;
@@ -36,7 +37,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   return applyRuleSetVisibility(replaceTemplate(template, replacements));
 }
 
-function renderPoolTemplate(groups, smartPriorityScheme) {
+function renderPoolTemplate(groups, smartPriorityScheme, idcNames) {
   const orderedGroups = [...groups].sort(compareNodeGroups);
   const groupNamesByIpType = (order) => [...orderedGroups].sort((a, b) =>
     order[a.nodes[0].ipType] - order[b.nodes[0].ipType]
@@ -46,6 +47,8 @@ function renderPoolTemplate(groups, smartPriorityScheme) {
       const names = nodes.map((node) => node.name);
       return `${group} = smart, ${names.join(", ")}, policy-priority=${JSON.stringify(orderedSmartPriority(names, smartPriorityScheme))}`;
     }).join("\n"),
+    // An empty Surge Smart group substitutes DIRECT, so omit it and reject its traffic instead.
+    DOH_PROXY_GROUP_LINE: idcNames.length ? `DoH Proxy = smart, ${idcNames.join(", ")}, hidden=true` : "",
     POOL_GROUPS: groupNamesByIpType(IP_TYPE_ORDER),
     IDC_FIRST_POOL_GROUPS: groupNamesByIpType(IDC_FIRST_IP_TYPE_ORDER),
     WARP_FIRST_POOL_GROUPS: groupNamesByIpType(WARP_FIRST_IP_TYPE_ORDER),
@@ -63,8 +66,9 @@ function compareNodeGroups(a, b) {
   return compareNodes(a.nodes[0], b.nodes[0]);
 }
 
-function renderPoolRules(rules, groups) {
+function renderPoolRules(rules, groups, dohPolicy) {
   const aliases = new Map([
+    ["DoH Proxy", dohPolicy],
     ["🇺🇸 US", groups.find(({ nodes }) => nodes[0].region === "US")?.group ?? FALLBACK_POLICY],
     ["🇯🇵 JP", groups.find(({ nodes }) => nodes[0].region === "JP")?.group ?? FALLBACK_POLICY],
     ["🇺🇸🏠 US ISP", groups.find(({ nodes }) => nodes[0].region === "US" && nodes[0].ipType === "ISP")?.group ?? FALLBACK_POLICY],

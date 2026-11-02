@@ -582,7 +582,12 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
         assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Proxy").proxies, ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "Auto", "DIRECT"]);
-        for (const hostname of ["cloudflare-dns.com", "dns.google", "dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},Auto`));
+        const dohProxy = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
+        assert.equal(dohProxy.type, "url-test");
+        assert.equal(dohProxy.hidden, true);
+        assert.deepEqual(dohProxy.proxies, ["🇭🇰 Example - IDC 1"]);
+        for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
+        for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
         assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
         assert.equal(config.rules.at(-1), "MATCH,Proxy");
         for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
@@ -622,11 +627,17 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), doh === "1");
         assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
-        assert.deepEqual(text.match(/^PROTOCOL,DOH,.*$/gm), ["PROTOCOL,DOH,Auto"]);
+        assert.ok(text.split("\n").includes("DoH Proxy = smart, 🇭🇰 Example - IDC 1, hidden=true"));
+        assert.deepEqual(text.match(/^PROTOCOL,DOH,.*$/gm), ["PROTOCOL,DOH,DoH Proxy"]);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
         assert.ok(text.split("\n").includes(`DOMAIN-SET:${DIRECT_URL} = server:${directDns}`));
-        for (const hostname of ["cloudflare-dns.com", "dns.google", "dns.alidns.com", "doh.pub"]) assert.ok(text.includes(`DOMAIN,${hostname},Auto\n`));
+        for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(text.includes(`DOMAIN,${hostname},DoH Proxy\n`));
+        for (const hostname of ["dns.alidns.com", "doh.pub"]) {
+          const rule = `DOMAIN,${hostname},DIRECT\n`;
+          assert.ok(text.includes(rule));
+          assert.ok(text.indexOf(rule) < text.indexOf("PROTOCOL,DOH,DoH Proxy"));
+        }
         assert.deepEqual(text.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
         const managed = new URL(text.match(/^#!MANAGED-CONFIG (\S+)/)[1]);
         assert.equal(managed.searchParams.get("doh"), doh === "1" ? "1" : null);

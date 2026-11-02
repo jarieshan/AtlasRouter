@@ -14,7 +14,7 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10` |
 | 发布 | Cloudflare master 构建，`npm run deploy` | Cloudflare develop 构建，`npm run deploy:preview` |
 
-两端保留相同的规则顺序、Proxy / Auto 选项顺序、AppleDirect 优先顺序，以及可映射的 DNS、UDP、QUIC 参数。主备分配逻辑一致，但数据库独立，实际节点和 token 不同。Smart 的选择语义并不等于 fallback；不能要求两分支始终使用同一出口。
+两分支保留相同的 Proxy / Auto 选项顺序、AppleDirect 优先顺序，以及可映射的 UDP、QUIC 参数。develop 的 DoH 分流使用隐藏的 IDC 专用组，国内上游直连，详见下表。主备分配逻辑一致，但数据库独立，实际节点和 token 不同。Smart 的选择语义并不等于 fallback；不能要求两分支始终使用同一出口。
 
 master 同一份源码在生产/Preview 参数下均不生成节点权重。真正的开发权重来自 develop 分支代码，不能只靠设置 master 的环境变量打开它。
 
@@ -27,6 +27,7 @@ master 同一份源码在生产/Preview 参数下均不生成节点权重。真�
 | 规则、业务组顺序 | AppleDirect 在 AppleProxy 前；YouTube 在 Google/GlobalMedia 前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
 | 节点主备 | master 两端均为同顺序 fallback、300 秒间隔 | 各客户端的测速时机和结果可能不同，不保证同一时刻选中同一节点；develop 单独试验 Smart 权重 |
 | Auto | 两端都包含本订阅的可转换代理节点 | Surge 是 Smart；Clash 是 300 秒、容差 0 的 url-test。不能复现真实连接评分、站点记忆或重试顺序 |
+| DoH Proxy（develop） | 两端均隐藏，仅含 IDC 节点；Surge Smart，Clash url-test；Cloudflare / Google 使用该组，阿里 / 腾讯直连 | 无 IDC 或 Clash 过滤后无兼容 IDC 时省略该组，国外 DoH 规则改为 REJECT，其他订阅内容保留 |
 | UDP | VMess / Trojan 显式输出 `udp: true`；SS / SOCKS5 需显式开启 | VMess / Trojan 的显式 `udp-relay=false` 在转换器中保留为关闭；Surge 官方将此开关列为其他协议的可选能力，不能依赖它在这两类 Surge 节点上关闭 UDP。服务器可用性另需实测 |
 | UDP 不受支持时 | 不伪造等价行为 | Mihomo 可能跳过指向不支持 UDP 节点的规则继续匹配；Surge 由 `udp-policy-not-supported-behaviour` 决定，当前文档默认 REJECT；存在最终走不同出口的可能 |
 | QUIC | Surge `all-proxy` → `x-clash-block-quic: all-proxy` | 仅支持该扩展的 ProjectClash 可按最终代理出口拦截；普通 Mihomo 可能忽略。DIRECT 的 QUIC 放行，不等于拦截所有 UDP/443；`per-policy` 无等价映射 |
