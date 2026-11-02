@@ -70,9 +70,10 @@ export function positiveInteger(value) {
 
 // Exact-name expressions keep regex metacharacters and priority delimiters literal.
 export function orderedSmartPriority(names, scheme = "linear") {
-  if (!["linear", "geometric-3"].includes(scheme)) throw new Error("Invalid Smart priority scheme");
+  if (!["linear", "geometric-3", "geometric-10"].includes(scheme)) throw new Error("Invalid Smart priority scheme");
+  const base = scheme === "geometric-10" ? 10 : 3;
   return names.map((name, index) => {
-    const weight = scheme === "geometric-3" ? 3 ** index : index + 1;
+    const weight = scheme === "linear" ? index + 1 : base ** index;
     if (!Number.isSafeInteger(weight)) throw new Error("Smart priority exceeds the supported range");
     const pattern = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
       .replace(/[:;"\u0000-\u001f\u007f]/g, (char) => `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`);

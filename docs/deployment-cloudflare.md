@@ -40,7 +40,7 @@ master 使用权重实验前的稳定 fallback 行为，并提供生产 Dev 按�
 
 - 生产 `DB` → `atlas-router`；生产 `DEV_DB` → `atlas-router-dev`，供生产 UI 管理测试用户和节点。
 - 原生 Preview `DB` → `atlas-router-dev`；Preview 不绑定生产数据库。
-- develop 分支的 Preview 配置为 `UI_ENABLED=false`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`、`SMART_PRIORITY_SCHEME=geometric-3`；master 不配置或读取权重变量。
+- develop 分支的 Preview 配置为 `UI_ENABLED=false`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`、`SMART_PRIORITY_SCHEME=geometric-10`；master 不配置或读取权重变量。
 
 不用在手机上逐项填写这些 bindings 和 variables。开发发布脚本先核对 `DEV_DB` 与 Preview `DB` 指向同一个开发库、且不同于生产库，再执行开发库迁移，最后上传 Preview。它不会执行生产 D1 迁移，也不上传生产版本。
 

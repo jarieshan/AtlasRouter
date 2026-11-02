@@ -11,7 +11,9 @@
 | `UI_ENABLED`（变量） | `true` | `false`，根页面返回 404 |
 | `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` | `/AtlasRouter-Dev` |
 | `DEV_SUBSCRIPTION_ORIGIN`（变量） | 开发预览的固定 HTTPS origin | 不需要 |
-| `SMART_PRIORITY_SCHEME`（变量） | 不读取，不启用权重实验 | develop 源码使用 `geometric-3`：1、3、9… |
+| `SMART_PRIORITY_SCHEME`（变量） | 不读取，不启用权重实验 | develop 源码使用 `geometric-10`：1、10、100、1000… |
+
+`geometric-10` 按每位用户的主节点、备用节点顺序赋权；受安全整数校验限制，单组最多 16 个节点，最后一个系数为 `10^15`，超过后订阅生成会报错。
 
 两库 ID 必须不同；Preview 的 `DB` 与生产 UI 的 `DEV_DB` 指向同一个测试库。`DEV_SUBSCRIPTION_ORIGIN` 不能带用户信息、路径、查询或片段，且必须与生产 origin 不同。`environment=development` 仅让生产 UI 及其 API 选择测试库，不转发订阅请求，也不执行另一个分支的代码。测试库结构必须与生产管理页面兼容。
 

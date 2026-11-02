@@ -6,12 +6,12 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 
 | 项目 | master / 生产 | develop / 原生 Preview |
 | --- | --- | --- |
-| 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、3、9…；Clash 为同顺序 fallback |
+| 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、10、100、1000…；Clash 为同顺序 fallback |
 | 地区组显示 | ISP、IDC、WARP 地区组隐藏 | 全部显示，可展开查看组内节点 |
 | Auto | Surge Smart；Clash url-test | 同左 |
 | UI | 开启，Dev 按钮可管理测试数据 | 关闭 |
 | 订阅 | `/AtlasRouter`，生产 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
-| 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-3` |
+| 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10` |
 | 发布 | Cloudflare master 构建，`npm run deploy` | Cloudflare develop 构建，`npm run deploy:preview` |
 
 两端保留相同的规则顺序、Proxy / Auto 选项顺序、AppleDirect 优先顺序，以及可映射的 DNS、UDP、QUIC 参数。主备分配逻辑一致，但数据库独立，实际节点和 token 不同。Smart 的选择语义并不等于 fallback；不能要求两分支始终使用同一出口。

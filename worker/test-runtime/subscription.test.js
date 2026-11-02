@@ -234,7 +234,7 @@ test("native preview consumes links from the production UI with separate D1 data
   const response = await preview.fetch(dev.subscriptionUrl);
   assert.equal(response.status, 200);
   const surge = await response.text();
-  orderedSmartMembers(surge, "🇺🇸USA-WARP", [1, 3, 9, 27, 81]);
+  orderedSmartMembers(surge, "🇺🇸USA-WARP", [1, 10, 100, 1000, 10000]);
   assert.doesNotMatch(surge, /Example - ISP/);
   const moduleUrl = surge.match(/https:\/\/develop\.atlas\.example\/AtlasRouter-Dev\/modules\/[^\s]+/)[0];
   assert.equal((await preview.fetch(moduleUrl)).status, 200);
@@ -252,7 +252,7 @@ test("native preview consumes links from the production UI with separate D1 data
 
 test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {
   const production = await createRuntime(t);
-  const development = await createRuntime(t, { ACCESS_AUD: "development-app", SMART_PRIORITY_SCHEME: "geometric-3" });
+  const development = await createRuntime(t, { ACCESS_AUD: "development-app", SMART_PRIORITY_SCHEME: "geometric-10" });
   await save(production);
   const productionAccount = await account(production);
   const before = await readSubscriptionState({ DB: await production.getD1Database("DB") });
@@ -271,7 +271,7 @@ test("development uses independent identities, tokens and node data with geometr
   const surgeResponse = await request(development, developmentAccount.subscriptionUrl);
   assert.equal(surgeResponse.status, 200);
   const surge = await surgeResponse.text();
-  const members = orderedSmartMembers(surge, "🇺🇸USA-ISP", [1, 3, 9, 27, 81]);
+  const members = orderedSmartMembers(surge, "🇺🇸USA-ISP", [1, 10, 100, 1000, 10000]);
   const clashResponse = await request(development, `${developmentAccount.subscriptionUrl}&client=clash`);
   assert.equal(clashResponse.status, 200);
   const clash = parseYaml(await clashResponse.text());

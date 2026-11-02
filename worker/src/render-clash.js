@@ -136,7 +136,7 @@ function convertGroups(lines, proxies, general, warn) {
       const smart = type === "smart";
       const orderedSmart = options.has("policy-priority");
       // Only the generated exact-name schemes have a defined order-preserving fallback.
-      if (orderedSmart && (!smart || !["linear", "geometric-3"].some((scheme) =>
+      if (orderedSmart && (!smart || !["linear", "geometric-3", "geometric-10"].some((scheme) =>
         options.get("policy-priority") === orderedSmartPriority(members, scheme)))) throw new Error();
       const group = { name, type: smart ? (orderedSmart ? "fallback" : "url-test") : type, proxies: [...new Set(smart ? members.filter((member) => nodeNames.has(member)) : members)] };
       if (smart) warn(orderedSmart

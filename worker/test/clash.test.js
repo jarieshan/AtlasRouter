@@ -9,7 +9,7 @@ import { renderSurgeProfile } from "../src/render-surge.js";
 import { allocateNodes, parsePoolNodes, userGroups } from "../src/node-pool.js";
 import { buildSubscriptionUrl, readSubscriptionOptions } from "../src/subscription-options.js";
 import { magicRuleUrl } from "../src/magic-rules.js";
-import { splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
+import { orderedSmartPriority, splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
 
 const context = { requestUrl: "https://atlas.example/AtlasRouter", token: `ar_${"a".repeat(64)}` };
 const wechatUrl = "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list";
@@ -174,7 +174,7 @@ test("native production and Preview profiles differ only in addresses, tokens an
     { vars: deployment.previews.vars, origin: "https://develop.atlas.example", token: `ar_${"b".repeat(64)}` },
   ];
   assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME ?? "linear", "linear");
-  assert.equal(environments[1].vars.SMART_PRIORITY_SCHEME, "geometric-3");
+  assert.equal(environments[1].vars.SMART_PRIORITY_SCHEME, "geometric-10");
   const input = profile();
   for (const doh of [false, true]) for (const tencentOa of [false, true]) {
     const rendered = [];
@@ -223,7 +223,8 @@ test("ordered smart weights match exact node names and each user's primary while
   const state = { nodes: parsePoolNodes(names.map((name, index) => ({ id: `node-${index}`, line: `${name} = ${vmess}` }))),
     users: names.map((_, index) => ({ id: `user-${index}`, enabled: true })) };
   allocateNodes(state, "2026-01-01T00:00:00Z");
-  for (const smartPriorityScheme of ["linear", "geometric-3"]) for (const user of state.users) {
+  const schemes = { linear: [1, 2, 3], "geometric-3": [1, 3, 9], "geometric-10": [1, 10, 100] };
+  for (const [smartPriorityScheme, expectedWeights] of Object.entries(schemes)) for (const user of state.users) {
     const groups = userGroups(state, user.id);
     const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), smartPriorityScheme });
     const line = source.split("\n").find((line) => line.startsWith("🇺🇸USA-ISP = smart, "));
@@ -236,7 +237,7 @@ test("ordered smart weights match exact node names and each user's primary while
     for (const [index, member] of members.entries()) {
       const matches = weights.filter(([pattern]) => new RegExp(pattern).test(member));
       assert.equal(matches.length, 1);
-      assert.equal(Number(matches[0][1]), smartPriorityScheme === "geometric-3" ? 3 ** index : index + 1);
+      assert.equal(Number(matches[0][1]), expectedWeights[index]);
     }
     const { config, warnings } = await convertSurgeToClash(source, context);
     const group = config["proxy-groups"].find(({ name }) => name === "🇺🇸USA-ISP");
@@ -249,12 +250,22 @@ test("ordered smart weights match exact node names and each user's primary while
   }
 });
 
+test("tenfold smart priorities allow 16 members and reject unsafe values", () => {
+  const names = Array.from({ length: 17 }, (_, index) => `node-${index}`);
+  const weights = orderedSmartPriority(names.slice(0, 16), "geometric-10").split(";");
+  assert.equal(weights.length, 16);
+  assert.equal(weights.at(-1), "^node-15$:1000000000000000");
+  assert.throws(() => orderedSmartPriority(names, "geometric-10"), /Smart priority exceeds the supported range/);
+});
+
 test("ordered smart conversion skips unsupported nodes without changing order and rejects other weight formats safely", async () => {
   const source = `[Proxy]\ngood = ${vmess}\nbad = ${vmess}, unsupported-option=NEVER_LOG_THIS\n[Proxy Group]\nranked = smart, bad, good, policy-priority="^bad$:1;^good$:2"\n[Rule]\nFINAL,good`;
   const { config } = await convertSurgeToClash(source, context);
   assert.deepEqual(config["proxy-groups"].map(({ name, type, proxies }) => ({ name, type, proxies })), [{ name: "ranked", type: "fallback", proxies: ["good"] }]);
-  const geometric = await convertSurgeToClash(source.replace("^good$:2", "^good$:3"), context);
-  assert.deepEqual(geometric.config["proxy-groups"], config["proxy-groups"]);
+  for (const weight of [3, 10]) {
+    const geometric = await convertSurgeToClash(source.replace("^good$:2", `^good$:${weight}`), context);
+    assert.deepEqual(geometric.config["proxy-groups"], config["proxy-groups"]);
+  }
   for (const priority of ["^bad$:2;^good$:1", "^bad$:0;^good$:2", "^bad$:NaN;^good$:2", "^bad$:1;^good$:4", "NEVER_LOG_THIS:1"]) {
     const { config, warnings } = await convertSurgeToClash(source.replace("^bad$:1;^good$:2", priority), context);
     assert.deepEqual(config["proxy-groups"], []);
