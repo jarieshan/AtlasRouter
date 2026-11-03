@@ -11,7 +11,7 @@ test("MagicRule registry covers configured placeholders and excludes arbitrary p
   const names = [...ASSETS.template.matchAll(/{{RULESET_([A-Za-z0-9]+)}}/g)].map((match) => match[1]);
   assert.deepEqual(names, Object.keys(ASSETS.magicRules));
   assert.equal(names.length, 22);
-  assert.doesNotMatch(ASSETS.template.replace(/^RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/WeChat\/WeChat\.list,.*$/m, ""), /blackmatrix7|ios_rule_script/);
+  assert.doesNotMatch(ASSETS.template, /blackmatrix7|ios_rule_script/);
   for (const name of names) {
     for (const [client, extension] of [["surge", "list"], ["mihomo", "yaml"]]) {
       const registered = findMagicRuleSource(`magicrule/${client}/${name}.${extension}`);
