@@ -76,7 +76,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
     const rules = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter((line) => line && !line.startsWith("#"));
-    assert.deepEqual(rules.slice(-4), [`RULE-SET,${directUrl},DIRECT,no-resolve`, "RULE-SET,LAN,DIRECT", "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
+    assert.deepEqual(rules.slice(-4), ["RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve`, "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);
@@ -149,8 +149,8 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(config.rules.at(-1), "MATCH,Proxy");
     const resolvedLan = config.rules.indexOf("IP-CIDR,192.168.0.0/16,DIRECT");
     const directRule = config.rules.indexOf("RULE-SET,China,DIRECT,no-resolve");
-    assert.ok(directRule >= 0 && directRule < resolvedLan);
-    assert.ok(resolvedLan < config.rules.indexOf("GEOIP,CN,DIRECT"));
+    assert.ok(resolvedLan >= 0 && resolvedLan < directRule);
+    assert.ok(directRule < config.rules.indexOf("GEOIP,CN,DIRECT"));
     assert.ok(config.rules.includes(`RULE-SET,${customRejectSource.id},REJECT,no-resolve`));
     assert.equal(config["proxy-groups"][0].timeout, 5000);
     assert.deepEqual(config.dns.nameserver, doh ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
