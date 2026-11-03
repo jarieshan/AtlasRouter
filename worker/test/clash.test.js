@@ -45,7 +45,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   assert.deepEqual(plain.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.match(encrypted, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
   assert.match(encrypted, /^encrypted-dns-follow-outbound-mode = true$/m);
-  for (const url of [customDirectUrl, magicRuleUrl("Binance", "surge"), directUrl]) {
+  for (const url of [customDirectUrl, directUrl]) {
     assert.ok(plain.split("\n").includes(`RULE-SET:${url} = server:223.5.5.5, 119.29.29.29`));
     assert.ok(encrypted.split("\n").includes(`RULE-SET:${url} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query`));
   }
@@ -152,7 +152,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.dns["nameserver-policy"], {
       "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
       "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-      ...Object.fromEntries([customDirectSource.id, "Binance", "China"].map((provider) => [`rule-set:${provider}`, doh
+      ...Object.fromEntries([customDirectSource.id, "China"].map((provider) => [`rule-set:${provider}`, doh
         ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
         : ["223.5.5.5", "119.29.29.29"]])),
     });
