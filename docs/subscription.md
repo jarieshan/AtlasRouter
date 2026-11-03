@@ -127,7 +127,7 @@ WeChat 使用指定的 [blackmatrix7 WeChat 规则（jsDelivr）](https://cdn.js
 
 不引用 MagicRule 的 Google 规则集：其当前 Surge / Mihomo 产物含 `hk`、`tw`、`sg`、`co` 等 28 个国家/地区顶级域的整段 `DOMAIN-SUFFIX`，会先于直连域名集和 `GEOIP,CN` 把这些顶级域下的全部域名送往 `Proxy`，包括直连域名集中的 `tmall.hk`、`jd.hk` 等。Google 自有域名改由后续的直连域名集、`GEOIP,CN` 和 `FINAL,Proxy,dns-failed` 判断，通常仍经代理访问，首次访问会多一次本地 DNS 查询；YouTube、Gemini 等仍由各自规则集处理。
 
-Apple 子规则存在重叠，匹配顺序为 iCloud → AppleDirect → AppleProxy → Apple 完整规则，未命中 iCloud 而同时命中 AppleDirect 和 AppleProxy 的流量优先直连，完整规则中剩余的 Apple 服务归 `AppleProxy`；这些规则位于通用 Direct 之前，避免 iCloud 被通用规则先行直连。这里只创建三个 Apple 策略组。原 Claude 规则由新站的 Anthropic 接替；GlobalMedia 使用完整产物，包含域名规则。所有外部规则引用附带 `no-resolve`，避免 IP/ASN 规则主动提前解析 DNS，末尾 `GEOIP,CN,DIRECT` 保留原行为。
+Apple 子规则存在重叠，匹配顺序为 iCloud → AppleDirect → AppleProxy → Apple 完整规则，未命中 iCloud 而同时命中 AppleDirect 和 AppleProxy 的流量优先直连，完整规则中剩余的 Apple 服务归 `AppleProxy`；这些规则位于通用 Direct 之前，避免 iCloud 被通用规则先行直连。这里只创建三个 Apple 策略组。原 Claude 规则由新站的 Anthropic 接替；GlobalMedia 使用完整产物，包含域名规则。所有外部规则引用附带 `no-resolve`，避免 IP/ASN 规则主动提前解析 DNS，末尾 `GEOIP,CN,DIRECT` 保留原行为。`GEOIP,CN,DIRECT` 前另有一条不带 `no-resolve` 的 `RULE-SET,LAN,DIRECT`，解析到私有或保留地址的域名（如自建 NAS、内网服务）因此直连，不再落入 `FINAL,Proxy`；Surge 每个请求最多解析一次，`GEOIP` 本就需要这次解析。规则区前部的 `RULE-SET,LAN,DIRECT,no-resolve` 保留，只匹配 `.local` 和直接以 IP 访问的请求。Clash 同样把这条规则展开为不带 `no-resolve` 的本地网段规则。
 
 运行时使用 D1 的 `users`、`nodes`、`assignments`、`store_versions`，不读取历史手动订阅表。
 

@@ -68,6 +68,8 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(rule) < config.indexOf("RULE-SET,https://"));
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
+    const rules = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter((line) => line && !line.startsWith("#"));
+    assert.deepEqual(rules.slice(-4), [`DOMAIN-SET,${directUrl},DIRECT`, "RULE-SET,LAN,DIRECT", "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);
@@ -129,6 +131,9 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
     assert.deepEqual(config["proxy-groups"].filter((group) => [icloud, appleProxy, appleDirect].includes(group)).map((group) => group.name), ["iCloud", "AppleDirect", "AppleProxy"]);
     assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    const resolvedLan = config.rules.indexOf("IP-CIDR,192.168.0.0/16,DIRECT");
+    assert.ok(config.rules.indexOf(`RULE-SET,${directSource.id},DIRECT`) < resolvedLan);
+    assert.ok(resolvedLan < config.rules.indexOf("GEOIP,CN,DIRECT"));
     assert.ok(config.rules.includes("DOMAIN-SUFFIX,kaggle.com,🇺🇸USA-ISP"));
     assert.ok(config.rules.includes("DOMAIN-SUFFIX,msmp.abchina.com.cn,REJECT"));
     assert.equal(config["proxy-groups"][0].timeout, 5000);
