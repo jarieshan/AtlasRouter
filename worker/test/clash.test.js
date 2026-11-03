@@ -186,7 +186,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "Telegram", "Twitter", "Discord", "YouTube", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
     for (const id of ["Cloudflare", "Grok", "Cursor", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple|Direct),/.test(rule)), [
       "RULE-SET,AppleTV,GlobalMedia,no-resolve",
