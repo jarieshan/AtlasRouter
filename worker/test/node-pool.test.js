@@ -205,7 +205,7 @@ test("renders ordered smart groups with valid references and literal credential 
   assert.match(config, /password=\$&\$1\$\$/);
   assert.match(config, /DOMAIN-SUFFIX,kaggle.com,🇺🇸USA-ISP/);
   assert.match(config, /^FINAL,Proxy,dns-failed$/m);
-  assert.match(config, /\/AtlasRouter\/modules\/skip-proxy-lists.sgmodule\?token=/);
+  assert.match(config, /\/AtlasRouter\/modules\/tencent-oa.sgmodule\?token=/);
   assert.doesNotMatch(config, /{{|💎 Select/);
   assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
   assert.match(config, /\[MITM\]\nenable = false/);

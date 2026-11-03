@@ -1,5 +1,6 @@
 import { ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH } from "./routes.js";
 import { pagePreviewProfile } from "./page-preview.js";
+import { TENCENT_OA_MODULE } from "./tencent-oa.js";
 
 const ICONS = {
   route: '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
@@ -307,10 +308,13 @@ function accountPanel(preview) {
             <span class="setting-text"><span>启用 DoH</span><span>加密 DNS 查询，降低窃听和篡改风险；可能增加解析延迟。</span></span>
             <input id="enable-doh" type="checkbox" role="switch">
           </label>
-          <label class="setting" for="enable-tencent-oa">
-            <span class="setting-text"><span>Tencent OA Compatibility</span><span id="tencent-oa-help">Surge Mac 仅开启系统代理，关闭增强模式；iOA需设置为全局模式</span></span>
-            <input id="enable-tencent-oa" type="checkbox" role="switch" aria-describedby="tencent-oa-help">
-          </label>
+          <div class="setting">
+            <div class="setting-text"><span>Tencent OA Compatibility</span><span>腾讯公司内网用的 Surge Mac 模块：仅开启系统代理、关闭增强模式时使用，iOA 需设置为全局模式。安装后在 Surge 的模块列表中启用或停用，无需更换订阅链接。</span></div>
+            <div class="actions">
+              <button id="install-tencent-oa" class="secondary small" disabled>安装到 Surge</button>
+              <button id="copy-tencent-oa" class="secondary small" disabled>${icon("copy")}复制模块链接</button>
+            </div>
+          </div>
         </div>
       </article>
       <article class="card link-card">
@@ -338,35 +342,36 @@ function accountPanel(preview) {
     const rotate = root.querySelector("#rotate");
     const client = root.querySelector("#subscription-client");
     const doh = root.querySelector("#enable-doh");
-    const tencentOa = root.querySelector("#enable-tencent-oa");
+    const installModule = root.querySelector("#install-tencent-oa");
+    const copyModule = root.querySelector("#copy-tencent-oa");
     let baseSubscriptionUrl;
     function updateSubscription() {
       root.querySelector("#client-help").textContent = client.value === "clash"
         ? "在使用 Mihomo（Clash Meta）内核的客户端中添加订阅。不兼容的 Surge 配置项会被跳过。"
         : "在 Surge 中通过 URL 安装配置。";
-      tencentOa.disabled = client.value !== "surge";
-      root.querySelector("#tencent-oa-help").textContent = tencentOa.disabled
-        ? "仅适用于 Surge；切回 Surge 后可启用腾讯公司内网兼容。"
-        : "Surge Mac 仅开启系统代理，关闭增强模式；iOA需设置为全局模式";
       if (!baseSubscriptionUrl) return;
       const url = new URL(baseSubscriptionUrl);
       url.searchParams.delete("client");
       url.searchParams.delete("doh");
-      url.searchParams.delete("tencent_oa");
       if (client.value === "clash") url.searchParams.set("client", "clash");
       if (doh.checked) url.searchParams.set("doh", "1");
-      if (tencentOa.checked && !tencentOa.disabled) url.searchParams.set("tencent_oa", "1");
       subscription.value = url.toString();
     }
     client.onchange = updateSubscription;
     doh.onchange = updateSubscription;
-    tencentOa.onchange = updateSubscription;
+    function moduleUrl() {
+      const url = new URL(baseSubscriptionUrl);
+      url.pathname += ${JSON.stringify(`/modules/${TENCENT_OA_MODULE}`)};
+      return url.toString();
+    }
     function render(profile) {
       root.querySelector("#identity").textContent = profile.email;
       baseSubscriptionUrl = profile.subscriptionUrl;
       updateSubscription();
       copy.disabled = false;
       rotate.disabled = false;
+      installModule.disabled = false;
+      copyModule.disabled = false;
       const groups = root.querySelector("#groups");
       groups.replaceChildren();
       for (const group of profile.groups) {
@@ -402,6 +407,14 @@ function accountPanel(preview) {
     copy.onclick = async () => {
       try { await navigator.clipboard.writeText(subscription.value); message(previewData ? "示例链接已复制。" : "订阅链接已复制。"); }
       catch { subscription.focus(); subscription.select(); message("请手动复制已选中的链接。"); }
+    };
+    installModule.onclick = () => {
+      if (previewData) { message("页面预览不会安装模块。"); return; }
+      location.href = "surge:///install-module?url=" + encodeURIComponent(moduleUrl());
+    };
+    copyModule.onclick = async () => {
+      try { await navigator.clipboard.writeText(moduleUrl()); message(previewData ? "示例模块链接已复制。" : "模块链接已复制，可在 Surge 的模块列表中通过 URL 安装。"); }
+      catch { message("复制失败，请手动复制模块链接：" + moduleUrl(), true); }
     };
     rotate.onclick = async () => {
       if (!confirm(previewData ? "仅重置当前页面中的示例链接，继续？" : "重置后旧订阅链接立即失效，继续？")) return;

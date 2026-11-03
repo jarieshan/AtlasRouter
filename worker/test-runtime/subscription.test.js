@@ -493,10 +493,10 @@ test("simultaneous first logins receive stable unique accounts and exclusive pri
     assert.deepEqual(orderedSmartMembers(config, "🇺🇸USA-ISP"), profile.groups[0].nodes.map((node) => node.name));
     assert.match(config, /^#!MANAGED-CONFIG https:\/\/atlas.example\/AtlasRouter\?token=/);
     assert.match(config, /^FINAL,Proxy,dns-failed$/m);
-    const moduleUrl = config.match(/https:\/\/[^\s]+\/modules\/skip-proxy-lists.sgmodule\?token=[^\s]+/)[0];
+    const moduleUrl = config.match(/https:\/\/[^\s]+\/modules\/tencent-oa.sgmodule\?token=[^\s]+/)[0];
     const module = await request(mf, moduleUrl);
     assert.equal(module.status, 200);
-    assert.match(await module.text(), /#!name=Skip Proxy Lists/);
+    assert.match(await module.text(), /#!name=Tencent OA Compatibility/);
   }
 });
 
@@ -536,7 +536,7 @@ test("only current subscription and module URLs accept tokens", async (t) => {
   await save(mf);
   const profile = await account(mf);
   const token = new URL(profile.subscriptionUrl).searchParams.get("token");
-  const modulePath = `${POOL_SUBSCRIPTION_PATH}/modules/skip-proxy-lists.sgmodule`;
+  const modulePath = `${POOL_SUBSCRIPTION_PATH}/modules/tencent-oa.sgmodule`;
   for (const route of [POOL_SUBSCRIPTION_PATH, modulePath]) {
     assert.equal((await request(mf, `${route}?token=${token}`)).status, 200);
     assert.equal((await request(mf, route, { subject: "alice" })).status, 401);

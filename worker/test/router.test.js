@@ -350,7 +350,7 @@ test("legacy pages, APIs, subscriptions and unknown paths return 404 without rea
 
 test("subscription routes require their own token and only accept GET", async () => {
   const env = unreadableEnv();
-  for (const path of [POOL_SUBSCRIPTION_PATH, `${POOL_SUBSCRIPTION_PATH}/modules/skip-proxy-lists.sgmodule`]) {
+  for (const path of [POOL_SUBSCRIPTION_PATH, `${POOL_SUBSCRIPTION_PATH}/modules/tencent-oa.sgmodule`]) {
     for (const query of ["", "?token=invalid", "?admin_token=test-only", "?token=invalid&token=invalid"]) {
       const response = await request(path + query, { headers: accessHeaders() }, env);
       assert.equal(response.status, 401);

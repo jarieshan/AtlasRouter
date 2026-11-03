@@ -29,13 +29,13 @@ AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配�
 
 ## 自定义订阅
 
-网页提供“启用 DoH”“Tencent OA Compatibility”和“Client：Surge（默认）/ Clash”。选项即时更新待复制的 URL，不修改账号、token 或节点分配；修改后将新链接复制到客户端。刷新分配或重置 token 时保留当前页面上的选项。
+网页提供“启用 DoH”和“Client：Surge（默认）/ Clash”两个订阅选项。选项即时更新待复制的 URL，不修改账号、token 或节点分配；修改后将新链接复制到客户端。刷新分配或重置 token 时保留当前页面上的选项。Tencent OA Compatibility 以 Surge 模块提供，不再修改订阅链接，见下文。
 
 | 参数 | 默认值 | 可选值 |
 | --- | --- | --- |
 | `client` | `surge` | `surge`、`clash`；Clash 以 Mihomo（Clash Meta）为兼容目标 |
 | `doh` | `0` | `0`、`1`；`1` 启用 DoH |
-| `tencent_oa` | `0` | `0`、`1`；`1` 追加腾讯公司内网的系统代理例外，适用于仅开系统代理的 Surge Mac |
+| `tencent_oa` | `0` | `0`、`1`；仅为兼容旧链接保留，页面不再生成；`1` 追加与 Tencent OA 模块相同的系统代理例外 |
 
 例如 `/AtlasRouter?token=<token>&client=clash&doh=1` 同时启用 Clash 输出和 DoH。这些参数重复、为空或使用其他值时返回 400；无效 token 仍先返回 401。默认选项省略于页面生成的 URL，现有订阅无需调整。
 
@@ -54,7 +54,7 @@ doh.pub = server:223.5.5.5, 119.29.29.29
 
 Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；直连域名集复用现有规则提供器，生成 `rule-set:<提供器名>` 项，下载地址继续携带同一订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
 
-DNS 劫持固定为以下两个目标，不随 DoH 或 Tencent OA Compatibility 开关关闭；DoH 开关只控制加密 DNS 上游：
+DNS 劫持固定为以下两个目标，不随 DoH 开关或 Tencent OA 模块变化；DoH 开关只控制加密 DNS 上游：
 
 ```ini
 hijack-dns = 8.8.8.8:53, 8.8.4.4:53
@@ -64,13 +64,15 @@ hijack-dns = 8.8.8.8:53, 8.8.4.4:53
 
 ### 腾讯公司内网兼容
 
-适用于腾讯公司内网或公司 VPN 环境下，仅开启 Surge Mac 的“设置为系统代理”、关闭增强模式的用法。开启“Tencent OA Compatibility”，复制新链接到 Surge 并更新配置；开关默认关闭，以 `tencent_oa=1` 保存在订阅及托管更新 URL 中。离开适用网络时关闭此选项并更新客户端链接。选择 Clash 时页面禁用该开关；手动请求 `client=clash&tencent_oa=1` 返回 400，避免静默忽略系统代理例外。
+适用于腾讯公司内网或公司 VPN 环境下，仅开启 Surge Mac 的“设置为系统代理”、关闭增强模式的用法。兼容配置以 Surge 模块 `tencent-oa.sgmodule` 提供：在页面“Tencent OA Compatibility”处点击“安装到 Surge”（调用 `surge:///install-module`），或复制模块链接后在 Surge 的模块列表中通过 URL 安装；之后在 Surge 中启用或停用模块即可切换，不需要更换订阅链接，启用状态也不会同步到其他设备。模块地址为 `/AtlasRouter/modules/tencent-oa.sgmodule?token=<token>`，与订阅使用同一 token，重置 token 后需重新安装；生成配置开头的“Available modules”注释同样列出该地址。模块声明 `#!system=mac`，Surge iOS 不加载。参见 [Surge 模块](https://manual.nssurge.com/profile/module.html)。
 
-配置名单维护在 `surge/tencent-oa.json`，系统代理例外读取 `skipProxyCidrs`（IP 地址或网段数组）和 `domains`（域名数组），由 Worker 打包提供，不依赖外部规则站点。默认 `skip-proxy` 保留建行、农行、邮储和上海银行的 4 项域名例外，已移除 `localhost` 和 `*.local`。开启内网兼容时，再用英文逗号追加并去重所列 12 项 IP 地址或网段及 16 项域名匹配，共 32 项。`oa.com` 和 `woa.com` 各自保留根域名与 `*.` 子域名两项，其余 12 个域名使用 `*域名`，例如 `*tencentyun.com`、`*workbuddy.cn`；这种形式也会匹配其他以该字符串结尾的域名。`*qcloud.com` 已覆盖 `myqcloud.com` 及其子域名，因此不另列 `*myqcloud.com`。IP 清单将 `10.0.0.0/8` 与 `11.0.0.0/8` 等价合并为 `10.0.0.0/7`，将 `28.0.0.0/8` 与 `29.0.0.0/8` 等价合并为 `28.0.0.0/7`，其余条目保持原样，IP 整体覆盖范围不变。这些域名包含公网服务，并非全部为内网域名。现有 `exclude-simple-hostnames = true` 仍保留，不含点的简单主机名继续适用该设置。
+旧链接中的 `tencent_oa=1` 仍被接受：生成配置时把模块中的同一份例外追加到 `skip-proxy` 并去重，托管更新地址也继续保留该参数，但页面不再生成它。改用模块时从页面重新复制订阅链接，避免模块停用后旧参数仍让例外生效。手动请求 `client=clash&tencent_oa=1` 仍返回 400，避免静默忽略系统代理例外。
 
-该选项仅追加 `skip-proxy`，保留上述两个目标的 DNS 劫持配置，不追加 `[Host]`、域名或 IP 直连规则；DoH 是否开启仍由独立开关决定，原有 DNS 上游、SYSTEM、LAN、业务规则和最终兜底保持不变。腾讯专用的规则集和 Host 订阅入口已移除，请求返回 404。启用该选项不会改变 D1 中的用户、节点和分配关系。
+名单维护在 `modules/tencent-oa.sgmodule` 的 `skip-proxy = %APPEND% …` 一行，由 Worker 打包提供，不依赖外部规则站点。默认 `skip-proxy` 保留建行、农行、邮储和上海银行的 4 项域名例外，已移除 `localhost` 和 `*.local`。模块再追加 12 项 IP 地址或网段及 16 项域名匹配，共 32 项。`oa.com` 和 `woa.com` 各自保留根域名与 `*.` 子域名两项，其余 12 个域名使用 `*域名`，例如 `*tencentyun.com`、`*workbuddy.cn`；这种形式也会匹配其他以该字符串结尾的域名。`*qcloud.com` 已覆盖 `myqcloud.com` 及其子域名，因此不另列 `*myqcloud.com`。IP 清单将 `10.0.0.0/8` 与 `11.0.0.0/8` 等价合并为 `10.0.0.0/7`，将 `28.0.0.0/8` 与 `29.0.0.0/8` 等价合并为 `28.0.0.0/7`，其余条目保持原样，IP 整体覆盖范围不变。这些域名包含公网服务，并非全部为内网域名。现有 `exclude-simple-hostnames = true` 仍保留，不含点的简单主机名继续适用该设置。
 
-遵守系统代理例外的应用，访问匹配目标时由系统直接连接；内网 DNS 和路由需由 macOS 或公司 VPN 提供。开关不会修改 Mac 的系统 DNS，Surge 的 DNS/DoH 设置也不会自动用于这些绕过请求。IP 网段例外只匹配直接以 IP 为目标的请求，不会主动解析域名再匹配网段；开启增强模式后，绕过系统代理的连接仍可能被虚拟网卡接管。参见 [Surge 的 skip-proxy 说明](https://manual.nssurge.com/profile/general.html#skip-proxy)。
+模块和旧参数都只追加 `skip-proxy`，保留上述两个目标的 DNS 劫持配置，不追加 `[Host]`、域名或 IP 直连规则；DoH 是否开启仍由独立开关决定，原有 DNS 上游、SYSTEM、LAN、业务规则和最终兜底保持不变。腾讯专用的规则集和 Host 订阅入口已移除，请求返回 404。原 `skip-proxy-lists.sgmodule` 与默认 `skip-proxy` 内容完全相同，已删除。启用模块或旧参数都不会改变 D1 中的用户、节点和分配关系。
+
+遵守系统代理例外的应用，访问匹配目标时由系统直接连接；内网 DNS 和路由需由 macOS 或公司 VPN 提供。模块不会修改 Mac 的系统 DNS，Surge 的 DNS/DoH 设置也不会自动用于这些绕过请求。IP 网段例外只匹配直接以 IP 为目标的请求，不会主动解析域名再匹配网段；开启增强模式后，绕过系统代理的连接仍可能被虚拟网卡接管。参见 [Surge 的 skip-proxy 说明](https://manual.nssurge.com/profile/general.html#skip-proxy)。
 
 ## 返回值与兼容边界
 

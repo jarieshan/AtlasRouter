@@ -37,7 +37,7 @@ master 同一份源码在生产/Preview 参数下均不生成节点权重。真�
 | 调度与失败次数 | Smart 转换后的组输出间隔 300 秒 | Surge Smart 固定五分钟重测；Clash 保留 Mihomo 的 lazy 默认 true，未选中组不测。max-failed-times 默认 5 触发强制健康检查，不表示容忍五次测速失败后才切换；当前无固定失败次数/固定 IP 保证 |
 | DNS | 普通 DNS、默认与直连域名集的 DoH、上游及节点引导 DNS、系统 hosts、IPv6 关闭、两项 DNS 劫持目标已映射 | Clash 使用 redir-host；域名集 DNS 复用规则提供器；TUN 是否开启由客户端控制。DoH 按已知上游域名分流，Clash 通过 `#RULES` 使用这些规则；阿里和腾讯 DoH 域名固定使用普通 DNS 解析 |
 | 规则内容 | 同名 MagicRule 列表分别获取 Surge / Mihomo 完整产物，保留引用顺序及 no-resolve | 上游两种产物不保证逐条相同；其他远程列表过滤不支持类型，如 WeChat 的 USER-AGENT。上游更新后仍可能出现覆盖差异 |
-| 专用功能 | 可映射项保留；YAML 注释列出省略或近似项 | SYSTEM、FINAL 的 dns-failed、skip-proxy、脚本、模块、MitM 等不能等价转换。Tencent OA 与 Clash 组合明确返回 400；图标/隐藏属性由面板支持决定 |
+| 专用功能 | 可映射项保留；YAML 注释列出省略或近似项 | SYSTEM、FINAL 的 dns-failed、skip-proxy、脚本、模块、MitM 等不能等价转换。Tencent OA 为 Surge Mac 模块，旧链接的 `tencent_oa=1` 与 Clash 组合明确返回 400；图标/隐藏属性由面板支持决定 |
 
 默认值与近似行为的依据：[Surge VMess](https://manual.nssurge.com/policies/vmess.html)、[UDP](https://manual.nssurge.com/policies/udp.html)、[Smart](https://manual.nssurge.com/policy-groups/smart.html)、[url-test](https://manual.nssurge.com/policy-groups/url-test.html)、[fallback](https://manual.nssurge.com/policy-groups/fallback.html)、[General](https://manual.nssurge.com/profile/general.html)、[Mihomo 代理组](https://wiki.metacubex.one/en/config/proxy-groups/)、[DNS](https://wiki.metacubex.one/en/config/dns/)、[规则匹配](https://wiki.metacubex.one/config/rules/)及 [ProjectClash QUIC 实现](https://github.com/ProjectClash/Clash/blob/4b7d5f53cff448f01cd5012b5e3f7eddc7d43e33/tunnel/clash_block_quic.go)。详细映射和使用方式见 [订阅说明](subscription.md)。
 
