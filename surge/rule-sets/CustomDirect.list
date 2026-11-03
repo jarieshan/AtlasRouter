@@ -1,0 +1,30 @@
+# NAME: CustomDirect
+# Always DIRECT. The profile's [Host] also resolves these domains with the domestic DNS servers.
+
+DOMAIN-SUFFIX,longbridge.global
+DOMAIN-SUFFIX,ibkr.com
+DOMAIN-SUFFIX,binance.info
+
+# Hong Kong banks and government, without selectable policy groups.
+# HSBC
+DOMAIN-SUFFIX,hsbc.com.hk
+DOMAIN-SUFFIX,hsbc.com
+DOMAIN-SUFFIX,hsbcnet.com
+# Standard Chartered
+DOMAIN-SUFFIX,sc.com
+DOMAIN-SUFFIX,standardchartered.com
+DOMAIN-SUFFIX,standardchartered.com.hk
+# Bank of China (Hong Kong)
+DOMAIN-SUFFIX,bochk.com
+# ICBC (Asia), including the personal and corporate online banking hosts.
+DOMAIN-SUFFIX,icbcasia.com
+DOMAIN,myebankasia.icbc.com.cn
+DOMAIN,corpebankasia.icbc.com.cn
+# ZA Bank
+DOMAIN-SUFFIX,za.group
+# Hang Seng Bank
+DOMAIN-SUFFIX,hangseng.com
+# Hong Kong Government
+DOMAIN-SUFFIX,gov.hk
+
+DOMAIN-SUFFIX,cdn.kineticbloom.org

@@ -2,7 +2,6 @@ import { isAdminEmail, requireAccessAdmin, requireAccessUser } from "./access-au
 import { HttpError } from "./errors.js";
 import { importPoolNodes } from "./node-import.js";
 import { downloadClashRuleSet, findClashRuleSource } from "./clash-rules.js";
-import { downloadMagicRuleSet, findMagicRuleSource } from "./magic-rules.js";
 import { renderAccountPage } from "./pool-pages.js";
 import { isPreviewIdentity, readPreviewProfile } from "./page-preview.js";
 import { renderClashProfile } from "./render-clash.js";
@@ -75,11 +74,9 @@ export async function handlePoolRequest(request, env) {
   const modulePrefix = `${subscriptionPath}/modules/`;
   const rulesPrefix = `${subscriptionPath}/rules/`;
   let ruleSource = null;
-  let magicRule = null;
   if (path.startsWith(rulesPrefix)) {
-    magicRule = findMagicRuleSource(path.slice(rulesPrefix.length));
-    if (!magicRule) ruleSource = await findClashRuleSource(path.slice(rulesPrefix.length));
-    if (!magicRule && !ruleSource) throw new HttpError(404, "Not Found");
+    ruleSource = await findClashRuleSource(path.slice(rulesPrefix.length));
+    if (!ruleSource) throw new HttpError(404, "Not Found");
   }
   let module = null;
   if (path.startsWith(modulePrefix)) {
@@ -90,14 +87,11 @@ export async function handlePoolRequest(request, env) {
     }
     if (!module) throw new HttpError(404, "Not Found");
   }
-  if (path === subscriptionPath || module || ruleSource || magicRule) {
+  if (path === subscriptionPath || module || ruleSource) {
     requireMethod(request, "GET");
     const tokens = url.searchParams.getAll("token");
     if (tokens.length !== 1 || !/^ar_[a-f0-9]{64}$/.test(tokens[0])) throw new HttpError(401, "Unauthorized");
     const { groups } = await callSubscriptionStore(env, { action: "subscription", token: tokens[0] });
-    if (magicRule) return new Response(await downloadMagicRuleSet(magicRule), { headers: {
-      "content-type": magicRule.client === "mihomo" ? "application/yaml; charset=utf-8" : "text/plain; charset=utf-8",
-    } });
     if (ruleSource) return new Response(await downloadClashRuleSet(ruleSource), { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (module) return new Response(module, { headers: { "content-type": "text/plain; charset=utf-8" } });
     const options = readSubscriptionOptions(url.searchParams);
