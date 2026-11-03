@@ -203,7 +203,6 @@ test("renders ordered smart groups with valid references and literal credential 
   const config = renderSurgeProfile({ requestUrl: "https://atlas.example/AtlasRouter", token: "test-token", groups, nodes: groups.flatMap((group) => group.nodes) });
   assert.match(config, /^🇺🇸USA-ISP = smart, 🇺🇸 LosAngeles - ISP 2, 🇺🇸 LosAngeles - ISP 3, 🇺🇸 LosAngeles - ISP 1, policy-priority=/m);
   assert.match(config, /password=\$&\$1\$\$/);
-  assert.match(config, /DOMAIN-SUFFIX,kaggle.com,🇺🇸USA-ISP/);
   assert.match(config, /^FINAL,Proxy,dns-failed$/m);
   assert.match(config, /\/AtlasRouter\/modules\/tencent-oa.sgmodule\?token=/);
   assert.doesNotMatch(config, /{{|💎 Select/);

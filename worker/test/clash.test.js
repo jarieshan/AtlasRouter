@@ -14,6 +14,7 @@ import { orderedSmartPriority, splitSurgeList, surgeAssignment, surgeOptions } f
 const context = { requestUrl: "https://atlas.example/AtlasRouter", token: `ar_${"a".repeat(64)}` };
 const wechatUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list";
 const customDirectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
+const customRejectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
 const directUrl = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
@@ -85,8 +86,9 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
   const input = profile();
   const wechatSource = await ruleSource(["RULE-SET", wechatUrl]);
   const customDirectSource = await ruleSource(["RULE-SET", customDirectUrl]);
+  const customRejectSource = await ruleSource(["RULE-SET", customRejectUrl]);
   const directSource = await ruleSource(["RULE-SET", directUrl]);
-  for (const source of [wechatSource, customDirectSource, directSource]) {
+  for (const source of [wechatSource, customDirectSource, customRejectSource, directSource]) {
     assert.deepEqual(await findClashRuleSource(`${source.id}.txt`), source);
   }
   for (const doh of [false, true]) {
@@ -141,8 +143,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const directRule = config.rules.indexOf(`RULE-SET,${directSource.id},DIRECT,no-resolve`);
     assert.ok(directRule >= 0 && directRule < resolvedLan);
     assert.ok(resolvedLan < config.rules.indexOf("GEOIP,CN,DIRECT"));
-    assert.ok(config.rules.includes("DOMAIN-SUFFIX,kaggle.com,🇺🇸USA-ISP"));
-    assert.ok(config.rules.includes("DOMAIN-SUFFIX,msmp.abchina.com.cn,REJECT"));
+    assert.ok(config.rules.includes(`RULE-SET,${customRejectSource.id},REJECT,no-resolve`));
     assert.equal(config["proxy-groups"][0].timeout, 5000);
     assert.deepEqual(config.dns.nameserver, doh ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
     // Node bootstrap must not depend on the proxy used by encrypted DNS.
@@ -177,7 +178,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customDirectSource.id, wechatSource.id, "Binance", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", directSource.id]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Binance", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", directSource.id]);
     assert.ok(config.rules.includes("RULE-SET,Copilot,AIProxy,no-resolve"));
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple|Direct),/.test(rule)), [
       "RULE-SET,AppleTV,GlobalMedia,no-resolve",
@@ -189,7 +190,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     ]);
     for (const [name, provider] of Object.entries(config["rule-providers"])) {
       const url = new URL(provider.url);
-      const external = [customDirectSource.id, wechatSource.id, directSource.id].includes(name);
+      const external = [customRejectSource.id, customDirectSource.id, wechatSource.id, directSource.id].includes(name);
       assert.equal(url.toString(), external
         ? `${context.requestUrl}/rules/${name}.txt?token=${context.token}`
         : magicRuleUrl(name, "mihomo", context.requestUrl, context.token));

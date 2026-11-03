@@ -11,7 +11,7 @@ test("repository rule sets referenced by the template exist on this branch and c
     assert.ok(match, url);
     return match[1];
   }))];
-  assert.deepEqual(paths, ["surge/rule-sets/CustomDirect.list", "surge/rule-sets/WeChat.list"]);
+  assert.deepEqual(paths.sort(), ["surge/rule-sets/CustomDirect.list", "surge/rule-sets/CustomReject.list", "surge/rule-sets/WeChat.list"]);
   for (const path of paths) {
     const text = readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
     const rules = text.split("\n").filter((line) => line && !line.startsWith("#"));

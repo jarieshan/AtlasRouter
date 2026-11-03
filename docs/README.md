@@ -24,6 +24,6 @@
 不建议放在这里的内容：
 
 - 真实节点、Token、上游订阅链接或其他密钥。
-- 分散的小规则文件；当前零散自定义规则维护在 `surge/rules.list`，固定直连域名和 WeChat 规则集维护在 `surge/rule-sets/`。
+- 分散的小规则文件；当前零散自定义规则维护在 `surge/rules.list`，固定直连、拒绝域名和 WeChat 规则集维护在 `surge/rule-sets/`。
 - Worker 运行时代码。
 - `references/` 中未经核实的样例结论。

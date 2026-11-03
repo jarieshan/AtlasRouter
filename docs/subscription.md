@@ -113,6 +113,8 @@ develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨
 
 列表另含 `longbridge.global`、`ibkr.com`、`binance.info` 和 `cdn.kineticbloom.org`。`hsbc.com`、`hsbcnet.com`、`sc.com`、`standardchartered.com` 等为银行共用域名，其下的其他地区服务也会直连。这里控制的是规则模式下的分流，不修改 `skip-proxy`，也不启用 MitM。
 
+需要拒绝的域名维护在 [`surge/rule-sets/CustomReject.list`](../surge/rule-sets/CustomReject.list)（目前为 `msmp.abchina.com.cn`），同样经 jsDelivr 引用，排在 CustomDirect 之前，因此先于国内直连名单中的 `.cn` 等规则生效；它不参与 `[Host]` 映射。`rules.list` 现在只保留订阅入口和 DoH 上游的规则。
+
 master 的地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中的独立分组，仍可作为其他策略组的选项。develop 的 Preview 配置启用 `SHOW_ALL_PROXY_GROUPS=true`，统一省略所有策略组的隐藏属性，覆盖组定义和规则上的 `hidden` 设置，包括地区组、AppleDirect、DoH Proxy 及以后新增的组；Surge 与 Clash 输出保持一致，更新 Dev 订阅后生效。账户网页和管理员节点清单继续展示分配信息。Apple 的两个分组按 `iCloud` → `AppleDirect` 定义，生产环境中 iCloud 可见、AppleDirect 隐藏，Dev 全部可见。iCloud 首项为 `DIRECT`，其余选项先按 IDC → WARP → ISP，再按地区顺序排列；AppleDirect 仅保留 `DIRECT` 一个选项，固定直连。这里的顺序是手动选择项顺序，不是 DIRECT 失败后的自动切换顺序；客户端已有且仍有效的手动选择可能被保留。
 
 模板支持在 `[Rule]` 的 `RULE-SET` / `DOMAIN-SET` 行上追加 `hidden=true` 或 `hidden=false`，作为 AtlasRouter 对所引用策略组的显示设置。生成时会移除规则行的该参数，将其应用到对应 `[Proxy Group]` 定义，再转换为 Clash 的 `hidden` 属性；规则、策略引用和匹配顺序保持有效。`hidden=false` 会移除组上的隐藏参数，使用默认可见行为。Dev 的统一显示开关优先于这些逐组设置，只改变策略组显示，不改变节点配置、成员、权重和分流规则。此写法不是 Surge 原生规则参数；原生 `hidden` 属于[策略组参数](https://manual.nssurge.com/policy-groups/parameters.html#hidden)。同一组被多条规则引用时，未标记的规则不覆盖显式设置，多个显式设置必须一致；不能用于 `DIRECT`、`REJECT` 或不存在的组。

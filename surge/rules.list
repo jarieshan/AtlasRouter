@@ -7,8 +7,3 @@ DOMAIN,dns.alidns.com,DIRECT
 DOMAIN,doh.pub,DIRECT
 DOMAIN,cloudflare-dns.com,DoH Proxy
 DOMAIN,dns.google,DoH Proxy
-
-DOMAIN-SUFFIX,kaggle.com,🇺🇸 US
-DOMAIN-SUFFIX,kaggleusercontent.com,🇺🇸 US
-
-DOMAIN-SUFFIX,msmp.abchina.com.cn,REJECT
