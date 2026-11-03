@@ -1,11 +1,12 @@
 import { ASSETS } from "./generated/assets.js";
 
-const ARTIFACTS = "https://magicrule.pages.dev/data/_shared/artifacts/";
+// The MagicRule index serves artifacts from both Pages projects.
+const ARTIFACTS = ["https://magicrule.pages.dev/data/_shared/artifacts/", "https://rule-26r.pages.dev/data/_shared/artifacts/"];
 const EXTENSIONS = { surge: "list", mihomo: "yaml" };
 
 export function magicRuleUrl(name, client) {
   const url = Object.hasOwn(ASSETS.magicRules, name) && Object.hasOwn(EXTENSIONS, client) ? ASSETS.magicRules[name][client] : null;
-  if (typeof url !== "string" || !url.startsWith(`${ARTIFACTS}${name}_`) || !url.endsWith(`.${EXTENSIONS[client]}`)) {
+  if (typeof url !== "string" || !ARTIFACTS.some((prefix) => url.startsWith(`${prefix}${name}_`)) || !url.endsWith(`.${EXTENSIONS[client]}`)) {
     throw new Error("Unregistered MagicRule source");
   }
   return url;

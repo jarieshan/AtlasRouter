@@ -1,0 +1,20 @@
+# NAME: CustomAI
+# AI services MagicRule has no separate list for; Grok and Cursor, which Grok Bot runs on, come from MagicRule.
+
+# Meta AI and Muse, including the Meta Model API (api.meta.ai), its developer site (dev.meta.ai) and Llama.
+DOMAIN-SUFFIX,meta.ai
+DOMAIN-SUFFIX,muse.ai
+DOMAIN-SUFFIX,metaaiusercontent.com
+DOMAIN-SUFFIX,metaaivm.com
+DOMAIN-SUFFIX,llama.com
+DOMAIN-SUFFIX,llamameta.net
+DOMAIN,ai.meta.com
+DOMAIN,ai.developer.meta.com
+DOMAIN,aidemos.meta.com
+DOMAIN,llama.developer.meta.com
+
+# Grok user content and assets, missing from MagicRule's Grok list.
+DOMAIN-SUFFIX,grokusercontent.com
+
+# Grok Bot; its apps otherwise use Cursor's domains.
+DOMAIN-SUFFIX,grokbot.com

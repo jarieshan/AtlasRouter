@@ -3,12 +3,11 @@ import { renderProxyLines } from "./nodes.js";
 import { subscriptionPath } from "./routes.js";
 import { buildSubscriptionUrl } from "./subscription-options.js";
 import { magicRuleUrl } from "./magic-rules.js";
-import { appendTencentOaSkipProxy } from "./tencent-oa.js";
+import { tencentOaSkipProxy } from "./tencent-oa.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority } from "./surge-format.js";
 import { inheritBranch } from "./branch-query.js";
 
-const FALLBACK_POLICY = "Proxy";
 const REGION_ORDER = { US: 0, HK: 1, SG: 2, JP: 3 };
 const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
 const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
@@ -18,10 +17,9 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
-    MITM_LINES: "enable = false",
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
-    RULE_LINES: renderPoolRules(ASSETS.rules, groups, idcNames.length ? "DoH Proxy" : "REJECT"),
+    RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT"),
     DIRECT_DNS_SERVERS: (options.doh
       ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
       : ["223.5.5.5", "119.29.29.29"]).join(", "),
@@ -31,7 +29,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   };
   const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${options.doh ? "" : "# "}${setting}`);
-    if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=[ \t]*(.*)$/m, (_, value) => `skip-proxy = ${appendTencentOaSkipProxy(value)}`);
+    if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => `skip-proxy = ${tencentOaSkipProxy()}`);
     return heading + general;
   });
   return applyRuleSetVisibility(replaceTemplate(template, replacements), { showAllGroups });
@@ -66,18 +64,11 @@ function compareNodeGroups(a, b) {
   return compareNodes(a.nodes[0], b.nodes[0]);
 }
 
-function renderPoolRules(rules, groups, dohPolicy) {
-  const aliases = new Map([
-    ["DoH Proxy", dohPolicy],
-    ["🇺🇸 US", groups.find(({ nodes }) => nodes[0].region === "US")?.group ?? FALLBACK_POLICY],
-    ["🇯🇵 JP", groups.find(({ nodes }) => nodes[0].region === "JP")?.group ?? FALLBACK_POLICY],
-    ["🇺🇸🏠 US ISP", groups.find(({ nodes }) => nodes[0].region === "US" && nodes[0].ipType === "ISP")?.group ?? FALLBACK_POLICY],
-  ]);
+function renderPoolRules(rules, dohPolicy) {
   return rules.split("\n").map((line) => {
     if (line.trimStart().startsWith("#")) return line;
     const parts = line.split(",");
-    const policy = aliases.get(parts[2]?.trim());
-    if (policy) parts[2] = policy;
+    if (parts[2]?.trim() === "DoH Proxy") parts[2] = dohPolicy;
     return parts.join(",");
   }).join("\n");
 }

@@ -10,21 +10,45 @@ const requestUrl = "https://atlas.example/AtlasRouter";
 const token = `ar_${"a".repeat(64)}`;
 const nodes = parsePoolNodes([{ id: "node", line: "🇺🇸 Test ISP = trojan, example.com, 443, password=TEST_ONLY" }]);
 const input = { requestUrl, token, nodes, groups: [{ group: "🇺🇸USA-ISP", nodes }] };
-const networks = ["10.0.0.0/7", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "127.0.0.1", "169.254.0.0/16", "9.0.0.0/8", "30.0.0.0/8", "21.0.0.0/8", "22.0.0.0/8", "26.0.0.0/8", "28.0.0.0/7"];
-const domains = [
+const local = ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"];
+const banks = ["yunbusiness.ccb.com", "www.abchina.com.cn", "*.psbc.com", "*.bosc.cn"];
+const companyNetworks = ["9.0.0.0/8", "30.0.0.0/8", "21.0.0.0/8", "22.0.0.0/8", "26.0.0.0/8", "28.0.0.0/7"];
+const companyDomains = [
   "oa.com", "*.oa.com", "woa.com", "*.woa.com",
   "*tencentyun.com", "*tencent-cloud.net", "*tencent-cloud.com", "*tencentcloud.com",
   "*tencentcloudapi.com", "*tencentcloudcr.com", "*tcloudbase.com", "*tcloudbaseapp.com",
   "*qcloudimg.com", "*qcloud.com", "*cdn-go.cn", "*workbuddy.cn",
 ];
+const moduleList = () => ASSETS.modules[TENCENT_OA_MODULE].match(/^skip-proxy = (.+)$/m)[1].split(", ");
+const profileList = () => ASSETS.template.match(/^skip-proxy = (.+)$/m)[1].split(", ");
 
-test("Tencent OA module appends company proxy exceptions on Surge Mac only", () => {
+function ipv4Range(value) {
+  const match = /^(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\/(\d+))?$/.exec(value);
+  if (!match) return null;
+  const address = match.slice(1, 5).reduce((sum, part) => sum * 256 + Number(part), 0);
+  const size = 2 ** (32 - Number(match[5] ?? 32));
+  return [address - (address % size), address - (address % size) + size];
+}
+
+test("default skip-proxy keeps local networks and bank exceptions", () => {
+  assert.deepEqual(profileList(), ["127.0.0.1", "localhost", "*.local", "10.0.0.0/8", ...local.slice(3), ...banks]);
+});
+
+test("Tencent OA module replaces skip-proxy with the default entries plus company exceptions on Surge Mac only", () => {
   assert.deepEqual(Object.keys(ASSETS.modules), [TENCENT_OA_MODULE]);
   const module = ASSETS.modules[TENCENT_OA_MODULE];
   assert.match(module, /^#!name=Tencent OA Compatibility$/m);
   assert.match(module, /^#!system=mac$/m);
   assert.deepEqual([...module.matchAll(/^\[([^\]]+)\]$/gm)].map((match) => match[1]), ["General"]);
-  assert.deepEqual(module.match(/^skip-proxy = %APPEND% (.+)$/m)[1].split(", "), [...networks, ...domains]);
+  assert.doesNotMatch(module, /%APPEND%|%INSERT%/);
+  const list = moduleList();
+  assert.deepEqual(list, [...local.slice(0, 3), "10.0.0.0/7", ...local.slice(3), ...banks, ...companyNetworks, ...companyDomains]);
+  assert.equal(new Set(list).size, list.length);
+  const ranges = list.map(ipv4Range).filter(Boolean);
+  for (const entry of profileList()) {
+    const range = ipv4Range(entry);
+    assert.ok(range ? ranges.some(([start, end]) => start <= range[0] && range[1] <= end) : list.includes(entry), entry);
+  }
   const config = renderSurgeProfile(input);
   assert.ok(config.split("\n").includes(`# - Tencent OA Compatibility: ${requestUrl}/modules/${TENCENT_OA_MODULE}?token=${token}`));
 });
@@ -40,7 +64,8 @@ test("legacy tencent_oa links are opt-in, validate options, and survive managed 
   const disabled = renderSurgeProfile({ ...input, options: { tencentOa: false } });
   assert.equal(plain, disabled);
   const plainSkip = plain.match(/^skip-proxy = (.+)$/m)[1].split(", ");
-  for (const value of networks) assert.ok(!plainSkip.includes(value), value);
+  assert.deepEqual(plainSkip, profileList());
+  for (const value of [...companyNetworks, ...companyDomains, "10.0.0.0/7"]) assert.ok(!plainSkip.includes(value), value);
   assert.doesNotMatch(plain, /TencentOA|10\.28\.0\.21|tencent_oa=/);
   const options = { tencentOa: true, doh: true };
   const enabled = renderSurgeProfile({ ...input, requestUrl: `${requestUrl}?untrusted=x#fragment`, options });
@@ -52,19 +77,15 @@ test("legacy tencent_oa links are opt-in, validate options, and survive managed 
   assert.equal(enabled.split("[Proxy]\n")[1].split("[Rule]")[0], plain.split("[Proxy]\n")[1].split("[Rule]")[0]);
 });
 
-test("legacy tencent_oa links append the module exceptions and preserve DNS and rules", () => {
+test("legacy tencent_oa links replace skip-proxy with the module list and preserve DNS and rules", () => {
   const plain = renderSurgeProfile(input);
   const config = renderSurgeProfile({ ...input, options: { tencentOa: true } });
-  const skip = config.match(/^skip-proxy = (.+)$/m)[1].split(", ");
-  const original = ASSETS.template.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
-  assert.equal(new Set(skip).size, skip.length);
-  assert.ok(skip.every((value) => !value.includes("、")));
-  assert.deepEqual(skip, [...original, ...networks, ...domains]);
+  assert.deepEqual(config.match(/^skip-proxy = (.+)$/gm), [`skip-proxy = ${moduleList().join(", ")}`]);
   assert.doesNotMatch(config, /TencentOA|10\.28\.0\.21/);
   assert.equal(config.split("[Host]\n")[1].split("[Proxy]")[0], plain.split("[Host]\n")[1].split("[Proxy]")[0]);
   const withoutOverrides = (value) => value.replace(/^#!MANAGED-CONFIG .*\n/m, "").replace(/^skip-proxy = .*\n/m, "");
   assert.equal(withoutOverrides(config), withoutOverrides(plain));
-  const lines = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter(Boolean);
+  const lines = config.split("[Rule]\n")[1].split("\n").filter(Boolean);
   assert.deepEqual(lines.slice(0, 2), ["RULE-SET,SYSTEM,DIRECT", "RULE-SET,LAN,DIRECT,no-resolve"]);
   assert.deepEqual(lines.slice(-2), ["GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
 });

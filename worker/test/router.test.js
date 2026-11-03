@@ -374,10 +374,10 @@ test("MagicRule rules point at official artifacts without the subscription token
   const token = subscription.searchParams.get("token");
   t.mock.method(globalThis, "fetch", assert.fail);
   const surge = await (await request(`${subscription.pathname}${subscription.search}`, {}, env)).text();
-  assert.ok(surge.split("\n").includes(`RULE-SET,${magicRuleUrl("Copilot", "surge")},AIProxy,no-resolve,update-interval=86400`));
+  assert.ok(surge.split("\n").includes(`RULE-SET,${magicRuleUrl("OpenAI", "surge")},AIProxy,no-resolve`));
   assert.doesNotMatch(surge.split("[Rule]\n")[1], new RegExp(`/rules/|${token}`));
   const config = parseYaml(await (await request(`${subscription.pathname}${subscription.search}&client=clash`, {}, env)).text());
-  assert.equal(config["rule-providers"].Copilot.url, magicRuleUrl("Copilot", "mihomo"));
+  assert.equal(config["rule-providers"].OpenAI.url, magicRuleUrl("OpenAI", "mihomo"));
   assert.ok(Object.values(config["rule-providers"]).every(({ url }) => !url.includes(token)));
 });
 
@@ -468,7 +468,7 @@ test("production UI manages independent development credentials and links direct
     if (client === "clash") {
       const providers = Object.values(parseYaml(body)["rule-providers"]).map((provider) => provider.url);
       assert.ok(providers.length > 5);
-      assert.ok(providers.every((value) => /^https:\/\/(?:cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@develop\/surge\/rule-sets|magicrule\.pages\.dev\/data\/_shared\/artifacts)\/[^?#]+$/.test(value)));
+      assert.ok(providers.every((value) => /^https:\/\/(?:cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@develop\/surge\/rule-sets|(?:magicrule|rule-26r)\.pages\.dev\/data\/_shared\/artifacts)\/[^?#]+$/.test(value)));
       continue;
     }
     const urls = body.match(/https:\/\/develop\.atlas\.example[^\s]+/g);

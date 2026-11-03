@@ -25,10 +25,11 @@ const WECHAT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${WECHAT_UR
 const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
 const CUSTOM_DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${CUSTOM_DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
-const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, CUSTOM_DIRECT_URL, WECHAT_URL];
-const MAGICRULE_ARTIFACTS = "https://magicrule.pages.dev/data/_shared/artifacts/";
-const magicRuleArtifact = (url, name, key, extension) => url.startsWith(MAGICRULE_ARTIFACTS)
-  && new RegExp(`^${name}_${key}_[0-9a-f]{16}\\.${extension}$`).test(url.slice(MAGICRULE_ARTIFACTS.length));
+const COIN_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
+const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
+const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, CUSTOM_DIRECT_URL, WECHAT_URL, CUSTOM_AI_URL, COIN_URL];
+const magicRuleArtifact = (url, name, key, extension) =>
+  new RegExp(`^https://(?:magicrule|rule-26r)\\.pages\\.dev/data/_shared/artifacts/${name}_${key}_[0-9a-f]{16}\\.${extension}$`).test(url);
 const DIRECT_URL = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
 const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const TEAM = "https://test.cloudflareaccess.com";
@@ -661,14 +662,20 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.doesNotMatch(text, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
         assert.ok(text.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
-        const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve,update-interval=86400$/gm)];
-        assert.equal(sources.length, 26);
-        assert.deepEqual(sources[0].slice(1), [CUSTOM_REJECT_URL, "REJECT"]);
-        assert.deepEqual(sources[1].slice(1), [CUSTOM_DIRECT_URL, "DIRECT"]);
-        assert.deepEqual(sources[2].slice(1), [WECHAT_URL, "WeChat"]);
+        const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve$/gm)];
+        for (const [, value] of sources) {
+          if (!REPOSITORY_RULE_SET_URLS.includes(value)) assert.ok(magicRuleArtifact(value, "[A-Za-z]+", "rules", "list"), value);
+        }
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
-        for (const [, value] of sources.slice(3)) assert.ok(magicRuleArtifact(value, "[A-Za-z]+", "rules", "list"), value);
-        assert.deepEqual(sources.slice(4, 10).map(([, , policy]) => policy), ["GlobalMedia", "AIProxy", "iCloud", "AppleDirect", "AppleDirect", "DIRECT"]);
+        assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/artifacts\/([A-Za-z]+)_/)[1], policy]), [
+          [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
+          ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
+          ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"],
+          ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
+          [COIN_URL, "Coin"], ["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"],
+          ["Netflix", "GlobalMedia"], ["Disney", "GlobalMedia"], ["Hulu", "GlobalMedia"], ["IMDB", "GlobalMedia"], ["GlobalMedia", "GlobalMedia"],
+          ["China", "DIRECT"],
+        ]);
       }
     }
   }
@@ -701,7 +708,9 @@ test("Tencent OA changes proxy exceptions, preserves targeted DNS hijacking and 
       assert.doesNotMatch(body, /TencentOA|10\.28\.0\.21/);
       assert.match(body, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
       const skip = body.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
-      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*workbuddy.cn", "10.0.0.0/7", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "127.0.0.1", "169.254.0.0/16", "21.0.0.0/8", "28.0.0.0/7"]) assert.equal(skip.includes(value), tencentOa === "1");
+      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) assert.equal(skip.includes(value), tencentOa === "1");
+      for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
+      assert.equal(skip.includes("10.0.0.0/8"), tencentOa === "0");
       if (tencentOa === "0") plain = withoutOverrides(body);
       else assert.equal(withoutOverrides(body), plain);
     }

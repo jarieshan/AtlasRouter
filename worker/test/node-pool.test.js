@@ -208,7 +208,7 @@ test("renders ordered smart groups with valid references and literal credential 
   assert.match(config, /\/AtlasRouter\/modules\/tencent-oa.sgmodule\?token=/);
   assert.doesNotMatch(config, /{{|💎 Select/);
   assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
-  assert.match(config, /\[MITM\]\nenable = false/);
+  assert.doesNotMatch(config, /^\[MITM\]$/m);
   assert.doesNotMatch(config, /ca-p12|ca-passphrase/);
   const policyNames = new Set(["DIRECT", "REJECT"]);
   for (const name of config.matchAll(/^(.+?) = /gm)) policyNames.add(name[1]);
@@ -253,17 +253,18 @@ test("orders selection options by IP type while preserving regional definitions 
       assert.deepEqual(members, [...expectedOptions, name === "Proxy" ? "Auto" : "Proxy", "DIRECT"]);
       assert.equal(new Set(members).size, members.length);
     }
+    assert.ok(config.split("\n").includes(`Coin = select, DIRECT, ${expectedOptions.join(", ")}, icon-url=${ICON_BASE}Cryptocurrency.png`));
     const icloud = config.split("\n").find((line) => line.startsWith("iCloud = select, "));
     const expectedIcloud = ["IDC", "WARP", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.equal(icloud, `iCloud = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}iCloud.png`);
     assert.ok(config.split("\n").includes(`WeChat = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}WeChat.png`));
-    assert.ok(config.split("\n").includes("RULE-SET,https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list,WeChat,no-resolve,update-interval=86400"));
+    assert.ok(config.split("\n").includes("RULE-SET,https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list,WeChat,no-resolve"));
     const telegram = config.split("\n").find((line) => line.startsWith("Telegram = select, "));
     assert.equal(telegram, `Telegram = select, ${expectedIcloud.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Telegram.png`);
     const expectedWarpFirst = ["WARP", "IDC", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.ok(config.split("\n").includes(`YouTube = select, ${expectedWarpFirst.join(", ")}, icon-url=${ICON_BASE}YouTube.png`));
     assert.ok(config.split("\n").includes(`GlobalMedia = select, ${expectedWarpFirst.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Media.png`));
-    const youtubeRule = `RULE-SET,${magicRuleUrl("YouTube", "surge")},YouTube,no-resolve,update-interval=86400`;
+    const youtubeRule = `RULE-SET,${magicRuleUrl("YouTube", "surge")},YouTube,no-resolve\n`;
     assert.ok(config.includes(youtubeRule));
     assert.ok(config.indexOf(youtubeRule) < config.indexOf(`${magicRuleUrl("GlobalMedia", "surge")},`));
     assert.doesNotMatch(config, /\/Google_rules_|token=test-token,/);
@@ -272,7 +273,7 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.ok(config.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
     const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/artifacts\/(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple)_rules_/.test(line));
     assert.deepEqual(appleRules.map((line) => [line.match(/\/artifacts\/(\w+?)_rules_/)[1], line.split(",")[2]]), [
-      ["AppleTV", "GlobalMedia"], ["AppleIntelligence", "AIProxy"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"],
+      ["AppleIntelligence", "AIProxy"], ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"],
     ]);
     assert.doesNotMatch(config.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
     const definitions = [...config.matchAll(/^(.+) = smart, .+, policy-priority=/gm)].map((match) => match[1]);

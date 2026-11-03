@@ -3,6 +3,14 @@
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Binance_rules_50609329ecf8b551.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Binance_classical_c9de9678cd2de92a.yaml"
   },
+  "OKX": {
+    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/OKX_rules_b4a882ddff8a4b8d.list",
+    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/OKX_classical_cb63c8140960023f.yaml"
+  },
+  "Bybit": {
+    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/Bybit_rules_74d87d27547ef617.list",
+    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/Bybit_classical_1e61957fd4a49295.yaml"
+  },
   "AppleTV": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/AppleTV_rules_f9dcb0d2f34bf797.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/AppleTV_classical_86f028de323ba85a.yaml"
@@ -31,14 +39,6 @@
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/OpenAI_rules_f362ba1006ae0e0c.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/OpenAI_classical_cda01886e7b2ee62.yaml"
   },
-  "Bing": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Bing_rules_8fded621deff6986.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Bing_classical_882bef9c77b77af5.yaml"
-  },
-  "Copilot": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Copilot_rules_a253cdc8a666e0cb.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Copilot_classical_05e0618a980f4a89.yaml"
-  },
   "Anthropic": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Anthropic_rules_f9e0decc2657fdcd.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Anthropic_classical_f09788cbf2bd0c25.yaml"
@@ -46,6 +46,14 @@
   "Gemini": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Gemini_rules_8da136e527c6fa11.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Gemini_classical_5cce94bda31ad8d5.yaml"
+  },
+  "Grok": {
+    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Grok_rules_1686b96ebfe522d0.list",
+    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Grok_classical_a6f6c20793a48fed.yaml"
+  },
+  "Cursor": {
+    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/Cursor_rules_8a4e9d63f4d5df0f.list",
+    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/Cursor_classical_8d95480fc380f5ba.yaml"
   },
   "Telegram": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Telegram_rules_4acef626d1aec7ca.list",
