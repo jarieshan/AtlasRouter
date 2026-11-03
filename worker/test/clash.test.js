@@ -15,6 +15,7 @@ const context = { requestUrl: "https://atlas.example/AtlasRouter", token: `ar_${
 const wechatUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list";
 const customDirectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
 const customRejectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
+const coinUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
 const directUrl = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
@@ -87,8 +88,9 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
   const wechatSource = await ruleSource(["RULE-SET", wechatUrl]);
   const customDirectSource = await ruleSource(["RULE-SET", customDirectUrl]);
   const customRejectSource = await ruleSource(["RULE-SET", customRejectUrl]);
+  const coinSource = await ruleSource(["RULE-SET", coinUrl]);
   const directSource = await ruleSource(["RULE-SET", directUrl]);
-  for (const source of [wechatSource, customDirectSource, customRejectSource]) {
+  for (const source of [wechatSource, customDirectSource, customRejectSource, coinSource]) {
     assert.deepEqual(await findClashRuleSource(`${source.id}.txt`), source);
   }
   assert.equal(await findClashRuleSource(`${directSource.id}.txt`), null);
@@ -110,7 +112,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).icon, undefined);
     }
-    const icons = { "Proxy": "Proxy", "AIProxy": "AI", "iCloud": "iCloud", "AppleDirect": "Apple", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media" };
+    const icons = { "Proxy": "Proxy", "AIProxy": "AI", "iCloud": "iCloud", "AppleDirect": "Apple", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media", "Coin": "Cryptocurrency" };
     assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), Object.keys(icons));
     for (const [name, file] of Object.entries(icons)) assert.equal(config["proxy-groups"].find((group) => group.name === name)?.icon, `${iconBase}${file}.png`);
     for (const name of ["Proxy", "AIProxy", "X"]) {
@@ -128,6 +130,9 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(wechat.proxies, ["DIRECT", "🇭🇰HK-IDC", "🇺🇸USA-WARP", "🇺🇸USA-ISP"]);
     assert.ok(!wechat.hidden);
     assert.ok(config.rules.includes(`RULE-SET,${wechatSource.id},WeChat,no-resolve`));
+    assert.deepEqual(config["proxy-groups"].find((group) => group.name === "Coin").proxies, ["DIRECT", "🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC"]);
+    for (const name of ["Binance", "OKX", "Bybit"]) assert.ok(config.rules.includes(`RULE-SET,${name},Coin,no-resolve`), name);
+    assert.ok(config.rules.includes(`RULE-SET,${coinSource.id},Coin,no-resolve`));
     const telegram = config["proxy-groups"].find((group) => group.name === "Telegram");
     assert.deepEqual(telegram.proxies, ["🇭🇰HK-IDC", "🇺🇸USA-WARP", "🇺🇸USA-ISP", "Proxy", "DIRECT"]);
     assert.ok(!telegram.hidden);
@@ -179,7 +184,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Binance", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, coinSource.id, "Binance", "OKX", "Bybit", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
     assert.ok(config.rules.includes("RULE-SET,Copilot,AIProxy,no-resolve"));
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple|Direct),/.test(rule)), [
       "RULE-SET,AppleTV,GlobalMedia,no-resolve",
@@ -189,7 +194,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       "RULE-SET,Apple,AppleDirect,no-resolve",
       "RULE-SET,Direct,DIRECT,no-resolve",
     ]);
-    const repository = new Map([customRejectSource, customDirectSource, wechatSource].map((source) => [source.id, source.url]));
+    const repository = new Map([customRejectSource, customDirectSource, wechatSource, coinSource].map((source) => [source.id, source.url]));
     for (const [name, provider] of Object.entries(config["rule-providers"])) {
       assert.equal(provider.url, repository.get(name) ?? magicRuleUrl(name, "mihomo"));
       assert.ok(!provider.url.includes(context.token));

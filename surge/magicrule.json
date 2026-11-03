@@ -3,6 +3,14 @@
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Binance_rules_50609329ecf8b551.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Binance_classical_c9de9678cd2de92a.yaml"
   },
+  "OKX": {
+    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/OKX_rules_b4a882ddff8a4b8d.list",
+    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/OKX_classical_cb63c8140960023f.yaml"
+  },
+  "Bybit": {
+    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/Bybit_rules_74d87d27547ef617.list",
+    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/Bybit_classical_1e61957fd4a49295.yaml"
+  },
   "AppleTV": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/AppleTV_rules_f9dcb0d2f34bf797.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/AppleTV_classical_86f028de323ba85a.yaml"

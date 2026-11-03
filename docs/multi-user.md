@@ -76,7 +76,7 @@ VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、�
 
 `AIProxy`、`X` 的选项统一按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组。`GlobalMedia` 按 WARP → IDC → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 WARP 组。`Proxy` 自身按 ISP → WARP → IDC → `Auto` → `DIRECT` 排列，默认选择首个可用的 ISP 组。地区/IP 类型选项先按 IP 类型排序，同一类型内按美国 → 香港 → 新加坡 → 日本 → 其他地区排列，其他地区按两位地区代码的字母升序排列。只列出当前可用组，缺少某类节点时跳过。所有可选策略组均不提供 `REJECT` 选项。这里的“可用组”指有启用节点并生成到订阅中的组，不代表客户端已测速通过；`select` 不会因当前地区组失效而自动切换到下一个地区组。
 
-`WeChat` 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连，并接收 WeChat 规则集的流量。`Telegram` 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组。这两个策略组均可见。Apple 分组按 `iCloud` → `AppleDirect` 定义：iCloud 可见，先列 `DIRECT`，然后按 IDC → WARP → ISP 列出可用组；生产环境中 AppleDirect 隐藏，Dev 全部可见；AppleDirect 仅保留 `DIRECT`，固定直连。Apple TV+ 进入 `GlobalMedia`，Apple Intelligence 进入 `AIProxy`。模板规则行中的 `hidden=true` 由 Worker 转换为对应策略组的隐藏属性，规则继续参与分流。同一 IP 类型内均使用上述地区顺序。`💎 Select` 已移除。
+`WeChat` 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连，并接收 WeChat 规则集的流量。`Telegram` 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组。这两个策略组均可见。`Coin` 同样可见，按 `DIRECT` → ISP → WARP → IDC 排列，默认直连，接收 Binance、OKX、Coinbase、Bybit 和 Bitget 规则的流量。Apple 分组按 `iCloud` → `AppleDirect` 定义：iCloud 可见，先列 `DIRECT`，然后按 IDC → WARP → ISP 列出可用组；生产环境中 AppleDirect 隐藏，Dev 全部可见；AppleDirect 仅保留 `DIRECT`，固定直连。Apple TV+ 进入 `GlobalMedia`，Apple Intelligence 进入 `AIProxy`。模板规则行中的 `hidden=true` 由 Worker 转换为对应策略组的隐藏属性，规则继续参与分流。同一 IP 类型内均使用上述地区顺序。`💎 Select` 已移除。
 
 `YouTube` 使用可见的独立策略组和品牌 Logo，选项按 WARP → IDC → ISP 排列，缺少某类节点时跳过，只列出当前可用的地区/IP 类型组。YouTube 规则在 GlobalMedia 之前匹配，使用 MagicRule 的原生 Surge / Mihomo 完整规则。
 

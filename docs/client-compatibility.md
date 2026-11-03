@@ -10,6 +10,7 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy |
 | Apple | iCloud → AppleDirect → AppleProxy，几乎全部直连，含 Apple TV+ | AppleTV → `GlobalMedia`、AppleIntelligence → `AIProxy` 先匹配，其余经 iCloud / AppleDirect 直连 |
 | GlobalMedia 默认出口 | ISP → WARP → IDC，默认首个 ISP 组 | WARP → IDC → ISP，默认首个 WARP 组 |
+| 加密货币交易所 | Binance 固定直连；OKX、Coinbase、Bybit、Bitget 无专门规则 | 五家均进入 `Coin`，DIRECT → ISP → WARP → IDC，默认直连 |
 | Auto | Surge Smart；Clash url-test | 同左 |
 | UI | 开启，Dev 按钮可管理测试数据 | 关闭 |
 | 订阅 | `/AtlasRouter`，生产 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |

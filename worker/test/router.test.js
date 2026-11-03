@@ -468,7 +468,7 @@ test("production UI manages independent development credentials and links direct
     if (client === "clash") {
       const providers = Object.values(parseYaml(body)["rule-providers"]).map((provider) => provider.url);
       assert.ok(providers.length > 5);
-      assert.ok(providers.every((value) => /^https:\/\/(?:cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@develop\/surge\/rule-sets|magicrule\.pages\.dev\/data\/_shared\/artifacts)\/[^?#]+$/.test(value)));
+      assert.ok(providers.every((value) => /^https:\/\/(?:cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@develop\/surge\/rule-sets|(?:magicrule|rule-26r)\.pages\.dev\/data\/_shared\/artifacts)\/[^?#]+$/.test(value)));
       continue;
     }
     const urls = body.match(/https:\/\/develop\.atlas\.example[^\s]+/g);

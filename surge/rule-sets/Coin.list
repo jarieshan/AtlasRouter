@@ -1,0 +1,12 @@
+# NAME: Coin
+# Coinbase and Bitget, which MagicRule has no separate lists for; Binance, OKX and Bybit come from MagicRule.
+
+# Coinbase
+DOMAIN-SUFFIX,coinbase.com
+
+# Bitget, including its static asset and mirror domains.
+DOMAIN-SUFFIX,bitget.com
+DOMAIN-SUFFIX,bgbstatic.com
+DOMAIN-SUFFIX,bgstatic.com
+DOMAIN-SUFFIX,bitget.site
+DOMAIN-SUFFIX,bitgetapp.com
