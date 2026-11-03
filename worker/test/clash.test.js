@@ -13,7 +13,7 @@ import { orderedSmartPriority, splitSurgeList, surgeAssignment, surgeOptions } f
 
 const context = { requestUrl: "https://atlas.example/AtlasRouter", token: `ar_${"a".repeat(64)}` };
 const wechatUrl = "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list";
-const directUrl = "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt";
+const directUrl = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
 const vmess = `vmess, vmess.example.com, 443, username=${uuid}, vmess-aead=true, tls=true`;
@@ -43,8 +43,9 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   assert.deepEqual(plain.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.match(encrypted, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
   assert.match(encrypted, /^encrypted-dns-follow-outbound-mode = true$/m);
-  assert.ok(plain.split("\n").includes(`DOMAIN-SET:${directUrl} = server:223.5.5.5, 119.29.29.29`));
-  assert.ok(encrypted.split("\n").includes(`DOMAIN-SET:${directUrl} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query`));
+  assert.ok(plain.split("\n").includes(`RULE-SET:${directUrl} = server:223.5.5.5, 119.29.29.29`));
+  assert.ok(encrypted.split("\n").includes(`RULE-SET:${directUrl} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query`));
+  assert.doesNotMatch(plain, /jsdelivr\.net\/gh\/Loyalsoldier\/surge-rules/);
   for (const config of [plain, encrypted]) {
     assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${iconBase}Auto.png`));
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
@@ -55,7 +56,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     for (const hostname of ["dns.alidns.com", "doh.pub"]) {
       const mapping = `${hostname} = server:223.5.5.5, 119.29.29.29`;
       assert.ok(hosts.split("\n").includes(mapping));
-      assert.ok(hosts.indexOf(mapping) < hosts.indexOf(`DOMAIN-SET:${directUrl}`));
+      assert.ok(hosts.indexOf(mapping) < hosts.indexOf(`RULE-SET:${directUrl}`));
     }
     for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
       const directRule = `DOMAIN,${hostname},DIRECT`;
@@ -69,7 +70,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
     const rules = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter((line) => line && !line.startsWith("#"));
-    assert.deepEqual(rules.slice(-4), [`DOMAIN-SET,${directUrl},DIRECT`, "RULE-SET,LAN,DIRECT", "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
+    assert.deepEqual(rules.slice(-4), [`RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=86400`, "RULE-SET,LAN,DIRECT", "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);
@@ -80,8 +81,9 @@ test("subscription options default to Surge, validate duplicates, and preserve o
 test("Clash output is derived from the rendered Surge profile and retains sorting, allocation and rules", async () => {
   const input = profile();
   const wechatSource = await ruleSource(["RULE-SET", wechatUrl]);
-  const directSource = await ruleSource(["DOMAIN-SET", directUrl]);
+  const directSource = await ruleSource(["RULE-SET", directUrl]);
   assert.deepEqual(await findClashRuleSource(`${wechatSource.id}.txt`), wechatSource);
+  assert.deepEqual(await findClashRuleSource(`${directSource.id}.txt`), directSource);
   for (const doh of [false, true]) {
     const surge = renderSurgeProfile({ ...input, options: { doh } });
     const output = await renderClashProfile(surge, context);
@@ -130,7 +132,8 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config["proxy-groups"].filter((group) => [icloud, appleDirect].includes(group)).map((group) => group.name), ["iCloud", "AppleDirect"]);
     assert.equal(config.rules.at(-1), "MATCH,Proxy");
     const resolvedLan = config.rules.indexOf("IP-CIDR,192.168.0.0/16,DIRECT");
-    assert.ok(config.rules.indexOf(`RULE-SET,${directSource.id},DIRECT`) < resolvedLan);
+    const directRule = config.rules.indexOf(`RULE-SET,${directSource.id},DIRECT,no-resolve`);
+    assert.ok(directRule >= 0 && directRule < resolvedLan);
     assert.ok(resolvedLan < config.rules.indexOf("GEOIP,CN,DIRECT"));
     assert.ok(config.rules.includes("DOMAIN-SUFFIX,kaggle.com,🇺🇸USA-ISP"));
     assert.ok(config.rules.includes("DOMAIN-SUFFIX,msmp.abchina.com.cn,REJECT"));
@@ -328,6 +331,10 @@ test("Host DoH mappings follow the outbound setting and only reuse declared doma
   assert.equal(config.dns["nameserver-policy"], undefined);
   assert.deepEqual(Object.keys(config["rule-providers"]), []);
   assert.equal(warnings.length, 6);
+  const ruleSet = await ruleSource(["RULE-SET", directUrl]);
+  const mapped = await convertSurgeToClash(`[Host]\nRULE-SET:${directUrl} = server:223.5.5.5\n[Proxy]\nnode = ${vmess}\n[Rule]\nRULE-SET,${directUrl},DIRECT,no-resolve\nFINAL,node\n`, context);
+  assert.deepEqual({ ...mapped.config.dns["nameserver-policy"] }, { [`rule-set:${ruleSet.id}`]: ["223.5.5.5"] });
+  assert.deepEqual(mapped.warnings, []);
 });
 
 test("smart conversion includes only proxy nodes and retains automatic selection references", async () => {

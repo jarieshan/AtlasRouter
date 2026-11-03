@@ -116,8 +116,9 @@ async function convertHostDns(lines, providers, general, warn) {
         return url.toString() + (surgeBoolean(general.get("encrypted-dns-follow-outbound-mode") ?? "false") ? "#RULES" : "");
       });
       let pattern;
-      if (name.startsWith("DOMAIN-SET:")) {
-        const source = await ruleSource(["DOMAIN-SET", name.slice("DOMAIN-SET:".length)]);
+      const reference = name.match(/^(DOMAIN-SET|RULE-SET):(.+)$/);
+      if (reference) {
+        const source = await ruleSource([reference[1], reference[2]]);
         if (!source || !Object.hasOwn(providers, source.id)) throw new Error();
         pattern = `rule-set:${source.id}`;
       } else {

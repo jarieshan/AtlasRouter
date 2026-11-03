@@ -22,8 +22,8 @@ const ORIGIN = "https://atlas.example";
 
 const WECHAT_URL = "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list";
 const WECHAT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${WECHAT_URL}`).digest("hex").slice(0, 32)}`;
-const DIRECT_URL = "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt";
-const DIRECT_RULE_ID = `rule-${createHash("sha256").update(`DOMAIN-SET:${DIRECT_URL}`).digest("hex").slice(0, 32)}`;
+const DIRECT_URL = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
+const DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const TEAM = "https://test.cloudflareaccess.com";
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -638,7 +638,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
-        assert.ok(text.split("\n").includes(`DOMAIN-SET:${DIRECT_URL} = server:${directDns}`));
+        assert.ok(text.split("\n").includes(`RULE-SET:${DIRECT_URL} = server:${directDns}`));
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(text.includes(`DOMAIN,${hostname},DoH Proxy\n`));
         for (const hostname of ["dns.alidns.com", "doh.pub"]) {
           const rule = `DOMAIN,${hostname},DIRECT\n`;
@@ -646,7 +646,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
           const hosts = text.split("[Host]\n")[1].split("[Proxy]\n")[0];
           const mapping = `${hostname} = server:223.5.5.5, 119.29.29.29`;
           assert.ok(hosts.split("\n").includes(mapping));
-          assert.ok(hosts.indexOf(mapping) < hosts.indexOf(`DOMAIN-SET:${DIRECT_URL}`));
+          assert.ok(hosts.indexOf(mapping) < hosts.indexOf(`RULE-SET:${DIRECT_URL}`));
         }
         assert.deepEqual(text.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
         const managed = new URL(text.match(/^#!MANAGED-CONFIG (\S+)/)[1]);
@@ -658,10 +658,11 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
         const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve,update-interval=86400$/gm)];
-        assert.equal(sources.length, 23);
+        assert.equal(sources.length, 24);
         assert.equal(sources[0][2], "WeChat");
         assert.equal(sources[0][1], WECHAT_URL);
-        for (const [, value] of sources.slice(1)) {
+        assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
+        for (const [, value] of sources.slice(1, -1)) {
           const source = new URL(value);
           assert.equal(source.origin, ORIGIN);
           assert.match(source.pathname, /^\/AtlasRouter\/rules\/magicrule\/surge\/[A-Za-z]+\.list$/);

@@ -41,18 +41,18 @@ AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配�
 
 默认 DoH 上游使用 [Cloudflare](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/) 的 `https://cloudflare-dns.com/dns-query` 和 [Google](https://developers.google.com/speed/public-dns/docs/secure-transports) 的 `https://dns.google/dns-query`，地址维护在 `surge/template.conf`。`doh=1` 同时激活 `encrypted-dns-server` 和 `encrypted-dns-follow-outbound-mode = true`；托管更新地址保留该选项。DoH 仅按上游域名分流：`surge/rules.list` 前部将 `dns.alidns.com`、`doh.pub` 精确匹配到 `DIRECT`，将 `cloudflare-dns.com`、`dns.google` 精确匹配到 IDC 专用组 `DoH Proxy`。Surge 和 Clash 使用相同的域名规则，均先于外部规则集；未列出的上游域名继续匹配其他分流规则。证书校验保持开启，参见 [Surge 加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html)。
 
-`[Host]` 引用 `DOMAIN-SET:https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/direct.txt` 为名单内域名分配 DNS：`doh=0` 使用 `223.5.5.5, 119.29.29.29`，`doh=1` 使用 `https://dns.alidns.com/dns-query, https://doh.pub/dns-query`。开关由订阅生成器渲染为具体的 `server:` 值；这两个国内 DoH 上游经 `DIRECT` 出站。该映射位于 `zslab.ai` 和国内 DoH 上游的专用映射之后，专用映射优先；名单外域名沿用默认 DNS。
+`[Host]` 通过 `RULE-SET:https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list` 引用国内直连名单（见“订阅内容”），为名单中的域名分配 DNS：`doh=0` 使用 `223.5.5.5, 119.29.29.29`，`doh=1` 使用 `https://dns.alidns.com/dns-query, https://doh.pub/dns-query`。名单中的 IP 规则不参与 DNS 映射。开关由订阅生成器渲染为具体的 `server:` 值；这两个国内 DoH 上游经 `DIRECT` 出站。该映射位于 `zslab.ai` 和国内 DoH 上游的专用映射之后，专用映射优先；名单外域名沿用默认 DNS。
 
 `[Host]` 固定为 `zslab.ai` 和 `*.zslab.ai` 指定 `server:223.5.5.5, 119.29.29.29`，覆盖根域名及所有层级子域名，不受 DoH 开关影响；这是 DNS 服务器分配，不是把域名绑定到这两个 IP。按 [Surge Host 语法](https://manual.nssurge.com/dns/local-dns-mapping.html)，多 DNS 服务器需要 Surge Mac 6.8.0+ / iOS 5.21.0+。节点使用域名时，需要普通 DNS 映射或 IP 地址完成引导解析，避免“连接代理前先通过该代理解析节点”的循环；`zslab.ai` 下的节点由上述映射覆盖，其他节点域名需另配映射。相关行为见 [Surge Mac 版本说明](https://kb.nssurge.com/surge-knowledge-base/release-notes/surge-mac-legacy#version-5.6.0)。
 
-`[Host]` 还固定包含以下两条映射，为国内 DoH 上游自身的域名使用普通 DNS 引导解析；两条均放在直连域名集映射之前，不受 DoH 开关影响：
+`[Host]` 还固定包含以下两条映射，为国内 DoH 上游自身的域名使用普通 DNS 引导解析；两条均放在国内直连名单映射之前，不受 DoH 开关影响：
 
 ```ini
 dns.alidns.com = server:223.5.5.5, 119.29.29.29
 doh.pub = server:223.5.5.5, 119.29.29.29
 ```
 
-Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；直连域名集复用现有规则提供器，生成 `rule-set:<提供器名>` 项，下载地址继续携带同一订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
+Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；国内直连名单复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项，下载地址继续携带同一订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
 
 DNS 劫持固定为以下两个目标，不随 DoH 开关或 Tencent OA 模块变化；DoH 开关只控制加密 DNS 上游：
 
@@ -125,9 +125,11 @@ master 的地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中�
 
 WeChat 使用指定的 [blackmatrix7 WeChat 规则（jsDelivr）](https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list)：Surge 直接引用这个公共链接，不附加个人 token；Clash 通过受 token 保护的 Worker 入口转换为 classical 文本规则，跳过不支持的 `USER-AGENT` 条目。客户端更新间隔为 24 小时。
 
-其他外部规则使用 [MagicRule](https://magicrule.pages.dev/)；上游 [迁移公告](https://github.com/blackmatrix7/ios_rule_script/issues/1747) 说明旧仓库在 2026 年底停止自动更新。`surge/magicrule.json` 保存 Surge / Mihomo 清单标识，模板中的 `{{RULESET_<name>}}` 渲染为带个人 token 的固定 Worker 地址。每次下载读取对应 `manifest.json`，选择 `role=full` 的当前产物，避免固定引用带哈希的产物文件；不依赖额外客户端脚本或模块。清单与产物的上游缓存均为一小时，客户端规则更新间隔为 24 小时。上游清单路径本身如有调整，仍需更新映射并重新部署。
+其他外部规则使用 [MagicRule](https://magicrule.pages.dev/)；上游 [迁移公告](https://github.com/blackmatrix7/ios_rule_script/issues/1747) 说明旧仓库在 2026 年底停止自动更新。`surge/magicrule.json` 保存 Surge / Mihomo 清单标识，模板中的 `{{RULESET_<name>}}` 渲染为带个人 token 的固定 Worker 地址。每次下载读取对应 `manifest.json`，选择 `role=full` 的当前产物，避免固定引用带哈希的产物文件；不依赖额外客户端脚本或模块。清单与产物的上游缓存均为一小时，客户端规则更新间隔为 24 小时。上游清单路径本身如有调整，仍需更新映射并重新部署。国内直连名单是例外，见下文。
 
-不引用 MagicRule 的 Google 规则集：其当前 Surge / Mihomo 产物含 `hk`、`tw`、`sg`、`co` 等 28 个国家/地区顶级域的整段 `DOMAIN-SUFFIX`，会先于直连域名集和 `GEOIP,CN` 把这些顶级域下的全部域名送往 `Proxy`，包括直连域名集中的 `tmall.hk`、`jd.hk` 等。Google 自有域名改由后续的直连域名集、`GEOIP,CN` 和 `FINAL,Proxy,dns-failed` 判断，通常仍经代理访问，首次访问会多一次本地 DNS 查询；YouTube、Gemini 等仍由各自规则集处理。
+国内直连名单使用 MagicRule `China` 列表的固定产物 `https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list`（2026-10-30 版本，约 6,300 条域名后缀和 3,900 条 IP 段，含整段 `.cn`），在 `[Rule]` 中位于 LAN 解析规则和 `GEOIP,CN` 之前直连，并通过 `[Host]` 的 `RULE-SET:` 为其中的域名指定国内 DNS。Surge 直接从 MagicRule 下载，不经 Worker、不携带 token；Clash 通过受 token 保护的 Worker 入口转换为 classical 文本规则，跳过 30 条 `USER-AGENT`。这里固定引用带哈希的产物，因为 `[Host]` 的键在第一个 `=` 处切分，不能使用带 `token=` 的 Worker 地址，两处又需引用同一地址；上游更新后该文件不会随之变化，需要从 China 清单（Surge `11af2559235209b8783239b3`）取 `role=full` 的当前产物，同时替换模板中的两处地址。名单含 `DOMAIN-SUFFIX,ms`，所有 `.ms` 域名（如 `aka.ms`）直连。
+
+不引用 MagicRule 的 Google 规则集：其当前 Surge / Mihomo 产物含 `hk`、`tw`、`sg`、`co` 等 28 个国家/地区顶级域的整段 `DOMAIN-SUFFIX`，会先于国内直连名单和 `GEOIP,CN` 把这些顶级域下的全部域名送往 `Proxy`。Google 自有域名改由后续的国内直连名单、`GEOIP,CN` 和 `FINAL,Proxy,dns-failed` 判断，通常仍经代理访问，首次访问会多一次本地 DNS 查询；YouTube、Gemini 等仍由各自规则集处理。
 
 Apple 规则按 AppleTV → AppleIntelligence → iCloud → AppleDirect → Apple 完整规则的顺序匹配，均位于通用 Direct 之前。MagicRule 的 AppleTV 列表（`tv.apple.com` 及 Apple TV+ 的播放接口）进入 `GlobalMedia`，AppleIntelligence 列表（私密云计算中继及 `siri.apple.com`）进入 `AIProxy`；两者必须先于覆盖整个 `apple.com` 的直连列表。其余 Apple 服务由 iCloud（可手动切换，默认直连）、AppleDirect 和 Apple 完整规则直连，包括 App Store、软件更新和 Apple Music。MagicRule 的 AppleProxy 是“整个 Apple 走代理”的宽列表，与 AppleDirect 互斥，已不再引用，AppleProxy 策略组随之移除。Surge 内置的 SYSTEM 规则仍最先直连 `*.ls.apple.com` 等系统服务。原 Claude 规则由新站的 Anthropic 接替；GlobalMedia 使用完整产物，包含域名规则。所有外部规则引用附带 `no-resolve`，避免 IP/ASN 规则主动提前解析 DNS，末尾 `GEOIP,CN,DIRECT` 保留原行为。`GEOIP,CN,DIRECT` 前另有一条不带 `no-resolve` 的 `RULE-SET,LAN,DIRECT`，解析到私有或保留地址的域名（如自建 NAS、内网服务）因此直连，不再落入 `FINAL,Proxy`；Surge 每个请求最多解析一次，`GEOIP` 本就需要这次解析。规则区前部的 `RULE-SET,LAN,DIRECT,no-resolve` 保留，只匹配 `.local` 和直接以 IP 访问的请求。Clash 同样把这条规则展开为不带 `no-resolve` 的本地网段规则。
 
