@@ -52,7 +52,7 @@ dns.alidns.com = server:223.5.5.5, 119.29.29.29
 doh.pub = server:223.5.5.5, 119.29.29.29
 ```
 
-Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；两份直连名单复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项，下载地址继续携带同一订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
+Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；两份直连名单复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项；China 名单的下载地址携带同一订阅 token，CustomDirect 直接使用 jsDelivr 地址。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
 
 DNS 劫持固定为以下两个目标，不随 DoH 开关或 Tencent OA 模块变化；DoH 开关只控制加密 DNS 上游：
 
@@ -99,7 +99,7 @@ master 按地区/IP 类型生成顺序 `fallback` 组，成员依照每位用户
 
 develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨地区汇集，不包含 ISP、WARP、`DIRECT`、`REJECT` 或其他策略组。Surge 使用不带权重的 `smart`，Clash 使用 `url-test`（间隔 300 秒、容差 0）。没有 IDC 节点时不输出空组，将原本指向该组的国外 DoH 规则改为 `REJECT`，国内 DNS 和其余订阅照常生成，避免 [Surge 空组自动替换为直连](https://manual.nssurge.com/policy-groups/overview.html)。Clash 过滤掉全部不兼容 IDC 节点时同样保留这些拒绝规则；只过滤部分节点时继续使用剩余 IDC。
 
-香港银行与政府等固定直连域名维护在本仓库的 [`surge/rule-sets/CustomDirect.list`](../surge/rule-sets/CustomDirect.list)，与 WeChat 规则集一样经 jsDelivr 以 `RULE-SET,…,DIRECT` 引用，位于 `rules.list` 的零散规则之后、其他外部规则集之前；Surge 和 Clash 均生效。`[Host]` 引用同一地址为这些域名指定国内 DNS，开启 DoH 时不再经境外 DoH 解析。订阅入口和 DoH 上游的直连规则仍留在 `rules.list`，不依赖任何规则集下载；规则集尚未下载成功时，其中的域名会落到后续规则。不创建可选策略组，因此客户端策略面板没有对应项目。当前银行与政府范围如下，域名后缀包含根域名及其子域名：
+香港银行与政府等固定直连域名维护在本仓库的 [`surge/rule-sets/CustomDirect.list`](../surge/rule-sets/CustomDirect.list)，与 WeChat 规则集一样经 jsDelivr 以 `RULE-SET,…,DIRECT` 引用，位于 `rules.list` 的零散规则之后、其他外部规则集之前；Surge 和 Clash 均直接读取该地址，不携带订阅 token。`[Host]` 引用同一地址为这些域名指定国内 DNS，开启 DoH 时不再经境外 DoH 解析。订阅入口和 DoH 上游的直连规则仍留在 `rules.list`，不依赖任何规则集下载；规则集尚未下载成功时，其中的域名会落到后续规则。不创建可选策略组，因此客户端策略面板没有对应项目。当前银行与政府范围如下，域名后缀包含根域名及其子域名：
 
 | 服务 | 直连范围 |
 | --- | --- |
@@ -125,7 +125,7 @@ master 的地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中�
 
 业务策略组使用纯文字名称，图标来自 [Koolson/Qure Color](https://github.com/Koolson/Qure/tree/master/IconSet/Color)，通过 jsDelivr 公共链接加载。WeChat、Telegram、X、YouTube、Apple、iCloud 使用对应服务 Logo；Auto 使用 `Auto.png` 自动选择图标；DoH Proxy 使用 `Server.png` 服务器图标；Proxy、AIProxy、GlobalMedia 分别使用通用代理、AI、影音图标。首次从带 emoji 的旧组名更新后，客户端已保存的手动选择可能需要重新设置。Surge 使用 [`icon-url`](https://manual.nssurge.com/policy-groups/parameters.html)（Mac 6.5.0+），转换为 Clash 时映射为 [`icon`](https://wiki.metacubex.one/en/config/proxy-groups/#icon)，显示效果取决于客户端面板支持。策略组可见性遵循上述环境设置：Dev 统一显示全部组，生产按模板设置。
 
-WeChat 使用本仓库维护的 [`surge/rule-sets/WeChat.list`](../surge/rule-sets/WeChat.list)。Surge 通过 jsDelivr 读取当前分支的文件（develop 为 `https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list`，移植到 master 时改为 `@master`），不附加个人 token；Clash 通过受 token 保护的 Worker 入口转换为 classical 文本规则，跳过不支持的 `USER-AGENT` 条目。初始内容来自 blackmatrix7 的 WeChat 规则（2025-06-06 版本，GPL-2.0，文件头保留来源与改动说明），该仓库将于 2026 年底停止自动更新。原列表把 233 个 IPv4 /24 前缀写成 `DOMAIN-KEYWORD`，Clash 不会用域名关键字匹配直接以 IP 发起的连接；这里改为覆盖相同地址的 `IP-CIDR` 并合并相邻网段，其余条目不变。jsDelivr 对分支文件最多缓存 12 小时，修改后可访问 `https://purge.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list` 刷新。客户端更新间隔为 24 小时。
+WeChat 使用本仓库维护的 [`surge/rule-sets/WeChat.list`](../surge/rule-sets/WeChat.list)。Surge 通过 jsDelivr 读取当前分支的文件（develop 为 `https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list`，移植到 master 时改为 `@master`），不附加个人 token；Clash 也直接读取同一地址（classical 文本格式），不经 Worker，不支持的 `USER-AGENT` 行由 Mihomo / ProjectClash 跳过并记录警告。初始内容来自 blackmatrix7 的 WeChat 规则（2025-06-06 版本，GPL-2.0，文件头保留来源与改动说明），该仓库将于 2026 年底停止自动更新。原列表把 233 个 IPv4 /24 前缀写成 `DOMAIN-KEYWORD`，Clash 不会用域名关键字匹配直接以 IP 发起的连接；这里改为覆盖相同地址的 `IP-CIDR` 并合并相邻网段，其余条目不变。jsDelivr 对分支文件最多缓存 12 小时，修改后可访问 `https://purge.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list` 刷新。客户端更新间隔为 24 小时。
 
 其他外部规则使用 [MagicRule](https://magicrule.pages.dev/)；上游 [迁移公告](https://github.com/blackmatrix7/ios_rule_script/issues/1747) 说明旧仓库在 2026 年底停止自动更新。`surge/magicrule.json` 保存 Surge / Mihomo 清单标识，模板中的 `{{RULESET_<name>}}` 渲染为带个人 token 的固定 Worker 地址。每次下载读取对应 `manifest.json`，选择 `role=full` 的当前产物，避免固定引用带哈希的产物文件；不依赖额外客户端脚本或模块。清单与产物的上游缓存均为一小时，客户端规则更新间隔为 24 小时。上游清单路径本身如有调整，仍需更新映射并重新部署。国内直连名单是例外，见下文。
 

@@ -495,6 +495,7 @@ test("production UI manages independent development credentials and links direct
     assert.match(body, /Development/);
     assert.doesNotMatch(body, /Production/);
     const urls = client === "clash" ? Object.values(parseYaml(body)["rule-providers"]).map((provider) => provider.url)
+      .filter((value) => !value.startsWith("https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/"))
       : body.match(/https:\/\/develop\.atlas\.example[^\s]+/g);
     assert.ok(urls.length > 5);
     for (const value of urls) {

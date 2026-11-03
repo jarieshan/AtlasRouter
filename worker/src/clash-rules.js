@@ -7,6 +7,8 @@ import { inheritBranch } from "./branch-query.js";
 
 const RULE_TYPES = new Set(["DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "DOMAIN-WILDCARD", "DOMAIN-REGEX", "IP-CIDR", "IP-CIDR6", "IP-ASN", "GEOIP", "SRC-IP-CIDR", "SRC-PORT", "DST-PORT", "PROCESS-NAME", "PROCESS-PATH"]);
 const ALIASES = new Map([["DEST-PORT", "DST-PORT"]]);
+// Public lists in this repository; Mihomo reads them as classical text and skips unsupported lines itself.
+const REPOSITORY_RULE_SET = /^https:\/\/cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@[A-Za-z0-9._-]+\/surge\/rule-sets\/[A-Za-z0-9-]+\.list$/;
 let registeredSources;
 
 export async function ruleSource(parts) {
@@ -92,8 +94,10 @@ export async function convertClashRules(lines, policies, requestUrl, token, warn
         const suffix = flags(extra);
         if (suffix === null) throw new Error();
         const native = nativeMagicRuleSource(source, requestUrl, token);
-        const url = native ? new URL(native.url) : inheritBranch(new URL(`${subscriptionPath(requestUrl)}/rules/${source.id}.txt`, requestUrl), requestUrl);
-        if (!native) url.searchParams.set("token", token);
+        const repository = !native && source.kind === "RULE-SET" && REPOSITORY_RULE_SET.test(source.url);
+        const url = native ? new URL(native.url) : repository ? new URL(source.url)
+          : inheritBranch(new URL(`${subscriptionPath(requestUrl)}/rules/${source.id}.txt`, requestUrl), requestUrl);
+        if (!native && !repository) url.searchParams.set("token", token);
         let name = native?.name ?? source.id;
         if (providers[name] && providers[name].url !== url.toString()) name = `${name}-${source.id.slice(5)}`;
         providers[name] = { type: "http", behavior: "classical", format: native?.format ?? "text", url: url.toString(), interval };

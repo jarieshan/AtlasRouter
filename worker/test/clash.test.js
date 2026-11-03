@@ -188,13 +188,14 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       "RULE-SET,Apple,AppleDirect,no-resolve",
       "RULE-SET,Direct,DIRECT,no-resolve",
     ]);
+    const repository = new Map([customRejectSource, customDirectSource, wechatSource].map((source) => [source.id, source.url]));
     for (const [name, provider] of Object.entries(config["rule-providers"])) {
       const url = new URL(provider.url);
-      const external = [customRejectSource.id, customDirectSource.id, wechatSource.id, directSource.id].includes(name);
-      assert.equal(url.toString(), external
+      const external = repository.has(name) || name === directSource.id;
+      assert.equal(url.toString(), repository.get(name) ?? (external
         ? `${context.requestUrl}/rules/${name}.txt?token=${context.token}`
-        : magicRuleUrl(name, "mihomo", context.requestUrl, context.token));
-      assert.equal(url.searchParams.get("token"), context.token);
+        : magicRuleUrl(name, "mihomo", context.requestUrl, context.token)));
+      assert.equal(url.searchParams.get("token"), repository.has(name) ? null : context.token);
       assert.equal(provider.behavior, "classical");
       assert.equal(provider.format, external ? "text" : "yaml");
       assert.equal(provider.interval, 86400);
@@ -589,6 +590,23 @@ test("rule sources use stable ids, preserve intervals, and reject arbitrary unre
   const { providers } = await convertClashRules([`RULE-SET,${source.url},DIRECT,update-interval=600`, "FINAL,DIRECT"], new Set(["DIRECT"]), context.requestUrl, context.token, () => {});
   assert.equal(providers[source.id].interval, 600);
   assert.equal(providers[source.id].url, `${context.requestUrl}/rules/${source.id}.txt?token=${context.token}`);
+});
+
+test("repository rule sets are fetched directly without a token; lookalike sources keep the converter", async () => {
+  const lookalikes = [
+    "https://cdn.jsdelivr.net/gh/someone/AtlasRouter@develop/surge/rule-sets/WeChat.list",
+    "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rules.list",
+    "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list?token=x",
+    "https://fastly.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list",
+  ];
+  const lines = [`RULE-SET,${wechatUrl},WeChat,no-resolve`, `DOMAIN-SET,${customDirectUrl},DIRECT`, ...lookalikes.map((url) => `RULE-SET,${url},DIRECT`), "FINAL,DIRECT"];
+  const { providers } = await convertClashRules(lines, new Set(["DIRECT", "WeChat"]), context.requestUrl, context.token, assert.fail);
+  const wechat = await ruleSource(["RULE-SET", wechatUrl]);
+  assert.deepEqual(providers[wechat.id], { type: "http", behavior: "classical", format: "text", url: wechatUrl, interval: 86400 });
+  for (const parts of [["DOMAIN-SET", customDirectUrl], ...lookalikes.map((url) => ["RULE-SET", url])]) {
+    const source = await ruleSource(parts);
+    assert.equal(providers[source.id].url, `${context.requestUrl}/rules/${source.id}.txt?token=${context.token}`);
+  }
 });
 
 test("native MagicRule providers retain flags and intervals and only map registered local rule URLs", async () => {

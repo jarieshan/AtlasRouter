@@ -25,6 +25,7 @@ const WECHAT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${WECHAT_UR
 const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
 const CUSTOM_DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${CUSTOM_DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
+const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, CUSTOM_DIRECT_URL, WECHAT_URL];
 const DIRECT_URL = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
 const DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
@@ -251,7 +252,9 @@ test("native preview consumes links from the production UI with separate D1 data
   assert.ok(clash["proxy-groups"].every((group) => group.hidden === undefined));
   assert.deepEqual(clash["proxy-groups"].find(({ name }) => name === "DoH Proxy").proxies, ["🇭🇰 Example - IDC 1"]);
   assert.equal(clash["proxy-groups"].find(({ name }) => name === "DoH Proxy").icon, `${ICON_BASE}Server.png`);
-  assert.ok(Object.values(clash["rule-providers"]).every(({ url }) => url.startsWith(`${devOrigin}/AtlasRouter-Dev/rules/`)));
+  const providerUrls = Object.values(clash["rule-providers"]).map(({ url }) => url);
+  assert.deepEqual(providerUrls.filter((url) => REPOSITORY_RULE_SET_URLS.includes(url)), REPOSITORY_RULE_SET_URLS);
+  assert.ok(providerUrls.filter((url) => !REPOSITORY_RULE_SET_URLS.includes(url)).every((url) => url.startsWith(`${devOrigin}/AtlasRouter-Dev/rules/`)));
   assert.equal((await preview.fetch(`${devOrigin}/`)).status, 404);
   assert.equal((await preview.fetch(`${devOrigin}/missing`)).status, 404);
   assert.equal((await preview.fetch(`${devOrigin}/AtlasRouter-Dev`)).status, 401);
@@ -338,7 +341,7 @@ test("one Worker preserves dev across real subscription, module, rule and accoun
   const clash = parseYaml(await (await request(mf, `${development.subscriptionUrl}&client=clash`)).text());
   const providers = Object.values(clash["rule-providers"]);
   assert.ok(providers.some((provider) => provider.format === "yaml"));
-  assert.ok(providers.every((provider) => new URL(provider.url).searchParams.get("dev") === "1"));
+  assert.ok(providers.filter(({ url }) => !REPOSITORY_RULE_SET_URLS.includes(url)).every((provider) => new URL(provider.url).searchParams.get("dev") === "1"));
   assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?dev=1`)).status, 401);
   assert.equal((await request(mf, "/missing?dev=1")).status, 404);
   assert.deepEqual(await readSubscriptionState({ DB: productionDb }), before);
@@ -585,9 +588,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
             ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
             : ["223.5.5.5", "119.29.29.29"]])),
         });
-        for (const id of [CUSTOM_DIRECT_RULE_ID, DIRECT_RULE_ID]) {
-          assert.equal(config["rule-providers"][id].url, `${profile.subscriptionUrl.split("?")[0]}/rules/${id}.txt${new URL(profile.subscriptionUrl).search}`);
-        }
+        assert.equal(config["rule-providers"][CUSTOM_DIRECT_RULE_ID].url, CUSTOM_DIRECT_URL);
+        assert.equal(config["rule-providers"][DIRECT_RULE_ID].url, `${profile.subscriptionUrl.split("?")[0]}/rules/${DIRECT_RULE_ID}.txt${new URL(profile.subscriptionUrl).search}`);
         const auto = config["proxy-groups"].find(({ name }) => name === "Auto");
         assert.equal(auto.type, "url-test");
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
@@ -617,10 +619,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(config.rules.includes(`RULE-SET,${WECHAT_RULE_ID},WeChat,no-resolve`));
         const wechatProvider = config["rule-providers"][WECHAT_RULE_ID];
         assert.equal(wechatProvider.format, "text");
-        const wechatProviderUrl = new URL(wechatProvider.url);
-        assert.equal(wechatProviderUrl.origin, ORIGIN);
-        assert.equal(wechatProviderUrl.pathname, `/AtlasRouter/rules/${WECHAT_RULE_ID}.txt`);
-        assert.equal(wechatProviderUrl.search, new URL(profile.subscriptionUrl).search);
+        assert.equal(wechatProvider.url, WECHAT_URL);
         for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
         const provider = new URL(config["rule-providers"].iCloud.url);
         assert.equal(provider.pathname, "/AtlasRouter/rules/magicrule/mihomo/iCloud.yaml");
