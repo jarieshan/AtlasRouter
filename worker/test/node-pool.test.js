@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { magicRuleUrl } from "../src/magic-rules.js";
 import { identifyNodeGroup, parsePoolNodes, allocateNodes, accountView, userGroups } from "../src/node-pool.js";
 import { renderAccountPage } from "../src/pool-pages.js";
 import { renderSurgeProfile } from "../src/render-surge.js";
@@ -262,15 +263,15 @@ test("orders selection options by IP type while preserving regional definitions 
     const expectedWarpFirst = ["WARP", "IDC", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.ok(config.split("\n").includes(`YouTube = select, ${expectedWarpFirst.join(", ")}, icon-url=${ICON_BASE}YouTube.png`));
     assert.ok(config.split("\n").includes(`GlobalMedia = select, ${expectedWarpFirst.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Media.png`));
-    const youtubeRule = "/YouTube.list?token=test-token,YouTube,no-resolve,update-interval=86400";
+    const youtubeRule = `RULE-SET,${magicRuleUrl("YouTube", "surge")},YouTube,no-resolve,update-interval=86400`;
     assert.ok(config.includes(youtubeRule));
-    assert.ok(config.indexOf(youtubeRule) < config.indexOf("/GlobalMedia.list?token=test-token,"));
-    assert.doesNotMatch(config, /\/Google\.list\?/);
+    assert.ok(config.indexOf(youtubeRule) < config.indexOf(`${magicRuleUrl("GlobalMedia", "surge")},`));
+    assert.doesNotMatch(config, /\/Google_rules_|token=test-token,/);
     assert.doesNotMatch(config, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
     assert.doesNotMatch(config, /^AppleProxy = /m);
     assert.ok(config.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
-    const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple)\.list\?/.test(line));
-    assert.deepEqual(appleRules.map((line) => [line.match(/\/(\w+)\.list\?/)[1], line.split(",")[2]]), [
+    const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/artifacts\/(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple)_rules_/.test(line));
+    assert.deepEqual(appleRules.map((line) => [line.match(/\/artifacts\/(\w+?)_rules_/)[1], line.split(",")[2]]), [
       ["AppleTV", "GlobalMedia"], ["AppleIntelligence", "AIProxy"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"],
     ]);
     assert.doesNotMatch(config.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);

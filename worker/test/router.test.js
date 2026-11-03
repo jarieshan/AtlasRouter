@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, createSign, generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 import { parse as parseYaml } from "yaml";
-import { findMagicRuleSource, magicRuleUrl } from "../src/magic-rules.js";
+import { magicRuleUrl } from "../src/magic-rules.js";
 import { handleRequest } from "../src/index.js";
 import { createD1Env } from "../test-helpers/d1.js";
 import { readSubscriptionState } from "../src/subscription-db.js";
@@ -336,6 +336,7 @@ test("legacy pages, APIs, subscriptions and unknown paths return 404 without rea
     `${POOL_SUBSCRIPTION_PATH}/modules/missing`, `${POOL_SUBSCRIPTION_PATH}/modules/%E0%A4%A`,
     `${POOL_SUBSCRIPTION_PATH}/rules/TencentOA-Domain.list`, `${POOL_SUBSCRIPTION_PATH}/rules/TencentOA-IP.list`,
     `${POOL_SUBSCRIPTION_PATH}/hosts/TencentOA-Host.conf`,
+    `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/Copilot.list`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/Copilot.yaml`,
   ]) {
     for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]) {
       for (const headers of [{}, accessHeaders()]) {
@@ -363,51 +364,21 @@ test("subscription routes require their own token and only accept GET", async ()
   }
 });
 
-test("MagicRule endpoints require a current token and only fetch registered native rule lists", async (t) => {
+test("MagicRule rules point at official artifacts without the subscription token", async (t) => {
   const env = createEnv();
   const headers = { ...accessHeaders(), origin: "https://atlas.example", "content-type": "application/json" };
   const saved = await request(routes.nodes, { method: "PUT", headers, body: JSON.stringify({ revision: 0, nodes: [{ id: "node", line: "🇺🇸 Test ISP = trojan, example.com, 443, password=TEST_ONLY" }] }) }, env);
   assert.equal(saved.status, 200);
   const profile = await (await request(ACCOUNT_PROFILE_PATH, { headers }, env)).json();
   const subscription = new URL(profile.subscriptionUrl);
-  const config = parseYaml(await (await request(`${subscription.pathname}${subscription.search}&client=clash`, {}, env)).text());
   const token = subscription.searchParams.get("token");
-  const ruleUrls = [new URL(magicRuleUrl("Copilot", "surge", subscription, token)), new URL(config["rule-providers"].Copilot.url)];
-  const sources = ["surge/Copilot.list", "mihomo/Copilot.yaml"].map((path) => findMagicRuleSource(`magicrule/${path}`));
-  let fetches = 0;
-  t.mock.method(globalThis, "fetch", async (url, options) => {
-    fetches += 1;
-    assert.deepEqual(Object.keys(options.headers).sort(), ["accept", "user-agent"]);
-    assert.ok(!JSON.stringify([url, options.headers]).includes(token));
-    const source = sources.find((source) => source.manifest === url);
-    if (source) return Response.json({ client: source.client === "surge" ? "Surge" : "Mihomo", rule: "Copilot", artifacts: [
-      { role: "full", ext: source.extension, url: `https://magicrule.pages.dev/data/_shared/artifacts/Copilot_test.${source.extension}` },
-    ] });
-    if (url === "https://magicrule.pages.dev/data/_shared/artifacts/Copilot_test.list") return new Response("DOMAIN-SUFFIX,example.com\n");
-    assert.equal(url, "https://magicrule.pages.dev/data/_shared/artifacts/Copilot_test.yaml");
-    return new Response("payload:\n  - DOMAIN-SUFFIX,example.com\n");
-  });
-  for (const rule of ruleUrls) {
-    assert.equal((await request(rule.pathname, { headers: accessHeaders() }, env)).status, 401);
-    assert.equal((await request(`${rule.pathname}?token=invalid`, {}, env)).status, 401);
-    assert.equal((await request(`${rule.pathname}${rule.search}&token=duplicate`, {}, env)).status, 401);
-    for (const method of ["POST", "PUT", "DELETE", "HEAD"]) assert.equal((await request(`${rule.pathname}${rule.search}`, { method }, env)).status, 405);
-  }
-  for (const path of ["/AtlasRouter/rules/magicrule/surge/Unknown.list", "/AtlasRouter/rules/magicrule/mihomo/Copilot.list", "/AtlasRouter/rules/rule-00000000000000000000000000000000.txt"]) {
-    assert.equal((await request(path + subscription.search, {}, env)).status, 404);
-  }
-  assert.equal(fetches, 0);
-  for (const [index, rule] of ruleUrls.entries()) {
-    const response = await request(`${rule.pathname}${rule.search}`, {}, env);
-    assert.equal(response.status, 200);
-    assertSecurityHeaders(response);
-    assert.match(response.headers.get("content-type"), index === 0 ? /text\/plain/ : /application\/yaml/);
-    assert.match(await response.text(), /DOMAIN-SUFFIX,example.com/);
-  }
-  assert.equal(fetches, 4);
-  assert.equal((await request(ACCOUNT_TOKEN_PATH, { method: "POST", headers, body: "{}" }, env)).status, 200);
-  for (const rule of ruleUrls) assert.equal((await request(`${rule.pathname}${rule.search}`, {}, env)).status, 401);
-  assert.equal(fetches, 4);
+  t.mock.method(globalThis, "fetch", assert.fail);
+  const surge = await (await request(`${subscription.pathname}${subscription.search}`, {}, env)).text();
+  assert.ok(surge.split("\n").includes(`RULE-SET,${magicRuleUrl("Copilot", "surge")},AIProxy,no-resolve,update-interval=86400`));
+  assert.doesNotMatch(surge.split("[Rule]\n")[1], new RegExp(`/rules/|${token}`));
+  const config = parseYaml(await (await request(`${subscription.pathname}${subscription.search}&client=clash`, {}, env)).text());
+  assert.equal(config["rule-providers"].Copilot.url, magicRuleUrl("Copilot", "mihomo"));
+  assert.ok(Object.values(config["rule-providers"]).every(({ url }) => !url.includes(token)));
 });
 
 test("unexpected storage errors do not expose internal details", async () => {
@@ -494,17 +465,21 @@ test("production UI manages independent development credentials and links direct
     const body = await response.text();
     assert.match(body, /Development/);
     assert.doesNotMatch(body, /Production/);
-    const urls = client === "clash" ? Object.values(parseYaml(body)["rule-providers"]).map((provider) => provider.url)
-      .filter((value) => !value.startsWith("https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/"))
-      : body.match(/https:\/\/develop\.atlas\.example[^\s]+/g);
-    assert.ok(urls.length > 5);
+    if (client === "clash") {
+      const providers = Object.values(parseYaml(body)["rule-providers"]).map((provider) => provider.url);
+      assert.ok(providers.length > 5);
+      assert.ok(providers.every((value) => /^https:\/\/(?:cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@develop\/surge\/rule-sets|magicrule\.pages\.dev\/data\/_shared\/artifacts)\/[^?#]+$/.test(value)));
+      continue;
+    }
+    const urls = body.match(/https:\/\/develop\.atlas\.example[^\s]+/g);
+    assert.ok(urls.length >= 2);
     for (const value of urls) {
       const link = new URL(value.split(",")[0]);
       assert.equal(link.origin, devUrl.origin);
       assert.ok(link.pathname === DEV_SUBSCRIPTION_PATH || link.pathname.startsWith(`${DEV_SUBSCRIPTION_PATH}/`));
       assert.equal(link.searchParams.get("token"), devUrl.searchParams.get("token"));
     }
-    if (client === "surge") assert.ok(body.startsWith(`#!MANAGED-CONFIG ${url.toString().replace("&client=surge", "")}`));
+    assert.ok(body.startsWith(`#!MANAGED-CONFIG ${url.toString().replace("&client=surge", "")}`));
   }
   assert.equal((await nativeRequest(`${devUrl.origin}/`)).status, 404);
   assert.equal((await nativeRequest(`${devUrl.origin}/?preview=1`)).status, 404);

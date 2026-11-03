@@ -2,6 +2,7 @@ import { stringify } from "yaml";
 import { convertClashNode } from "./clash-nodes.js";
 import { convertClashRules, ruleSource } from "./clash-rules.js";
 import { HttpError } from "./errors.js";
+import { nativeMagicRuleSource } from "./magic-rules.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority, positiveInteger, splitSurgeList, surgeAssignment, surgeBoolean, surgeOptions, surgeSections } from "./surge-format.js";
 
@@ -119,8 +120,9 @@ async function convertHostDns(lines, providers, general, warn) {
       const reference = name.match(/^(DOMAIN-SET|RULE-SET):(.+)$/);
       if (reference) {
         const source = await ruleSource([reference[1], reference[2]]);
-        if (!source || !Object.hasOwn(providers, source.id)) throw new Error();
-        pattern = `rule-set:${source.id}`;
+        const provider = source && (nativeMagicRuleSource(source)?.name ?? source.id);
+        if (!provider || !Object.hasOwn(providers, provider)) throw new Error();
+        pattern = `rule-set:${provider}`;
       } else {
         if (!/^(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*$/i.test(name)) throw new Error();
         // Surge *.example.com includes all subdomain levels, unlike Mihomo's *.

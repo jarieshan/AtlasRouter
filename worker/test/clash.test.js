@@ -88,9 +88,10 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
   const customDirectSource = await ruleSource(["RULE-SET", customDirectUrl]);
   const customRejectSource = await ruleSource(["RULE-SET", customRejectUrl]);
   const directSource = await ruleSource(["RULE-SET", directUrl]);
-  for (const source of [wechatSource, customDirectSource, customRejectSource, directSource]) {
+  for (const source of [wechatSource, customDirectSource, customRejectSource]) {
     assert.deepEqual(await findClashRuleSource(`${source.id}.txt`), source);
   }
+  assert.equal(await findClashRuleSource(`${directSource.id}.txt`), null);
   for (const doh of [false, true]) {
     const surge = renderSurgeProfile({ ...input, options: { doh } });
     const output = await renderClashProfile(surge, context);
@@ -140,7 +141,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config["proxy-groups"].filter((group) => [icloud, appleDirect].includes(group)).map((group) => group.name), ["iCloud", "AppleDirect"]);
     assert.equal(config.rules.at(-1), "MATCH,Proxy");
     const resolvedLan = config.rules.indexOf("IP-CIDR,192.168.0.0/16,DIRECT");
-    const directRule = config.rules.indexOf(`RULE-SET,${directSource.id},DIRECT,no-resolve`);
+    const directRule = config.rules.indexOf("RULE-SET,China,DIRECT,no-resolve");
     assert.ok(directRule >= 0 && directRule < resolvedLan);
     assert.ok(resolvedLan < config.rules.indexOf("GEOIP,CN,DIRECT"));
     assert.ok(config.rules.includes(`RULE-SET,${customRejectSource.id},REJECT,no-resolve`));
@@ -151,7 +152,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.dns["nameserver-policy"], {
       "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
       "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-      ...Object.fromEntries([customDirectSource, directSource].map((source) => [`rule-set:${source.id}`, doh
+      ...Object.fromEntries([customDirectSource.id, "China"].map((provider) => [`rule-set:${provider}`, doh
         ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
         : ["223.5.5.5", "119.29.29.29"]])),
     });
@@ -178,7 +179,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Binance", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", directSource.id]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Binance", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
     assert.ok(config.rules.includes("RULE-SET,Copilot,AIProxy,no-resolve"));
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple|Direct),/.test(rule)), [
       "RULE-SET,AppleTV,GlobalMedia,no-resolve",
@@ -190,14 +191,10 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     ]);
     const repository = new Map([customRejectSource, customDirectSource, wechatSource].map((source) => [source.id, source.url]));
     for (const [name, provider] of Object.entries(config["rule-providers"])) {
-      const url = new URL(provider.url);
-      const external = repository.has(name) || name === directSource.id;
-      assert.equal(url.toString(), repository.get(name) ?? (external
-        ? `${context.requestUrl}/rules/${name}.txt?token=${context.token}`
-        : magicRuleUrl(name, "mihomo", context.requestUrl, context.token)));
-      assert.equal(url.searchParams.get("token"), repository.has(name) ? null : context.token);
+      assert.equal(provider.url, repository.get(name) ?? magicRuleUrl(name, "mihomo"));
+      assert.ok(!provider.url.includes(context.token));
       assert.equal(provider.behavior, "classical");
-      assert.equal(provider.format, external ? "text" : "yaml");
+      assert.equal(provider.format, repository.has(name) ? "text" : "yaml");
       assert.equal(provider.interval, 86400);
     }
     assert.match(output, /General skip-proxy: unsupported setting omitted/);
@@ -340,9 +337,10 @@ test("Host DoH mappings follow the outbound setting and only reuse declared doma
   assert.equal(config.dns["nameserver-policy"], undefined);
   assert.deepEqual(Object.keys(config["rule-providers"]), []);
   assert.equal(warnings.length, 6);
-  const ruleSet = await ruleSource(["RULE-SET", directUrl]);
-  const mapped = await convertSurgeToClash(`[Host]\nRULE-SET:${directUrl} = server:223.5.5.5\n[Proxy]\nnode = ${vmess}\n[Rule]\nRULE-SET,${directUrl},DIRECT,no-resolve\nFINAL,node\n`, context);
-  assert.deepEqual({ ...mapped.config.dns["nameserver-policy"] }, { [`rule-set:${ruleSet.id}`]: ["223.5.5.5"] });
+  const genericUrl = "https://rules.example.com/direct.list";
+  const ruleSet = await ruleSource(["RULE-SET", genericUrl]);
+  const mapped = await convertSurgeToClash(`[Host]\nRULE-SET:${genericUrl} = server:223.5.5.5\nRULE-SET:${directUrl} = server:119.29.29.29\n[Proxy]\nnode = ${vmess}\n[Rule]\nRULE-SET,${genericUrl},DIRECT,no-resolve\nRULE-SET,${directUrl},DIRECT,no-resolve\nFINAL,node\n`, context);
+  assert.deepEqual({ ...mapped.config.dns["nameserver-policy"] }, { [`rule-set:${ruleSet.id}`]: ["223.5.5.5"], "rule-set:China": ["119.29.29.29"] });
   assert.deepEqual(mapped.warnings, []);
 });
 
@@ -609,13 +607,13 @@ test("repository rule sets are fetched directly without a token; lookalike sourc
   }
 });
 
-test("native MagicRule providers retain flags and intervals and only map registered local rule URLs", async () => {
-  const surge = magicRuleUrl("Copilot", "surge", context.requestUrl, context.token);
+test("native MagicRule providers retain flags and intervals and only map registered Surge artifacts", async () => {
+  const surge = magicRuleUrl("Copilot", "surge");
   const fallbackSources = [
-    ["RULE-SET", surge.replace("atlas.example", "other.example")],
-    ["RULE-SET", surge.replace("Copilot.list", "Unregistered.list")],
-    ["RULE-SET", `${surge}&private=TEST_ONLY`],
-    ["RULE-SET", surge.replace(context.token, "other-token")],
+    ["RULE-SET", surge.replace("magicrule.pages.dev", "other.example")],
+    ["RULE-SET", surge.replace("Copilot_rules_", "Unregistered_rules_")],
+    ["RULE-SET", `${surge}?private=TEST_ONLY`],
+    ["RULE-SET", magicRuleUrl("Copilot", "mihomo")],
     ["DOMAIN-SET", surge],
   ];
   const { providers, rules } = await convertClashRules([
@@ -625,7 +623,7 @@ test("native MagicRule providers retain flags and intervals and only map registe
     "FINAL,DIRECT",
   ], new Set(["DIRECT", "REJECT"]), context.requestUrl, context.token, assert.fail);
   assert.equal(providers.Copilot.interval, 600);
-  assert.equal(providers.Copilot.url, magicRuleUrl("Copilot", "mihomo", context.requestUrl, context.token));
+  assert.equal(providers.Copilot.url, magicRuleUrl("Copilot", "mihomo"));
   assert.equal(providers.Copilot.format, "yaml");
   assert.ok(rules.includes("RULE-SET,Copilot,DIRECT,no-resolve"));
   assert.ok(rules.includes("RULE-SET,Copilot,REJECT"));

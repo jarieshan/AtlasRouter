@@ -93,7 +93,7 @@ export async function convertClashRules(lines, policies, requestUrl, token, warn
         }
         const suffix = flags(extra);
         if (suffix === null) throw new Error();
-        const native = nativeMagicRuleSource(source, requestUrl, token);
+        const native = nativeMagicRuleSource(source);
         const repository = !native && source.kind === "RULE-SET" && REPOSITORY_RULE_SET.test(source.url);
         const url = native ? new URL(native.url) : repository ? new URL(source.url)
           : inheritBranch(new URL(`${subscriptionPath(requestUrl)}/rules/${source.id}.txt`, requestUrl), requestUrl);
