@@ -184,8 +184,8 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, coinSource.id, "Binance", "OKX", "Bybit", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
-    assert.ok(config.rules.includes("RULE-SET,Copilot,AIProxy,no-resolve"));
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
+    assert.ok(config.rules.includes("RULE-SET,Cloudflare,AIProxy,no-resolve"));
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple|Direct),/.test(rule)), [
       "RULE-SET,AppleTV,GlobalMedia,no-resolve",
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
@@ -613,12 +613,12 @@ test("repository rule sets are fetched directly without a token; lookalike sourc
 });
 
 test("native MagicRule providers retain flags and intervals and only map registered Surge artifacts", async () => {
-  const surge = magicRuleUrl("Copilot", "surge");
+  const surge = magicRuleUrl("OpenAI", "surge");
   const fallbackSources = [
     ["RULE-SET", surge.replace("magicrule.pages.dev", "other.example")],
-    ["RULE-SET", surge.replace("Copilot_rules_", "Unregistered_rules_")],
+    ["RULE-SET", surge.replace("OpenAI_rules_", "Unregistered_rules_")],
     ["RULE-SET", `${surge}?private=TEST_ONLY`],
-    ["RULE-SET", magicRuleUrl("Copilot", "mihomo")],
+    ["RULE-SET", magicRuleUrl("OpenAI", "mihomo")],
     ["DOMAIN-SET", surge],
   ];
   const { providers, rules } = await convertClashRules([
@@ -627,11 +627,11 @@ test("native MagicRule providers retain flags and intervals and only map registe
     ...fallbackSources.map((parts) => `${parts.join(",")},DIRECT`),
     "FINAL,DIRECT",
   ], new Set(["DIRECT", "REJECT"]), context.requestUrl, context.token, assert.fail);
-  assert.equal(providers.Copilot.interval, 600);
-  assert.equal(providers.Copilot.url, magicRuleUrl("Copilot", "mihomo"));
-  assert.equal(providers.Copilot.format, "yaml");
-  assert.ok(rules.includes("RULE-SET,Copilot,DIRECT,no-resolve"));
-  assert.ok(rules.includes("RULE-SET,Copilot,REJECT"));
+  assert.equal(providers.OpenAI.interval, 600);
+  assert.equal(providers.OpenAI.url, magicRuleUrl("OpenAI", "mihomo"));
+  assert.equal(providers.OpenAI.format, "yaml");
+  assert.ok(rules.includes("RULE-SET,OpenAI,DIRECT,no-resolve"));
+  assert.ok(rules.includes("RULE-SET,OpenAI,REJECT"));
   assert.equal(Object.keys(providers).length, 6);
   for (const parts of fallbackSources) {
     const source = await ruleSource(parts);

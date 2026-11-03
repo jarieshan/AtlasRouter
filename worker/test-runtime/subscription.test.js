@@ -662,14 +662,19 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
         const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve$/gm)];
-        assert.equal(sources.length, 29);
-        assert.deepEqual(sources.slice(0, 4).map(([, url, policy]) => [url, policy]), [
-          [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], [WECHAT_URL, "WeChat"], [COIN_URL, "Coin"],
-        ]);
+        for (const [, value] of sources) {
+          if (!REPOSITORY_RULE_SET_URLS.includes(value)) assert.ok(magicRuleArtifact(value, "[A-Za-z]+", "rules", "list"), value);
+        }
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
-        for (const [, value] of sources.slice(4)) assert.ok(magicRuleArtifact(value, "[A-Za-z]+", "rules", "list"), value);
-        assert.deepEqual(sources.slice(4, 7).map(([, url, policy]) => [url.match(/artifacts\/([A-Za-z]+)_/)[1], policy]), [["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"]]);
-        assert.deepEqual(sources.slice(7, 13).map(([, , policy]) => policy), ["GlobalMedia", "AIProxy", "iCloud", "AppleDirect", "AppleDirect", "DIRECT"]);
+        assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/artifacts\/([A-Za-z]+)_/)[1], policy]), [
+          [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], [WECHAT_URL, "WeChat"],
+          ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"],
+          ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
+          ["AppleTV", "GlobalMedia"], ["AppleIntelligence", "AIProxy"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"], ["Direct", "DIRECT"],
+          [COIN_URL, "Coin"], ["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"],
+          ["Netflix", "GlobalMedia"], ["Disney", "GlobalMedia"], ["Hulu", "GlobalMedia"], ["IMDB", "GlobalMedia"], ["GlobalMedia", "GlobalMedia"],
+          ["China", "DIRECT"],
+        ]);
       }
     }
   }

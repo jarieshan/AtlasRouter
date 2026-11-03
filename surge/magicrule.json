@@ -39,14 +39,6 @@
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/OpenAI_rules_f362ba1006ae0e0c.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/OpenAI_classical_cda01886e7b2ee62.yaml"
   },
-  "Bing": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Bing_rules_8fded621deff6986.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Bing_classical_882bef9c77b77af5.yaml"
-  },
-  "Copilot": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Copilot_rules_a253cdc8a666e0cb.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Copilot_classical_05e0618a980f4a89.yaml"
-  },
   "Anthropic": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Anthropic_rules_f9e0decc2657fdcd.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Anthropic_classical_f09788cbf2bd0c25.yaml"
