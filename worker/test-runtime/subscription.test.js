@@ -669,8 +669,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
         assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/artifacts\/([A-Za-z]+)_/)[1], policy]), [
           [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], [WECHAT_URL, "WeChat"],
-          ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"],
-          ["AppleTV", "GlobalMedia"], ["AppleIntelligence", "AIProxy"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"], ["Direct", "DIRECT"],
+          ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
+          ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"], ["Direct", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
           [COIN_URL, "Coin"], ["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"],
           ["Netflix", "GlobalMedia"], ["Disney", "GlobalMedia"], ["Hulu", "GlobalMedia"], ["IMDB", "GlobalMedia"], ["GlobalMedia", "GlobalMedia"],
