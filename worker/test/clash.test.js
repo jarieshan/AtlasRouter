@@ -186,15 +186,14 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "AppleDirect", "Apple", "Direct", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "AppleDirect", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
     for (const id of ["Cloudflare", "Grok", "Cursor", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
-    assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple|Direct),/.test(rule)), [
+    assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple),/.test(rule)), [
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
       "RULE-SET,AppleTV,GlobalMedia,no-resolve",
       "RULE-SET,iCloud,iCloud,no-resolve",
       "RULE-SET,AppleDirect,AppleDirect,no-resolve",
       "RULE-SET,Apple,AppleDirect,no-resolve",
-      "RULE-SET,Direct,DIRECT,no-resolve",
     ]);
     const repository = new Map([customRejectSource, customDirectSource, wechatSource, customAISource, coinSource].map((source) => [source.id, source.url]));
     for (const [name, provider] of Object.entries(config["rule-providers"])) {

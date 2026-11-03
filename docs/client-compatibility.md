@@ -29,7 +29,7 @@ master 同一份源码在生产/Preview 参数下均不生成节点权重。真�
 
 | 项目 | 当前结果 | 边界 |
 | --- | --- | --- |
-| 规则、业务组顺序 | develop 在本仓库规则集后依次为 AI（含 Cloudflare）、Apple、Telegram / X / Discord / YouTube、Coin、GlobalMedia；AppleTV、AppleIntelligence 在 iCloud / AppleDirect 前；YouTube 在 GlobalMedia 前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
+| 规则、业务组顺序 | develop 依次为 CustomReject、CustomDirect、MagicRule Direct、WeChat、AI（含 Cloudflare、AppleIntelligence）、Apple、Telegram / X / Discord / YouTube、Coin、GlobalMedia；AppleTV、AppleIntelligence 在 iCloud / AppleDirect 前；YouTube 在 GlobalMedia 前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
 | 节点主备 | master 两端均为同顺序 fallback、300 秒间隔 | 各客户端的测速时机和结果可能不同，不保证同一时刻选中同一节点；develop 单独试验 Smart 权重 |
 | Auto | 两端都包含本订阅的可转换代理节点 | Surge 是 Smart；Clash 是 300 秒、容差 0 的 url-test。不能复现真实连接评分、站点记忆或重试顺序 |
 | DoH Proxy（develop） | 两端均可见，仅含 IDC 节点；Surge Smart，Clash url-test；Cloudflare / Google 使用该组，阿里 / 腾讯直连 | 无 IDC 或 Clash 过滤后无兼容 IDC 时省略该组，国外 DoH 规则改为 REJECT，其他订阅内容保留 |
