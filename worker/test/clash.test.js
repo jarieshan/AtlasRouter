@@ -283,7 +283,7 @@ test("native production and Preview profiles differ only in addresses, tokens, v
       const source = renderSurgeProfile({ ...input, requestUrl, token, options, smartPriorityScheme: vars.SMART_PRIORITY_SCHEME, showAllGroups });
       const normalizeAddress = (text) => text.replaceAll(requestUrl, "https://profile.example/SUBSCRIPTION").replaceAll(token, "TEST_TOKEN");
       assert.equal(source.match(/^#!MANAGED-CONFIG (\S+)/)[1], buildSubscriptionUrl(requestUrl, token, options));
-      assert.match(source, /^block-quic = all-proxy$/m);
+      assert.match(source, /^block-quic = per-policy$/m);
       assert.match(source, /^FINAL,Proxy,dns-failed$/m);
       const groupSection = source.split("[Proxy Group]\n")[1].split("[Rule]\n")[0];
       assert.equal(/hidden\s*=/i.test(groupSection), !showAllGroups);
@@ -437,24 +437,23 @@ test("QUIC blocking uses ProjectClash's final-outbound setting without replacing
   const source = `[Proxy]\nnode = ${vmess}\n[Proxy Group]\nAIProxy = select, node, DIRECT\nDirectFirst = select, DIRECT, node\n[Rule]\nDOMAIN-SUFFIX,local,DIRECT\nDOMAIN-SUFFIX,claude.ai,AIProxy\nFINAL,DirectFirst`;
   const baseline = await convertSurgeToClash(source, context);
   assert.equal(baseline.config["x-clash-block-quic"], undefined);
-  for (const mode of ["all-proxy", "all", "always-allow"]) {
+  // ProjectClash has no adaptive mode; Surge's per-policy default for proxies is closest to all-proxy.
+  for (const [mode, expected] of [["all-proxy", "all-proxy"], ["all", "all"], ["always-allow", "always-allow"], ["per-policy", "all-proxy"]]) {
     const { config, warnings } = await convertSurgeToClash(`[General]\nblock-quic = ${mode}\n${source}`, context);
-    assert.equal(config["x-clash-block-quic"], mode);
+    assert.equal(config["x-clash-block-quic"], expected);
     const { "x-clash-block-quic": unused, ...rest } = config;
     assert.deepEqual(rest, baseline.config);
     assert.equal(config.proxies[0].udp, true);
     assert.ok(warnings.some((warning) => warning.includes("ProjectClash")));
+    assert.equal(warnings.some((warning) => warning.includes("adaptive mode approximated by all-proxy")), mode === "per-policy");
     assert.ok(!warnings.some((warning) => warning.includes("unsupported setting omitted")));
     const yaml = parse(await renderClashProfile(`[General]\nblock-quic = ${mode}\n${source}`, context));
-    assert.equal(yaml["x-clash-block-quic"], mode);
+    assert.equal(yaml["x-clash-block-quic"], expected);
   }
-  // ProjectClash treats per-policy as off; that cannot reproduce Surge's per-node behavior.
-  for (const mode of ["per-policy", "NEVER_LOG_THIS"]) {
-    const { config, warnings } = await convertSurgeToClash(`[General]\nblock-quic = ${mode}\n${source}`, context);
-    assert.deepEqual(config, baseline.config);
-    assert.ok(warnings.some((warning) => warning.includes("block-quic")));
-    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
-  }
+  const { config, warnings } = await convertSurgeToClash(`[General]\nblock-quic = NEVER_LOG_THIS\n${source}`, context);
+  assert.deepEqual(config, baseline.config);
+  assert.ok(warnings.some((warning) => warning.includes("block-quic")));
+  assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
 });
 
 test("node defaults retain Surge handshakes and explicit TCP Fast Open settings", () => {
