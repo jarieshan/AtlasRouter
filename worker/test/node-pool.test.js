@@ -246,7 +246,7 @@ test("orders selection options by IP type while preserving regional definitions 
     const expectedGroups = expectedRegions.flatMap((region) => ["ISP", "WARP", "IDC"].map((type) => `${region}-${type}`))
       .filter((group) => hasUsIsp || group !== "🇺🇸USA-ISP");
     const expectedOptions = ["ISP", "WARP", "IDC"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
-    for (const name of ["Proxy", "AIProxy", "GlobalMedia", "X"]) {
+    for (const name of ["Proxy", "AIProxy", "X"]) {
       const line = config.split("\n").find((line) => line.startsWith(`${name} = select, `));
       assert.ok(line);
       const members = line.slice(`${name} = select, `.length).split(", ").filter((value) => !value.includes("="));
@@ -260,8 +260,9 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.ok(config.split("\n").includes("RULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list,WeChat,no-resolve,update-interval=86400"));
     const telegram = config.split("\n").find((line) => line.startsWith("Telegram = select, "));
     assert.equal(telegram, `Telegram = select, ${expectedIcloud.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Telegram.png`);
-    const expectedYoutube = ["WARP", "IDC", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
-    assert.ok(config.split("\n").includes(`YouTube = select, ${expectedYoutube.join(", ")}, icon-url=${ICON_BASE}YouTube.png`));
+    const expectedWarpFirst = ["WARP", "IDC", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
+    assert.ok(config.split("\n").includes(`YouTube = select, ${expectedWarpFirst.join(", ")}, icon-url=${ICON_BASE}YouTube.png`));
+    assert.ok(config.split("\n").includes(`GlobalMedia = select, ${expectedWarpFirst.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Media.png`));
     const youtubeRule = "/YouTube.list?token=test-token,YouTube,no-resolve,update-interval=86400";
     assert.ok(config.includes(youtubeRule));
     assert.ok(config.indexOf(youtubeRule) < config.indexOf("/GlobalMedia.list?token=test-token,"));
