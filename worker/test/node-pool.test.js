@@ -246,13 +246,11 @@ test("orders selection options by IP type while preserving regional definitions 
     const expectedGroups = expectedRegions.flatMap((region) => ["ISP", "WARP", "IDC"].map((type) => `${region}-${type}`))
       .filter((group) => hasUsIsp || group !== "🇺🇸USA-ISP");
     const expectedOptions = ["ISP", "WARP", "IDC"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
-    for (const name of ["Proxy", "AIProxy", "GlobalMedia", "AppleProxy", "X"]) {
+    for (const name of ["Proxy", "AIProxy", "GlobalMedia", "X"]) {
       const line = config.split("\n").find((line) => line.startsWith(`${name} = select, `));
       assert.ok(line);
       const members = line.slice(`${name} = select, `.length).split(", ").filter((value) => !value.includes("="));
-      const orderedOptions = name === "AppleProxy" ? ["Proxy", ...expectedOptions]
-        : [...expectedOptions, name === "Proxy" ? "Auto" : "Proxy"];
-      assert.deepEqual(members, [...orderedOptions, "DIRECT"]);
+      assert.deepEqual(members, [...expectedOptions, name === "Proxy" ? "Auto" : "Proxy", "DIRECT"]);
       assert.equal(new Set(members).size, members.length);
     }
     const icloud = config.split("\n").find((line) => line.startsWith("iCloud = select, "));
@@ -269,8 +267,12 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.ok(config.indexOf(youtubeRule) < config.indexOf("/GlobalMedia.list?token=test-token,"));
     assert.doesNotMatch(config, /\/Google\.list\?/);
     assert.doesNotMatch(config, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
-    assert.match(config, /^AppleProxy = select, .+, hidden=true$/m);
+    assert.doesNotMatch(config, /^AppleProxy = /m);
     assert.ok(config.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
+    const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple)\.list\?/.test(line));
+    assert.deepEqual(appleRules.map((line) => [line.match(/\/(\w+)\.list\?/)[1], line.split(",")[2]]), [
+      ["AppleTV", "GlobalMedia"], ["AppleIntelligence", "AIProxy"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"],
+    ]);
     assert.doesNotMatch(config.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
     const definitions = [...config.matchAll(/^(.+) = smart, .+, policy-priority=/gm)].map((match) => match[1]);
     assert.deepEqual(definitions, expectedGroups);

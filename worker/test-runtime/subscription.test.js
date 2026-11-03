@@ -598,9 +598,9 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
         assert.equal(config.rules.at(-1), "MATCH,Proxy");
         for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
-        assert.equal(config["proxy-groups"].find((group) => group.name === "AppleProxy").proxies[0], "Proxy");
+        assert.ok(!config["proxy-groups"].some((group) => group.name === "AppleProxy"));
         assert.deepEqual(config["proxy-groups"].find((group) => group.name === "AppleDirect").proxies, ["DIRECT"]);
-        for (const name of ["AppleProxy", "AppleDirect"]) assert.equal(config["proxy-groups"].find((group) => group.name === name).hidden, true);
+        assert.equal(config["proxy-groups"].find((group) => group.name === "AppleDirect").hidden, true);
         const icloud = config["proxy-groups"].find((group) => group.name === "iCloud");
         assert.deepEqual(icloud.proxies, ["DIRECT", "🇭🇰HK-IDC", "🇺🇸USA-ISP"]);
         assert.ok(!icloud.hidden);
@@ -658,7 +658,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
         const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve,update-interval=86400$/gm)];
-        assert.equal(sources.length, 22);
+        assert.equal(sources.length, 23);
         assert.equal(sources[0][2], "WeChat");
         assert.equal(sources[0][1], WECHAT_URL);
         for (const [, value] of sources.slice(1)) {
@@ -667,7 +667,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
           assert.match(source.pathname, /^\/AtlasRouter\/rules\/magicrule\/surge\/[A-Za-z]+\.list$/);
           assert.equal(source.search, new URL(profile.subscriptionUrl).search);
         }
-        assert.deepEqual(sources.slice(2, 7).map(([, , policy]) => policy), ["iCloud", "AppleDirect", "AppleProxy", "AppleProxy", "DIRECT"]);
+        assert.deepEqual(sources.slice(2, 8).map(([, , policy]) => policy), ["GlobalMedia", "AIProxy", "iCloud", "AppleDirect", "AppleDirect", "DIRECT"]);
       }
     }
   }
