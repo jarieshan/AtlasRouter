@@ -117,13 +117,15 @@ master 的地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中�
 
 `WeChat`、`Telegram` 和 `X` 是可见的独立策略组，分别接收 WeChat、Telegram 和 Twitter 规则集的流量。WeChat 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连。Telegram 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组，缺少某类节点时跳过。X、AIProxy、GlobalMedia 按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组；AppleProxy 按 `Proxy` → ISP → WARP → IDC → `DIRECT` 排列。上述地区/IP 类型选项先按 IP 类型、再按美国 → 香港 → 新加坡 → 日本 → 其他地区排序；其他地区按两位地区代码的字母升序排列。`Proxy` 自身不包含自引用，选项采用 ISP → WARP → IDC → `Auto` → `DIRECT` 顺序。所有可选策略组均不提供 `REJECT` 选项。`💎 Select` 已移除。
 
-`YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组；没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 Google 和 GlobalMedia 之前。这是手动选择项顺序；地区/IP 类型组内，Surge / Clash 使用同顺序的 `fallback`。
+`YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组；没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 GlobalMedia 之前。这是手动选择项顺序；地区/IP 类型组内，Surge / Clash 使用同顺序的 `fallback`。
 
 业务策略组使用纯文字名称，图标来自 [Koolson/Qure Color](https://github.com/Koolson/Qure/tree/master/IconSet/Color)，通过 jsDelivr 公共链接加载。WeChat、Telegram、X、YouTube、Apple、iCloud 使用对应服务 Logo；Auto 使用 `Auto.png` 自动选择图标；DoH Proxy 使用 `Server.png` 服务器图标；Proxy、AIProxy、GlobalMedia 分别使用通用代理、AI、影音图标。首次从带 emoji 的旧组名更新后，客户端已保存的手动选择可能需要重新设置。Surge 使用 [`icon-url`](https://manual.nssurge.com/policy-groups/parameters.html)（Mac 6.5.0+），转换为 Clash 时映射为 [`icon`](https://wiki.metacubex.one/en/config/proxy-groups/#icon)，显示效果取决于客户端面板支持。策略组可见性遵循上述环境设置：Dev 统一显示全部组，生产按模板设置。
 
 WeChat 使用指定的 [blackmatrix7 WeChat 规则（jsDelivr）](https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Surge/WeChat/WeChat.list)：Surge 直接引用这个公共链接，不附加个人 token；Clash 通过受 token 保护的 Worker 入口转换为 classical 文本规则，跳过不支持的 `USER-AGENT` 条目。客户端更新间隔为 24 小时。
 
 其他外部规则使用 [MagicRule](https://magicrule.pages.dev/)；上游 [迁移公告](https://github.com/blackmatrix7/ios_rule_script/issues/1747) 说明旧仓库在 2026 年底停止自动更新。`surge/magicrule.json` 保存 Surge / Mihomo 清单标识，模板中的 `{{RULESET_<name>}}` 渲染为带个人 token 的固定 Worker 地址。每次下载读取对应 `manifest.json`，选择 `role=full` 的当前产物，避免固定引用带哈希的产物文件；不依赖额外客户端脚本或模块。清单与产物的上游缓存均为一小时，客户端规则更新间隔为 24 小时。上游清单路径本身如有调整，仍需更新映射并重新部署。
+
+不引用 MagicRule 的 Google 规则集：其当前 Surge / Mihomo 产物含 `hk`、`tw`、`sg`、`co` 等 28 个国家/地区顶级域的整段 `DOMAIN-SUFFIX`，会先于直连域名集和 `GEOIP,CN` 把这些顶级域下的全部域名送往 `Proxy`，包括直连域名集中的 `tmall.hk`、`jd.hk` 等。Google 自有域名改由后续的直连域名集、`GEOIP,CN` 和 `FINAL,Proxy,dns-failed` 判断，通常仍经代理访问，首次访问会多一次本地 DNS 查询；YouTube、Gemini 等仍由各自规则集处理。
 
 Apple 子规则存在重叠，匹配顺序为 iCloud → AppleDirect → AppleProxy → Apple 完整规则，未命中 iCloud 而同时命中 AppleDirect 和 AppleProxy 的流量优先直连，完整规则中剩余的 Apple 服务归 `AppleProxy`；这些规则位于通用 Direct 之前，避免 iCloud 被通用规则先行直连。这里只创建三个 Apple 策略组。原 Claude 规则由新站的 Anthropic 接替；GlobalMedia 使用完整产物，包含域名规则。所有外部规则引用附带 `no-resolve`，避免 IP/ASN 规则主动提前解析 DNS，末尾 `GEOIP,CN,DIRECT` 保留原行为。
 

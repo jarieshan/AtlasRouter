@@ -266,7 +266,8 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.ok(config.split("\n").includes(`YouTube = select, ${expectedYoutube.join(", ")}, icon-url=${ICON_BASE}YouTube.png`));
     const youtubeRule = "/YouTube.list?token=test-token,YouTube,no-resolve,update-interval=86400";
     assert.ok(config.includes(youtubeRule));
-    for (const name of ["Google", "GlobalMedia"]) assert.ok(config.indexOf(youtubeRule) < config.indexOf(`/${name}.list?token=test-token,`));
+    assert.ok(config.indexOf(youtubeRule) < config.indexOf("/GlobalMedia.list?token=test-token,"));
+    assert.doesNotMatch(config, /\/Google\.list\?/);
     assert.doesNotMatch(config, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
     assert.match(config, /^AppleProxy = select, .+, hidden=true$/m);
     assert.ok(config.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));

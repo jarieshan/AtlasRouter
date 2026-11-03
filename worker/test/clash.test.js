@@ -125,7 +125,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(!youtube.hidden);
     const youtubeRule = "RULE-SET,YouTube,YouTube,no-resolve";
     assert.ok(config.rules.includes(youtubeRule));
-    for (const rule of ["RULE-SET,Google,Proxy,no-resolve", "RULE-SET,GlobalMedia,GlobalMedia,no-resolve"]) assert.ok(config.rules.indexOf(youtubeRule) < config.rules.indexOf(rule));
+    assert.ok(config.rules.indexOf(youtubeRule) < config.rules.indexOf("RULE-SET,GlobalMedia,GlobalMedia,no-resolve"));
     for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
     assert.deepEqual(config["proxy-groups"].filter((group) => [icloud, appleProxy, appleDirect].includes(group)).map((group) => group.name), ["iCloud", "AppleDirect", "AppleProxy"]);
     assert.equal(config.rules.at(-1), "MATCH,Proxy");
@@ -164,7 +164,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.doesNotMatch(output, /Host entry|Section host|encrypted-dns-follow-outbound-mode: unsupported/);
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
-    assert.deepEqual(Object.keys(config["rule-providers"]), [wechatSource.id, "Binance", "iCloud", "AppleDirect", "AppleProxy", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Google", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", directSource.id]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [wechatSource.id, "Binance", "iCloud", "AppleDirect", "AppleProxy", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", directSource.id]);
     assert.ok(config.rules.includes("RULE-SET,Copilot,AIProxy,no-resolve"));
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:iCloud|AppleDirect|AppleProxy|Apple|Direct),/.test(rule)), [
       "RULE-SET,iCloud,iCloud,no-resolve",

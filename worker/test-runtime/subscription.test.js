@@ -658,7 +658,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
         const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve,update-interval=86400$/gm)];
-        assert.equal(sources.length, 23);
+        assert.equal(sources.length, 22);
         assert.equal(sources[0][2], "WeChat");
         assert.equal(sources[0][1], WECHAT_URL);
         for (const [, value] of sources.slice(1)) {

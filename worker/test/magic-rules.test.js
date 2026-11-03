@@ -10,7 +10,7 @@ const manifest = (url = artifactUrl) => ({ client: "Surge", rule: "Copilot", art
 test("MagicRule registry covers configured placeholders and excludes arbitrary paths", () => {
   const names = [...ASSETS.template.matchAll(/{{RULESET_([A-Za-z0-9]+)}}/g)].map((match) => match[1]);
   assert.deepEqual(names, Object.keys(ASSETS.magicRules));
-  assert.equal(names.length, 22);
+  assert.equal(names.length, 21);
   assert.doesNotMatch(ASSETS.template.replace(/^RULE-SET,https:\/\/cdn\.jsdelivr\.net\/gh\/blackmatrix7\/ios_rule_script@master\/rule\/Surge\/WeChat\/WeChat\.list,.*$/m, ""), /blackmatrix7|ios_rule_script/);
   for (const name of names) {
     for (const [client, extension] of [["surge", "list"], ["mihomo", "yaml"]]) {
@@ -23,7 +23,7 @@ test("MagicRule registry covers configured placeholders and excludes arbitrary p
       assert.equal(url.hash, "");
     }
   }
-  for (const path of ["magicrule/surge/WeChat.list", "magicrule/mihomo/WeChat.yaml", "magicrule/surge/Unknown.list", "magicrule/mihomo/Copilot.list", "magicrule/surge/Copilot.yaml", "magicrule/surge/__proto__.list", "magicrule/surge/../Copilot.list", "https://example.com/Copilot.list"]) {
+  for (const path of ["magicrule/surge/WeChat.list", "magicrule/mihomo/WeChat.yaml", "magicrule/surge/Google.list", "magicrule/surge/Unknown.list", "magicrule/mihomo/Copilot.list", "magicrule/surge/Copilot.yaml", "magicrule/surge/__proto__.list", "magicrule/surge/../Copilot.list", "https://example.com/Copilot.list"]) {
     assert.equal(findMagicRuleSource(path), null);
   }
 });
