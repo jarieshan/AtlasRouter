@@ -7,7 +7,8 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | 项目 | master / 生产 | develop / 原生 Preview |
 | --- | --- | --- |
 | 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、10、100、1000…；Clash 为同顺序 fallback |
-| 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见 |
+| 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy |
+| Apple | iCloud → AppleDirect → AppleProxy，几乎全部直连，含 Apple TV+ | AppleTV → `GlobalMedia`、AppleIntelligence → `AIProxy` 先匹配，其余经 iCloud / AppleDirect 直连 |
 | Auto | Surge Smart；Clash url-test | 同左 |
 | UI | 开启，Dev 按钮可管理测试数据 | 关闭 |
 | 订阅 | `/AtlasRouter`，生产 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
@@ -15,7 +16,7 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | Surge QUIC | `block-quic = all-proxy`，代理一律阻止 QUIC | `block-quic = per-policy`：DIRECT 放行，代理默认阻止；Surge iOS 6.0.0+ / Mac 6.11.0+ 对支持 UDP 的代理自适应 |
 | 发布 | Cloudflare master 构建，`npm run deploy` | Cloudflare develop 构建，`npm run deploy:preview` |
 
-两分支保留相同的 Proxy / Auto 选项顺序、AppleDirect 优先顺序，以及可映射的 UDP 参数；Clash 两端都输出 `x-clash-block-quic: all-proxy`，Surge 的 QUIC 策略见上表。develop 的 DoH 分流使用 IDC 专用组，国内上游直连，详见下表。主备分配逻辑一致，但数据库独立，实际节点和 token 不同。Smart 的选择语义并不等于 fallback；不能要求两分支始终使用同一出口。
+两分支保留相同的 Proxy / Auto 选项顺序，以及可映射的 UDP 参数；Apple 规则顺序见上表；Clash 两端都输出 `x-clash-block-quic: all-proxy`，Surge 的 QUIC 策略见上表。develop 的 DoH 分流使用 IDC 专用组，国内上游直连，详见下表。主备分配逻辑一致，但数据库独立，实际节点和 token 不同。Smart 的选择语义并不等于 fallback；不能要求两分支始终使用同一出口。
 
 master 同一份源码在生产/Preview 参数下均不生成节点权重。真正的开发权重来自 develop 分支代码，不能只靠设置 master 的环境变量打开它。
 
@@ -25,7 +26,7 @@ master 同一份源码在生产/Preview 参数下均不生成节点权重。真�
 
 | 项目 | 当前结果 | 边界 |
 | --- | --- | --- |
-| 规则、业务组顺序 | AppleDirect 在 AppleProxy 前；YouTube 在 GlobalMedia 前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
+| 规则、业务组顺序 | AppleTV、AppleIntelligence 在 iCloud / AppleDirect 前（develop）；YouTube 在 GlobalMedia 前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
 | 节点主备 | master 两端均为同顺序 fallback、300 秒间隔 | 各客户端的测速时机和结果可能不同，不保证同一时刻选中同一节点；develop 单独试验 Smart 权重 |
 | Auto | 两端都包含本订阅的可转换代理节点 | Surge 是 Smart；Clash 是 300 秒、容差 0 的 url-test。不能复现真实连接评分、站点记忆或重试顺序 |
 | DoH Proxy（develop） | 两端均可见，仅含 IDC 节点；Surge Smart，Clash url-test；Cloudflare / Google 使用该组，阿里 / 腾讯直连 | 无 IDC 或 Clash 过滤后无兼容 IDC 时省略该组，国外 DoH 规则改为 REJECT，其他订阅内容保留 |

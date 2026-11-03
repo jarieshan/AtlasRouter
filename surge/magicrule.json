@@ -3,6 +3,14 @@
     "surge": "4e9a94ba442ad6a6f999d0dd",
     "mihomo": "adb35ee125847f494c4e50e6"
   },
+  "AppleTV": {
+    "surge": "688313d0df0057ca622b6f7b",
+    "mihomo": "a9daa1bec10908b223185f32"
+  },
+  "AppleIntelligence": {
+    "surge": "ea59b4298a3a45e53e0b3150",
+    "mihomo": "fb0e992fbc7324836b9dc821"
+  },
   "iCloud": {
     "surge": "9d4d9b3f0482a5f641bc661d",
     "mihomo": "2193b70ddecc8e473c65013f"
@@ -10,10 +18,6 @@
   "AppleDirect": {
     "surge": "b76d359227add52b116a442e",
     "mihomo": "5e976a2983d7934d25a416bc"
-  },
-  "AppleProxy": {
-    "surge": "d2db650d955d574d6cdfd28a",
-    "mihomo": "a5a9b05ef8cd3f9b750de234"
   },
   "Apple": {
     "surge": "d4a1a49a4f9301369ccbdd07",
