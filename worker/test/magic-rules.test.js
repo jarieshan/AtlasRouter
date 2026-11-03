@@ -6,7 +6,7 @@ import { magicRuleUrl, nativeMagicRuleSource } from "../src/magic-rules.js";
 test("MagicRule registry covers template placeholders with official full artifacts", () => {
   const names = [...new Set([...ASSETS.template.matchAll(/{{RULESET_([A-Za-z0-9]+)}}/g)].map((match) => match[1]))];
   assert.deepEqual([...names].sort(), Object.keys(ASSETS.magicRules).sort());
-  assert.equal(names.length, 25);
+  assert.equal(names.length, 24);
   assert.doesNotMatch(ASSETS.template, /blackmatrix7|ios_rule_script/);
   for (const name of names) {
     for (const [client, key, extension] of [["surge", "rules", "list"], ["mihomo", "classical", "yaml"]]) {

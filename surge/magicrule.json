@@ -23,10 +23,6 @@
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/iCloud_rules_2ed29d3d438b7646.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/iCloud_classical_126b2d39c45db9a6.yaml"
   },
-  "AppleDirect": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/AppleDirect_rules_f5e4fe91ff60b5d6.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/AppleDirect_classical_7b599bf8fa6e635a.yaml"
-  },
   "Apple": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Apple_rules_50be57f093bd1fff.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Apple_classical_0fa29647e779e764.yaml"

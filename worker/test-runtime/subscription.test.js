@@ -609,9 +609,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
         assert.equal(config.rules.at(-1), "MATCH,Proxy");
         for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
-        assert.ok(!config["proxy-groups"].some((group) => group.name === "AppleProxy"));
-        assert.deepEqual(config["proxy-groups"].find((group) => group.name === "AppleDirect").proxies, ["DIRECT"]);
-        assert.equal(config["proxy-groups"].find((group) => group.name === "AppleDirect").hidden, true);
+        for (const name of ["AppleProxy", "AppleDirect"]) assert.ok(!config["proxy-groups"].some((group) => group.name === name), name);
         const icloud = config["proxy-groups"].find((group) => group.name === "iCloud");
         assert.deepEqual(icloud.proxies, ["DIRECT", "🇭🇰HK-IDC", "🇺🇸USA-ISP"]);
         assert.ok(!icloud.hidden);
@@ -619,7 +617,6 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(wechat.proxies, ["DIRECT", "🇭🇰HK-IDC", "🇺🇸USA-ISP"]);
         assert.ok(!wechat.hidden);
         assert.equal(wechat.icon, `${ICON_BASE}WeChat.png`);
-        assert.equal(config["proxy-groups"].find((group) => group.name === "AppleDirect").icon, `${ICON_BASE}Apple.png`);
         assert.ok(config.rules.includes(`RULE-SET,${WECHAT_RULE_ID},WeChat,no-resolve`));
         const wechatProvider = config["rule-providers"][WECHAT_RULE_ID];
         assert.equal(wechatProvider.format, "text");
@@ -660,7 +657,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`WeChat = select, DIRECT, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}WeChat.png`));
         assert.ok(text.split("\n").includes(`YouTube = select, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}YouTube.png`));
         assert.doesNotMatch(text, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
-        assert.ok(text.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
+        assert.doesNotMatch(text, /^AppleDirect = /m);
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
         const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve$/gm)];
         for (const [, value] of sources) {
@@ -670,7 +667,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/artifacts\/([A-Za-z]+)_/)[1], policy]), [
           [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
           ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
-          ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"],
+          ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
           [COIN_URL, "Coin"], ["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"],
           ["Netflix", "GlobalMedia"], ["Disney", "GlobalMedia"], ["Hulu", "GlobalMedia"], ["IMDB", "GlobalMedia"], ["GlobalMedia", "GlobalMedia"],
