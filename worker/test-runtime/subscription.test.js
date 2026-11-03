@@ -586,7 +586,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(config.dns["nameserver-policy"], {
           "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
           "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "China"].map((id) => [`rule-set:${id}`, doh === "1"
+          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "Binance", "China"].map((id) => [`rule-set:${id}`, doh === "1"
             ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
             : ["223.5.5.5", "119.29.29.29"]])),
         });
@@ -643,6 +643,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
         for (const url of [CUSTOM_DIRECT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
+        const binanceHost = text.split("\n").find((line) => line.startsWith(`RULE-SET:${MAGICRULE_ARTIFACTS}Binance_rules_`));
+        assert.ok(binanceHost?.endsWith(` = server:${directDns}`));
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(text.includes(`DOMAIN,${hostname},DoH Proxy\n`));
         for (const hostname of ["dns.alidns.com", "doh.pub"]) {
           const rule = `DOMAIN,${hostname},DIRECT\n`;
