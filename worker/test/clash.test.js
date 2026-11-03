@@ -68,6 +68,8 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(rule) < config.indexOf("RULE-SET,https://"));
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
+    const rules = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter((line) => line && !line.startsWith("#"));
+    assert.deepEqual(rules.slice(-4), [`DOMAIN-SET,${directUrl},DIRECT`, "RULE-SET,LAN,DIRECT", "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);
@@ -125,10 +127,13 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(!youtube.hidden);
     const youtubeRule = "RULE-SET,YouTube,YouTube,no-resolve";
     assert.ok(config.rules.includes(youtubeRule));
-    for (const rule of ["RULE-SET,Google,Proxy,no-resolve", "RULE-SET,GlobalMedia,GlobalMedia,no-resolve"]) assert.ok(config.rules.indexOf(youtubeRule) < config.rules.indexOf(rule));
+    assert.ok(config.rules.indexOf(youtubeRule) < config.rules.indexOf("RULE-SET,GlobalMedia,GlobalMedia,no-resolve"));
     for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
     assert.deepEqual(config["proxy-groups"].filter((group) => [icloud, appleProxy, appleDirect].includes(group)).map((group) => group.name), ["iCloud", "AppleDirect", "AppleProxy"]);
     assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    const resolvedLan = config.rules.indexOf("IP-CIDR,192.168.0.0/16,DIRECT");
+    assert.ok(config.rules.indexOf(`RULE-SET,${directSource.id},DIRECT`) < resolvedLan);
+    assert.ok(resolvedLan < config.rules.indexOf("GEOIP,CN,DIRECT"));
     assert.ok(config.rules.includes("DOMAIN-SUFFIX,kaggle.com,🇺🇸USA-ISP"));
     assert.ok(config.rules.includes("DOMAIN-SUFFIX,msmp.abchina.com.cn,REJECT"));
     assert.equal(config["proxy-groups"][0].timeout, 5000);
@@ -164,7 +169,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.doesNotMatch(output, /Host entry|Section host|encrypted-dns-follow-outbound-mode: unsupported/);
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
-    assert.deepEqual(Object.keys(config["rule-providers"]), [wechatSource.id, "Binance", "iCloud", "AppleDirect", "AppleProxy", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Google", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", directSource.id]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [wechatSource.id, "Binance", "iCloud", "AppleDirect", "AppleProxy", "Apple", "Direct", "OpenAI", "Bing", "Copilot", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "Cloudflare", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", directSource.id]);
     assert.ok(config.rules.includes("RULE-SET,Copilot,AIProxy,no-resolve"));
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:iCloud|AppleDirect|AppleProxy|Apple|Direct),/.test(rule)), [
       "RULE-SET,iCloud,iCloud,no-resolve",
@@ -278,7 +283,7 @@ test("native production and Preview profiles differ only in addresses, tokens, v
       const source = renderSurgeProfile({ ...input, requestUrl, token, options, smartPriorityScheme: vars.SMART_PRIORITY_SCHEME, showAllGroups });
       const normalizeAddress = (text) => text.replaceAll(requestUrl, "https://profile.example/SUBSCRIPTION").replaceAll(token, "TEST_TOKEN");
       assert.equal(source.match(/^#!MANAGED-CONFIG (\S+)/)[1], buildSubscriptionUrl(requestUrl, token, options));
-      assert.match(source, /^block-quic = all-proxy$/m);
+      assert.match(source, /^block-quic = per-policy$/m);
       assert.match(source, /^FINAL,Proxy,dns-failed$/m);
       const groupSection = source.split("[Proxy Group]\n")[1].split("[Rule]\n")[0];
       assert.equal(/hidden\s*=/i.test(groupSection), !showAllGroups);
@@ -432,24 +437,23 @@ test("QUIC blocking uses ProjectClash's final-outbound setting without replacing
   const source = `[Proxy]\nnode = ${vmess}\n[Proxy Group]\nAIProxy = select, node, DIRECT\nDirectFirst = select, DIRECT, node\n[Rule]\nDOMAIN-SUFFIX,local,DIRECT\nDOMAIN-SUFFIX,claude.ai,AIProxy\nFINAL,DirectFirst`;
   const baseline = await convertSurgeToClash(source, context);
   assert.equal(baseline.config["x-clash-block-quic"], undefined);
-  for (const mode of ["all-proxy", "all", "always-allow"]) {
+  // ProjectClash has no adaptive mode; Surge's per-policy default for proxies is closest to all-proxy.
+  for (const [mode, expected] of [["all-proxy", "all-proxy"], ["all", "all"], ["always-allow", "always-allow"], ["per-policy", "all-proxy"]]) {
     const { config, warnings } = await convertSurgeToClash(`[General]\nblock-quic = ${mode}\n${source}`, context);
-    assert.equal(config["x-clash-block-quic"], mode);
+    assert.equal(config["x-clash-block-quic"], expected);
     const { "x-clash-block-quic": unused, ...rest } = config;
     assert.deepEqual(rest, baseline.config);
     assert.equal(config.proxies[0].udp, true);
     assert.ok(warnings.some((warning) => warning.includes("ProjectClash")));
+    assert.equal(warnings.some((warning) => warning.includes("adaptive mode approximated by all-proxy")), mode === "per-policy");
     assert.ok(!warnings.some((warning) => warning.includes("unsupported setting omitted")));
     const yaml = parse(await renderClashProfile(`[General]\nblock-quic = ${mode}\n${source}`, context));
-    assert.equal(yaml["x-clash-block-quic"], mode);
+    assert.equal(yaml["x-clash-block-quic"], expected);
   }
-  // ProjectClash treats per-policy as off; that cannot reproduce Surge's per-node behavior.
-  for (const mode of ["per-policy", "NEVER_LOG_THIS"]) {
-    const { config, warnings } = await convertSurgeToClash(`[General]\nblock-quic = ${mode}\n${source}`, context);
-    assert.deepEqual(config, baseline.config);
-    assert.ok(warnings.some((warning) => warning.includes("block-quic")));
-    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
-  }
+  const { config, warnings } = await convertSurgeToClash(`[General]\nblock-quic = NEVER_LOG_THIS\n${source}`, context);
+  assert.deepEqual(config, baseline.config);
+  assert.ok(warnings.some((warning) => warning.includes("block-quic")));
+  assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
 });
 
 test("node defaults retain Surge handshakes and explicit TCP Fast Open settings", () => {

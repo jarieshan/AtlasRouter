@@ -62,7 +62,7 @@ npm test
 
 统一网页入口为域名根路径 `/`，订阅链接为 `/AtlasRouter?token=<token>`。普通用户看到个人订阅，管理员在同一页还可管理节点池和用户；角色由验证后的邮箱及 `ADMIN_EMAILS` 决定。个人 API 位于 `/api/account/*`，管理 API 位于 `/api/<slug>/pool/*`；随机标识由 `ADMIN_API_SLUG` Secret 提供，仅注入管理员页面；每次 master 构建发布会轮换该 Secret，发布后需刷新已打开的管理员页面。原生 Preview 发布不轮换生产标识。`/admin`、`/api/admin/*` 和旧订阅等入口均已停用，到达 Worker 后返回 404。完整部署步骤见 [Cloudflare 部署](docs/deployment-cloudflare.md)，分配规则见 [多用户与节点池](docs/multi-user.md)。
 
-页面可选启用 DoH 和 Client（默认 Surge / Clash），分别通过 `doh=1`、`client=clash` 注入订阅链接。Clash / Mihomo 输出由同一份完整 Surge 配置转换，自动跳过不兼容内容，不需要维护两份分流配置。参数与兼容范围见 [订阅说明](docs/subscription.md)。
+页面可选启用 DoH 和 Client（默认 Surge / Clash），分别通过 `doh=1`、`client=clash` 注入订阅链接。Tencent OA 兼容以 Surge Mac 模块提供，可在页面一键安装或复制模块链接，在 Surge 中开关，无需更换订阅链接。Clash / Mihomo 输出由同一份完整 Surge 配置转换，自动跳过不兼容内容，不需要维护两份分流配置。参数与兼容范围见 [订阅说明](docs/subscription.md)。
 
 线上安全探测需要手动执行，不属于默认测试：
 

@@ -61,13 +61,12 @@ function convertGeneral(general, warn) {
   });
   read("ipv6", (value) => { config.ipv6 = dns.ipv6 = surgeBoolean(value); });
   read("block-quic", (value) => {
-    if (value === "per-policy") {
-      warn("General block-quic: per-policy mode unsupported; setting omitted");
-      return;
-    }
-    if (!["all-proxy", "all", "always-allow"].includes(value)) throw new Error();
+    if (!["per-policy", "all-proxy", "all", "always-allow"].includes(value)) throw new Error();
     // ProjectClash checks the detected protocol and the selected terminal outbound.
-    config["x-clash-block-quic"] = value;
+    // Converted proxies never carry block-quic overrides, so per-policy means Surge's
+    // default: proxies block QUIC (adaptively on newer clients) and DIRECT allows it.
+    config["x-clash-block-quic"] = value === "per-policy" ? "all-proxy" : value;
+    if (value === "per-policy") warn("General block-quic: per-policy adaptive mode approximated by all-proxy");
     warn("General block-quic: requires ProjectClash x-clash-block-quic support; other cores may ignore it");
   });
   read("read-etc-hosts", (value) => { dns["use-system-hosts"] = surgeBoolean(value); });
