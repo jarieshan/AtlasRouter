@@ -72,7 +72,7 @@ VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、�
 
 ## 模板和版本范围
 
-自动订阅沿用 `surge/template.conf` 的通用配置与规则区，用 `surge/pool-groups.conf` 替换策略组区。地区/IP 类型组按个人主备顺序回退；业务 `Proxy` 另提供放在所有地区组之后的 `Auto` 选项，手动选择它会使用全部节点。规则引用的旧地区名称映射为当前组，缺少对应地区时回退 `Proxy`。`RULE-SET`、`GEOIP` 和 `FINAL` 仍在主模板，零散规则仍在 `surge/rules.list`。
+自动订阅沿用 `surge/template.conf` 的通用配置与规则区，用 `surge/pool-groups.conf` 替换策略组区。地区/IP 类型组按个人主备顺序回退；业务 `Proxy` 另提供放在所有地区组之后的 `Auto` 选项，手动选择它会使用全部节点。规则引用的旧地区名称映射为当前组，缺少对应地区时回退 `Proxy`。`RULE-SET`、`GEOIP` 和 `FINAL` 仍在主模板，零散规则仍在 `surge/rules.list`，仓库维护的规则集在 `surge/rule-sets/`。
 
 `AIProxy`、`X` 的选项统一按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组。`GlobalMedia` 按 WARP → IDC → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 WARP 组。`Proxy` 自身按 ISP → WARP → IDC → `Auto` → `DIRECT` 排列，默认选择首个可用的 ISP 组。地区/IP 类型选项先按 IP 类型排序，同一类型内按美国 → 香港 → 新加坡 → 日本 → 其他地区排列，其他地区按两位地区代码的字母升序排列。只列出当前可用组，缺少某类节点时跳过。所有可选策略组均不提供 `REJECT` 选项。这里的“可用组”指有启用节点并生成到订阅中的组，不代表客户端已测速通过；`select` 不会因当前地区组失效而自动切换到下一个地区组。
 

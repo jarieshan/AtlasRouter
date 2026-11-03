@@ -41,18 +41,18 @@ AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配�
 
 默认 DoH 上游使用 [Cloudflare](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/) 的 `https://cloudflare-dns.com/dns-query` 和 [Google](https://developers.google.com/speed/public-dns/docs/secure-transports) 的 `https://dns.google/dns-query`，地址维护在 `surge/template.conf`。`doh=1` 同时激活 `encrypted-dns-server` 和 `encrypted-dns-follow-outbound-mode = true`；托管更新地址保留该选项。DoH 仅按上游域名分流：`surge/rules.list` 前部将 `dns.alidns.com`、`doh.pub` 精确匹配到 `DIRECT`，将 `cloudflare-dns.com`、`dns.google` 精确匹配到 IDC 专用组 `DoH Proxy`。Surge 和 Clash 使用相同的域名规则，均先于外部规则集；未列出的上游域名继续匹配其他分流规则。证书校验保持开启，参见 [Surge 加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html)。
 
-`[Host]` 通过 `RULE-SET:https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list` 引用国内直连名单（见“订阅内容”），为名单中的域名分配 DNS：`doh=0` 使用 `223.5.5.5, 119.29.29.29`，`doh=1` 使用 `https://dns.alidns.com/dns-query, https://doh.pub/dns-query`。名单中的 IP 规则不参与 DNS 映射。开关由订阅生成器渲染为具体的 `server:` 值；这两个国内 DoH 上游经 `DIRECT` 出站。该映射位于 `zslab.ai` 和国内 DoH 上游的专用映射之后，专用映射优先；名单外域名沿用默认 DNS。
+`[Host]` 通过 `RULE-SET:` 引用本仓库的固定直连规则集 [`CustomDirect.list`](../surge/rule-sets/CustomDirect.list) 和国内直连名单 `https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list`（见“订阅内容”），为两份名单中的域名分配 DNS：`doh=0` 使用 `223.5.5.5, 119.29.29.29`，`doh=1` 使用 `https://dns.alidns.com/dns-query, https://doh.pub/dns-query`。名单中的 IP 规则不参与 DNS 映射。开关由订阅生成器渲染为具体的 `server:` 值；这两个国内 DoH 上游经 `DIRECT` 出站。该映射位于 `zslab.ai` 和国内 DoH 上游的专用映射之后，专用映射优先；名单外域名沿用默认 DNS。
 
 `[Host]` 固定为 `zslab.ai` 和 `*.zslab.ai` 指定 `server:223.5.5.5, 119.29.29.29`，覆盖根域名及所有层级子域名，不受 DoH 开关影响；这是 DNS 服务器分配，不是把域名绑定到这两个 IP。按 [Surge Host 语法](https://manual.nssurge.com/dns/local-dns-mapping.html)，多 DNS 服务器需要 Surge Mac 6.8.0+ / iOS 5.21.0+。节点使用域名时，需要普通 DNS 映射或 IP 地址完成引导解析，避免“连接代理前先通过该代理解析节点”的循环；`zslab.ai` 下的节点由上述映射覆盖，其他节点域名需另配映射。相关行为见 [Surge Mac 版本说明](https://kb.nssurge.com/surge-knowledge-base/release-notes/surge-mac-legacy#version-5.6.0)。
 
-`[Host]` 还固定包含以下两条映射，为国内 DoH 上游自身的域名使用普通 DNS 引导解析；两条均放在国内直连名单映射之前，不受 DoH 开关影响：
+`[Host]` 还固定包含以下两条映射，为国内 DoH 上游自身的域名使用普通 DNS 引导解析；两条均放在直连名单映射之前，不受 DoH 开关影响：
 
 ```ini
 dns.alidns.com = server:223.5.5.5, 119.29.29.29
 doh.pub = server:223.5.5.5, 119.29.29.29
 ```
 
-Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；国内直连名单复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项，下载地址继续携带同一订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
+Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；两份直连名单复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项，下载地址继续携带同一订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
 
 DNS 劫持固定为以下两个目标，不随 DoH 开关或 Tencent OA 模块变化；DoH 开关只控制加密 DNS 上游：
 
@@ -99,7 +99,7 @@ master 按地区/IP 类型生成顺序 `fallback` 组，成员依照每位用户
 
 develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨地区汇集，不包含 ISP、WARP、`DIRECT`、`REJECT` 或其他策略组。Surge 使用不带权重的 `smart`，Clash 使用 `url-test`（间隔 300 秒、容差 0）。没有 IDC 节点时不输出空组，将原本指向该组的国外 DoH 规则改为 `REJECT`，国内 DNS 和其余订阅照常生成，避免 [Surge 空组自动替换为直连](https://manual.nssurge.com/policy-groups/overview.html)。Clash 过滤掉全部不兼容 IDC 节点时同样保留这些拒绝规则；只过滤部分节点时继续使用剩余 IDC。
 
-香港银行与政府使用 `surge/rules.list` 中的固定 `DIRECT` 规则，位于 SYSTEM / LAN 之后、所有外部规则集之前；Surge 和 Clash 均生效。不创建可选策略组，因此客户端策略面板没有对应项目。当前范围如下，域名后缀包含根域名及其子域名：
+香港银行与政府等固定直连域名维护在本仓库的 [`surge/rule-sets/CustomDirect.list`](../surge/rule-sets/CustomDirect.list)，与 WeChat 规则集一样经 jsDelivr 以 `RULE-SET,…,DIRECT` 引用，位于 `rules.list` 的零散规则之后、其他外部规则集之前；Surge 和 Clash 均生效。`[Host]` 引用同一地址为这些域名指定国内 DNS，开启 DoH 时不再经境外 DoH 解析。订阅入口和 DoH 上游的直连规则仍留在 `rules.list`，不依赖任何规则集下载；规则集尚未下载成功时，其中的域名会落到后续规则。不创建可选策略组，因此客户端策略面板没有对应项目。当前银行与政府范围如下，域名后缀包含根域名及其子域名：
 
 | 服务 | 直连范围 |
 | --- | --- |
@@ -111,7 +111,7 @@ develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨
 | [恒生银行](https://www.hangseng.com/) | `hangseng.com` |
 | [香港政府](https://www.gov.hk/) | `gov.hk` |
 
-`hsbc.com`、`hsbcnet.com`、`sc.com`、`standardchartered.com` 等为银行共用域名，其下的其他地区服务也会直连。这里控制的是规则模式下的分流，不修改 `skip-proxy`，也不启用 MitM。
+列表另含 `longbridge.global`、`ibkr.com`、`binance.info` 和 `cdn.kineticbloom.org`。`hsbc.com`、`hsbcnet.com`、`sc.com`、`standardchartered.com` 等为银行共用域名，其下的其他地区服务也会直连。这里控制的是规则模式下的分流，不修改 `skip-proxy`，也不启用 MitM。
 
 master 的地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中的独立分组，仍可作为其他策略组的选项。develop 的 Preview 配置启用 `SHOW_ALL_PROXY_GROUPS=true`，统一省略所有策略组的隐藏属性，覆盖组定义和规则上的 `hidden` 设置，包括地区组、AppleDirect、DoH Proxy 及以后新增的组；Surge 与 Clash 输出保持一致，更新 Dev 订阅后生效。账户网页和管理员节点清单继续展示分配信息。Apple 的两个分组按 `iCloud` → `AppleDirect` 定义，生产环境中 iCloud 可见、AppleDirect 隐藏，Dev 全部可见。iCloud 首项为 `DIRECT`，其余选项先按 IDC → WARP → ISP，再按地区顺序排列；AppleDirect 仅保留 `DIRECT` 一个选项，固定直连。这里的顺序是手动选择项顺序，不是 DIRECT 失败后的自动切换顺序；客户端已有且仍有效的手动选择可能被保留。
 
@@ -145,7 +145,7 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 - VMess、Trojan 按 [Surge 的协议默认能力](https://manual.nssurge.com/policies/udp.html)输出 `udp: true`；转换器将显式 `udp-relay=false` 保留为关闭，但不能依赖该开关在 Surge 的 VMess / Trojan 上禁用 UDP；Surge 官方将它列为其他协议的可选能力。Shadowsocks、SOCKS5 / SOCKS5-TLS 仍需显式启用。缺少 UDP 支持会使 [Mihomo 跳过指向该代理的 UDP 规则](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)，即使 Claude 的域名和 IP 已在 AI 规则中，也可能最终直连。
 - 保留节点与策略组的排列、用户主备顺序、`select` / `fallback` / `url-test`。生产地区组使用原生 `fallback`；不带权重的 `smart`（如 `Auto`）近似为仅含代理节点的 `url-test`，不复现真实连接评分。master 转换器不支持 `policy-priority`，相关组会省略并产生不含节点信息的警告。`FINAL` 转为 `MATCH`，省略 Surge 专有的 `dns-failed`；缺少可用兜底策略时不生成配置。
 - 映射普通 / 加密 DNS、系统 hosts、IPv6、GeoIP 数据库、全局代理测试地址和测试超时。DNS 劫持配置放入 `tun.dns-hijack`，TUN 是否启用由客户端决定。
-- 两种 DNS 模式都显式设置 `dns.proxy-server-nameserver`；DoH 跟随出站规则时，节点域名仍使用普通 DNS 引导，只有加密上游追加 `#RULES`。`[Host]` 中精确域名、`*.` 子域名，以及已在分流规则中声明的 `DOMAIN-SET`，支持将 IPv4 DNS 或 HTTPS DoH 映射为 `dns.nameserver-policy`；域名集复用对应的规则提供器。Surge 的 `*.zslab.ai` 转为 Mihomo 的 `.zslab.ai`，覆盖所有层级子域名且不匹配根域名。其他 Host 写法暂不支持。iOS [Clash 的远程配置识别逻辑](https://github.com/ProjectClash/Clash-Client/blob/main/apple/ClashClientKit/Sources/ClashClientKit/ConfigurationImport.swift)依赖显式的节点解析服务器，缺失时可能把完整订阅当成节点来源并另选规则方案。此前已套用客户端默认方案、只显示 `AUTO` / `PROXY` 的配置，需要重新导入完整订阅并选中使用，确认出现 `AIProxy`、`Telegram`、`YouTube` 等业务组。
+- 两种 DNS 模式都显式设置 `dns.proxy-server-nameserver`；DoH 跟随出站规则时，节点域名仍使用普通 DNS 引导，只有加密上游追加 `#RULES`。`[Host]` 中精确域名、`*.` 子域名，以及已在分流规则中声明的 `DOMAIN-SET` / `RULE-SET`，支持将 IPv4 DNS 或 HTTPS DoH 映射为 `dns.nameserver-policy`；域名集和规则集复用对应的规则提供器，Mihomo 只用其中的域名类规则。Surge 的 `*.zslab.ai` 转为 Mihomo 的 `.zslab.ai`，覆盖所有层级子域名且不匹配根域名。其他 Host 写法暂不支持。iOS [Clash 的远程配置识别逻辑](https://github.com/ProjectClash/Clash-Client/blob/main/apple/ClashClientKit/Sources/ClashClientKit/ConfigurationImport.swift)依赖显式的节点解析服务器，缺失时可能把完整订阅当成节点来源并另选规则方案。此前已套用客户端默认方案、只显示 `AUTO` / `PROXY` 的配置，需要重新导入完整订阅并选中使用，确认出现 `AIProxy`、`Telegram`、`YouTube` 等业务组。
 - `block-quic` 的 `all-proxy`、`all`、`always-allow` 映射为同名 ProjectClash 扩展 `x-clash-block-quic`，`per-policy` 映射为 `all-proxy`。develop 模板使用 `block-quic = per-policy`（master 为 `all-proxy`）：Surge 中 DIRECT 放行 QUIC，代理默认阻止 QUIC；Surge iOS 6.0.0+ / Mac 6.11.0+ 对支持 UDP 转发的代理改用[自适应模式](https://manual.nssurge.com/policies/parameters.html)，先阻止，客户端不回退 TCP 时再放行。两分支的 Clash 都输出 `x-clash-block-quic: all-proxy`：识别为 QUIC 且最终走代理时阻止，直连 QUIC 放行；策略组手动选为 `DIRECT` 也放行，其他 UDP 仍按规则处理。该判断由 [ProjectClash 内核](https://github.com/ProjectClash/Clash/blob/4b7d5f53cff448f01cd5012b5e3f7eddc7d43e33/tunnel/clash_block_quic.go)在解析最终出口后执行，不添加全局 UDP 443 拦截规则，也不关闭节点 UDP。更新订阅并重连后加载；客户端需使用支持该扩展的版本。 `atlasrouter.zslab.ai` 和 `develop.atlasrouter.zslab.ai` 另有优先的精确域名 `DIRECT` 规则，让订阅及管理入口不依赖代理可用性，也不受 `all-proxy` 的 QUIC 拦截影响；不扩大为整个 `zslab.ai` 直连。
 - `skip-proxy`、Surge 模块、脚本、MitM 等不兼容设置被省略，不擅自转换成语义不同的直连或拦截规则。其他未知设置、规则类型也跳过。YAML 注释记录跳过的字段或条目序号，不记录凭据及配置值。
 - MagicRule 的固定 Surge 入口映射为同名的 Mihomo 入口，使用 `classical` / `yaml`，由上游原生 Mihomo 完整产物提供规则内容；保留 `no-resolve` 和更新间隔。只有本站已登记且 token 与订阅一致的地址采用此映射。

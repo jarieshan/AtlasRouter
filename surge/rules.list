@@ -8,34 +8,6 @@ DOMAIN,doh.pub,DIRECT
 DOMAIN,cloudflare-dns.com,DoH Proxy
 DOMAIN,dns.google,DoH Proxy
 
-DOMAIN-SUFFIX,longbridge.global,DIRECT
-DOMAIN-SUFFIX,ibkr.com,DIRECT
-DOMAIN-SUFFIX,binance.info,DIRECT
-
-# Hong Kong banks and government: fixed DIRECT, without selectable policy groups.
-# HSBC
-DOMAIN-SUFFIX,hsbc.com.hk,DIRECT
-DOMAIN-SUFFIX,hsbc.com,DIRECT
-DOMAIN-SUFFIX,hsbcnet.com,DIRECT
-# Standard Chartered
-DOMAIN-SUFFIX,sc.com,DIRECT
-DOMAIN-SUFFIX,standardchartered.com,DIRECT
-DOMAIN-SUFFIX,standardchartered.com.hk,DIRECT
-# Bank of China (Hong Kong)
-DOMAIN-SUFFIX,bochk.com,DIRECT
-# ICBC (Asia), including the personal and corporate online banking hosts.
-DOMAIN-SUFFIX,icbcasia.com,DIRECT
-DOMAIN,myebankasia.icbc.com.cn,DIRECT
-DOMAIN,corpebankasia.icbc.com.cn,DIRECT
-# ZA Bank
-DOMAIN-SUFFIX,za.group,DIRECT
-# Hang Seng Bank
-DOMAIN-SUFFIX,hangseng.com,DIRECT
-# Hong Kong Government
-DOMAIN-SUFFIX,gov.hk,DIRECT
-
-DOMAIN-SUFFIX,cdn.kineticbloom.org,DIRECT
-
 DOMAIN-SUFFIX,kaggle.com,🇺🇸 US
 DOMAIN-SUFFIX,kaggleusercontent.com,🇺🇸 US
 

@@ -22,6 +22,8 @@ const ORIGIN = "https://atlas.example";
 
 const WECHAT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list";
 const WECHAT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${WECHAT_URL}`).digest("hex").slice(0, 32)}`;
+const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
+const CUSTOM_DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${CUSTOM_DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const DIRECT_URL = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
 const DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
@@ -578,11 +580,13 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(config.dns["nameserver-policy"], {
           "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
           "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-          [`rule-set:${DIRECT_RULE_ID}`]: doh === "1"
+          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, DIRECT_RULE_ID].map((id) => [`rule-set:${id}`, doh === "1"
             ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
-            : ["223.5.5.5", "119.29.29.29"],
+            : ["223.5.5.5", "119.29.29.29"]])),
         });
-        assert.equal(config["rule-providers"][DIRECT_RULE_ID].url, `${profile.subscriptionUrl.split("?")[0]}/rules/${DIRECT_RULE_ID}.txt${new URL(profile.subscriptionUrl).search}`);
+        for (const id of [CUSTOM_DIRECT_RULE_ID, DIRECT_RULE_ID]) {
+          assert.equal(config["rule-providers"][id].url, `${profile.subscriptionUrl.split("?")[0]}/rules/${id}.txt${new URL(profile.subscriptionUrl).search}`);
+        }
         const auto = config["proxy-groups"].find(({ name }) => name === "Auto");
         assert.equal(auto.type, "url-test");
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
@@ -638,7 +642,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
-        assert.ok(text.split("\n").includes(`RULE-SET:${DIRECT_URL} = server:${directDns}`));
+        for (const url of [CUSTOM_DIRECT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(text.includes(`DOMAIN,${hostname},DoH Proxy\n`));
         for (const hostname of ["dns.alidns.com", "doh.pub"]) {
           const rule = `DOMAIN,${hostname},DIRECT\n`;
@@ -658,17 +662,17 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
         const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve,update-interval=86400$/gm)];
-        assert.equal(sources.length, 24);
-        assert.equal(sources[0][2], "WeChat");
-        assert.equal(sources[0][1], WECHAT_URL);
+        assert.equal(sources.length, 25);
+        assert.deepEqual(sources[0].slice(1), [CUSTOM_DIRECT_URL, "DIRECT"]);
+        assert.deepEqual(sources[1].slice(1), [WECHAT_URL, "WeChat"]);
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
-        for (const [, value] of sources.slice(1, -1)) {
+        for (const [, value] of sources.slice(2, -1)) {
           const source = new URL(value);
           assert.equal(source.origin, ORIGIN);
           assert.match(source.pathname, /^\/AtlasRouter\/rules\/magicrule\/surge\/[A-Za-z]+\.list$/);
           assert.equal(source.search, new URL(profile.subscriptionUrl).search);
         }
-        assert.deepEqual(sources.slice(2, 8).map(([, , policy]) => policy), ["GlobalMedia", "AIProxy", "iCloud", "AppleDirect", "AppleDirect", "DIRECT"]);
+        assert.deepEqual(sources.slice(3, 9).map(([, , policy]) => policy), ["GlobalMedia", "AIProxy", "iCloud", "AppleDirect", "AppleDirect", "DIRECT"]);
       }
     }
   }
