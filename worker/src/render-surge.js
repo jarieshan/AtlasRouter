@@ -3,7 +3,7 @@ import { renderProxyLines } from "./nodes.js";
 import { subscriptionPath } from "./routes.js";
 import { buildSubscriptionUrl } from "./subscription-options.js";
 import { magicRuleUrl } from "./magic-rules.js";
-import { appendTencentOaSkipProxy } from "./tencent-oa.js";
+import { tencentOaSkipProxy } from "./tencent-oa.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority } from "./surge-format.js";
 import { inheritBranch } from "./branch-query.js";
@@ -29,7 +29,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   };
   const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${options.doh ? "" : "# "}${setting}`);
-    if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=[ \t]*(.*)$/m, (_, value) => `skip-proxy = ${appendTencentOaSkipProxy(value)}`);
+    if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => `skip-proxy = ${tencentOaSkipProxy()}`);
     return heading + general;
   });
   return applyRuleSetVisibility(replaceTemplate(template, replacements), { showAllGroups });
