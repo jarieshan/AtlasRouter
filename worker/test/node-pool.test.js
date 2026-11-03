@@ -208,7 +208,7 @@ test("renders ordered smart groups with valid references and literal credential 
   assert.match(config, /\/AtlasRouter\/modules\/tencent-oa.sgmodule\?token=/);
   assert.doesNotMatch(config, /{{|💎 Select/);
   assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
-  assert.match(config, /\[MITM\]\nenable = false/);
+  assert.doesNotMatch(config, /^\[MITM\]$/m);
   assert.doesNotMatch(config, /ca-p12|ca-passphrase/);
   const policyNames = new Set(["DIRECT", "REJECT"]);
   for (const name of config.matchAll(/^(.+?) = /gm)) policyNames.add(name[1]);
