@@ -183,6 +183,6 @@ Mihomo 检测默认值见 [代理组公共参数](https://wiki.metacubex.one/en/
 
 Worker 规则入口只允许已部署模板 / 规则清单中的来源，不接受用户传入任意下载地址。规则最多 4 MiB，整次获取限时 10 秒。不转发用户 Cookie、token 或 Access Header，不跟随上游跳转；上游公共内容可缓存一小时。重置 token 或停用用户会同时撤销两种订阅、模块和 Worker 规则入口。MagicRule 与本仓库规则集由客户端直接从公开地址下载，地址中不含订阅 token，也不需要鉴权。
 
-新增 MagicRule 规则集时，在 `surge/magicrule.json` 登记同名规则的 Surge 与 Mihomo 完整产物地址（官网复制的订阅地址，或清单中 `role=full` 的产物），在主模板加入 `RULE-SET,{{RULESET_<name>}},<策略>,no-resolve,update-interval=86400`，并验证两种产物可用。无需维护第二套规则内容或提交上游规则快照。
+新增 MagicRule 规则集时，在 `surge/magicrule.json` 登记同名规则的 Surge 与 Mihomo 完整产物地址（官网复制的订阅地址，或清单中 `role=full` 的产物），在主模板加入 `RULE-SET,{{RULESET_<name>}},<策略>,no-resolve`，并验证两种产物可用。无需维护第二套规则内容或提交上游规则快照。
 
 新增无法转换的功能可以继续只服务 Surge；需要 Clash 支持时，再补转换映射与测试。格式参考 [Mihomo 规则](https://wiki.metacubex.one/en/config/rules/)、[规则提供器](https://wiki.metacubex.one/en/config/rule-providers/)、[DNS](https://wiki.metacubex.one/en/config/dns/)。

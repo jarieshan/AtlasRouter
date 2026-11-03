@@ -257,13 +257,13 @@ test("orders selection options by IP type while preserving regional definitions 
     const expectedIcloud = ["IDC", "WARP", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.equal(icloud, `iCloud = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}iCloud.png`);
     assert.ok(config.split("\n").includes(`WeChat = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}WeChat.png`));
-    assert.ok(config.split("\n").includes("RULE-SET,https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list,WeChat,no-resolve,update-interval=86400"));
+    assert.ok(config.split("\n").includes("RULE-SET,https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list,WeChat,no-resolve"));
     const telegram = config.split("\n").find((line) => line.startsWith("Telegram = select, "));
     assert.equal(telegram, `Telegram = select, ${expectedIcloud.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Telegram.png`);
     const expectedWarpFirst = ["WARP", "IDC", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.ok(config.split("\n").includes(`YouTube = select, ${expectedWarpFirst.join(", ")}, icon-url=${ICON_BASE}YouTube.png`));
     assert.ok(config.split("\n").includes(`GlobalMedia = select, ${expectedWarpFirst.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Media.png`));
-    const youtubeRule = `RULE-SET,${magicRuleUrl("YouTube", "surge")},YouTube,no-resolve,update-interval=86400`;
+    const youtubeRule = `RULE-SET,${magicRuleUrl("YouTube", "surge")},YouTube,no-resolve\n`;
     assert.ok(config.includes(youtubeRule));
     assert.ok(config.indexOf(youtubeRule) < config.indexOf(`${magicRuleUrl("GlobalMedia", "surge")},`));
     assert.doesNotMatch(config, /\/Google_rules_|token=test-token,/);

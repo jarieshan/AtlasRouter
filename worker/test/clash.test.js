@@ -74,7 +74,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
     const rules = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter((line) => line && !line.startsWith("#"));
-    assert.deepEqual(rules.slice(-4), [`RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=86400`, "RULE-SET,LAN,DIRECT", "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
+    assert.deepEqual(rules.slice(-4), [`RULE-SET,${directUrl},DIRECT,no-resolve`, "RULE-SET,LAN,DIRECT", "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);

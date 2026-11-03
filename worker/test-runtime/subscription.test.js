@@ -661,7 +661,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.doesNotMatch(text, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
         assert.ok(text.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
-        const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve,update-interval=86400$/gm)];
+        const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve$/gm)];
         assert.equal(sources.length, 26);
         assert.deepEqual(sources[0].slice(1), [CUSTOM_REJECT_URL, "REJECT"]);
         assert.deepEqual(sources[1].slice(1), [CUSTOM_DIRECT_URL, "DIRECT"]);

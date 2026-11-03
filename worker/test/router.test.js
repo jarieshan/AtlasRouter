@@ -374,7 +374,7 @@ test("MagicRule rules point at official artifacts without the subscription token
   const token = subscription.searchParams.get("token");
   t.mock.method(globalThis, "fetch", assert.fail);
   const surge = await (await request(`${subscription.pathname}${subscription.search}`, {}, env)).text();
-  assert.ok(surge.split("\n").includes(`RULE-SET,${magicRuleUrl("Copilot", "surge")},AIProxy,no-resolve,update-interval=86400`));
+  assert.ok(surge.split("\n").includes(`RULE-SET,${magicRuleUrl("Copilot", "surge")},AIProxy,no-resolve`));
   assert.doesNotMatch(surge.split("[Rule]\n")[1], new RegExp(`/rules/|${token}`));
   const config = parseYaml(await (await request(`${subscription.pathname}${subscription.search}&client=clash`, {}, env)).text());
   assert.equal(config["rule-providers"].Copilot.url, magicRuleUrl("Copilot", "mihomo"));
