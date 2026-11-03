@@ -11,7 +11,7 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | Apple | iCloud → AppleDirect → AppleProxy，几乎全部直连，含 Apple TV+ | AppleTV → `GlobalMedia`、AppleIntelligence → `AIProxy` 先匹配，其余经 iCloud / AppleDirect 直连 |
 | GlobalMedia 默认出口 | ISP → WARP → IDC，默认首个 ISP 组 | WARP → IDC → ISP，默认首个 WARP 组 |
 | 加密货币交易所 | Binance 固定直连；OKX、Coinbase、Bybit、Bitget 无专门规则 | 五家均进入 `Coin`，DIRECT → ISP → WARP → IDC，默认直连 |
-| AI 规则 | OpenAI、Bing、Copilot、Anthropic、Gemini → `AIProxy`；Cloudflare → `Proxy` | Cloudflare、OpenAI、Anthropic、Gemini → `AIProxy`，紧随 WeChat；不引用 Bing、Copilot |
+| AI 规则 | OpenAI、Bing、Copilot、Anthropic、Gemini → `AIProxy`（Copilot 列表含 Cursor、Grok、Meta AI 等）；Cloudflare → `Proxy` | Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor 和本仓库 CustomAI（Meta AI、Muse、Grok Bot）→ `AIProxy`，紧随 WeChat；不引用 Bing、Copilot |
 | Auto | Surge Smart；Clash url-test | 同左 |
 | UI | 开启，Dev 按钮可管理测试数据 | 关闭 |
 | 订阅 | `/AtlasRouter`，生产 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |

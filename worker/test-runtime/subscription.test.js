@@ -26,7 +26,8 @@ const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@dev
 const CUSTOM_DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${CUSTOM_DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
 const COIN_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
-const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, CUSTOM_DIRECT_URL, WECHAT_URL, COIN_URL];
+const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
+const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, CUSTOM_DIRECT_URL, WECHAT_URL, CUSTOM_AI_URL, COIN_URL];
 const magicRuleArtifact = (url, name, key, extension) =>
   new RegExp(`^https://(?:magicrule|rule-26r)\\.pages\\.dev/data/_shared/artifacts/${name}_${key}_[0-9a-f]{16}\\.${extension}$`).test(url);
 const DIRECT_URL = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
@@ -668,7 +669,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
         assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/artifacts\/([A-Za-z]+)_/)[1], policy]), [
           [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], [WECHAT_URL, "WeChat"],
-          ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"],
+          ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
           ["AppleTV", "GlobalMedia"], ["AppleIntelligence", "AIProxy"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"], ["Direct", "DIRECT"],
           [COIN_URL, "Coin"], ["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"],

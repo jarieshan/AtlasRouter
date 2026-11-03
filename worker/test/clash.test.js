@@ -16,6 +16,7 @@ const wechatUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/sur
 const customDirectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
 const customRejectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
 const coinUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
+const customAIUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
 const directUrl = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
@@ -89,8 +90,9 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
   const customDirectSource = await ruleSource(["RULE-SET", customDirectUrl]);
   const customRejectSource = await ruleSource(["RULE-SET", customRejectUrl]);
   const coinSource = await ruleSource(["RULE-SET", coinUrl]);
+  const customAISource = await ruleSource(["RULE-SET", customAIUrl]);
   const directSource = await ruleSource(["RULE-SET", directUrl]);
-  for (const source of [wechatSource, customDirectSource, customRejectSource, coinSource]) {
+  for (const source of [wechatSource, customDirectSource, customRejectSource, coinSource, customAISource]) {
     assert.deepEqual(await findClashRuleSource(`${source.id}.txt`), source);
   }
   assert.equal(await findClashRuleSource(`${directSource.id}.txt`), null);
@@ -184,8 +186,8 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Telegram", "Twitter", "Discord", "YouTube", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
-    assert.ok(config.rules.includes("RULE-SET,Cloudflare,AIProxy,no-resolve"));
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "Telegram", "Twitter", "Discord", "YouTube", "AppleTV", "AppleIntelligence", "iCloud", "AppleDirect", "Apple", "Direct", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
+    for (const id of ["Cloudflare", "Grok", "Cursor", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple|Direct),/.test(rule)), [
       "RULE-SET,AppleTV,GlobalMedia,no-resolve",
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
@@ -194,7 +196,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       "RULE-SET,Apple,AppleDirect,no-resolve",
       "RULE-SET,Direct,DIRECT,no-resolve",
     ]);
-    const repository = new Map([customRejectSource, customDirectSource, wechatSource, coinSource].map((source) => [source.id, source.url]));
+    const repository = new Map([customRejectSource, customDirectSource, wechatSource, customAISource, coinSource].map((source) => [source.id, source.url]));
     for (const [name, provider] of Object.entries(config["rule-providers"])) {
       assert.equal(provider.url, repository.get(name) ?? magicRuleUrl(name, "mihomo"));
       assert.ok(!provider.url.includes(context.token));

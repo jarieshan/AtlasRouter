@@ -47,6 +47,14 @@
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Gemini_rules_8da136e527c6fa11.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Gemini_classical_5cce94bda31ad8d5.yaml"
   },
+  "Grok": {
+    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Grok_rules_1686b96ebfe522d0.list",
+    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Grok_classical_a6f6c20793a48fed.yaml"
+  },
+  "Cursor": {
+    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/Cursor_rules_8a4e9d63f4d5df0f.list",
+    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/Cursor_classical_8d95480fc380f5ba.yaml"
+  },
   "Telegram": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Telegram_rules_4acef626d1aec7ca.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Telegram_classical_1b14a0a6432f12dc.yaml"
