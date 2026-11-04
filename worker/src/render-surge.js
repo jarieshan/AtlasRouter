@@ -43,7 +43,8 @@ function renderPoolTemplate(groups, smartPriorityScheme, idcNames) {
   const section = replaceTemplate(ASSETS.poolGroups, {
     POOL_GROUP_LINES: orderedGroups.map(({ group, nodes }) => {
       const names = nodes.map((node) => node.name);
-      return `${group} = smart, ${names.join(", ")}, policy-priority=${JSON.stringify(orderedSmartPriority(names, smartPriorityScheme))}`;
+      const scheme = smartPriorityScheme === "geometric-10" && nodes[0].ipType === "ISP" ? "geometric-10-from-100" : smartPriorityScheme;
+      return `${group} = smart, ${names.join(", ")}, policy-priority=${JSON.stringify(orderedSmartPriority(names, scheme))}`;
     }).join("\n"),
     // An empty Surge Smart group substitutes DIRECT, so omit it and reject its traffic instead.
     DOH_PROXY_GROUP_LINE: idcNames.length ? `DoH Proxy = smart, ${idcNames.join(", ")}, icon-url=https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Server.png, hidden=true` : "",

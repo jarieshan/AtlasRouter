@@ -4,7 +4,7 @@ import { convertClashRules, ruleSource } from "./clash-rules.js";
 import { HttpError } from "./errors.js";
 import { nativeMagicRuleSource } from "./magic-rules.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
-import { orderedSmartPriority, positiveInteger, splitSurgeList, surgeAssignment, surgeBoolean, surgeOptions, surgeSections } from "./surge-format.js";
+import { orderedSmartPriority, positiveInteger, SMART_PRIORITY_SCHEMES, splitSurgeList, surgeAssignment, surgeBoolean, surgeOptions, surgeSections } from "./surge-format.js";
 
 export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const sections = surgeSections(applyRuleSetVisibility(profile));
@@ -150,7 +150,7 @@ function convertGroups(lines, proxies, general, warn) {
       const smart = type === "smart";
       const orderedSmart = options.has("policy-priority");
       // Only the generated exact-name schemes have a defined order-preserving fallback.
-      if (orderedSmart && (!smart || !["linear", "geometric-3", "geometric-10"].some((scheme) =>
+      if (orderedSmart && (!smart || !SMART_PRIORITY_SCHEMES.some((scheme) =>
         options.get("policy-priority") === orderedSmartPriority(members, scheme)))) throw new Error();
       const group = { name, type: smart ? (orderedSmart ? "fallback" : "url-test") : type, proxies: [...new Set(smart ? members.filter((member) => nodeNames.has(member)) : members)] };
       if (smart) warn(orderedSmart

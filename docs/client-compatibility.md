@@ -15,7 +15,7 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | Auto | Surge Smart；Clash url-test | 同左 |
 | UI | 开启，Dev 按钮可管理测试数据 | 关闭 |
 | 订阅 | `/AtlasRouter`，生产 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
-| 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10` |
+| 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10`；ISP 组的备用节点从 100 起：1、100、1000、10000…，WARP、IDC 组为 1、10、100… |
 | Surge QUIC | `block-quic = all-proxy`，代理一律阻止 QUIC | `block-quic = per-policy`：DIRECT 放行，代理默认阻止；Surge iOS 6.0.0+ / Mac 6.11.0+ 对支持 UDP 的代理自适应 |
 | 发布 | Cloudflare master 构建，`npm run deploy` | Cloudflare develop 构建，`npm run deploy:preview` |
 

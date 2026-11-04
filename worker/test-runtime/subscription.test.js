@@ -287,7 +287,7 @@ test("development uses independent identities, tokens and node data with geometr
   const surgeResponse = await request(development, developmentAccount.subscriptionUrl);
   assert.equal(surgeResponse.status, 200);
   const surge = await surgeResponse.text();
-  const members = orderedSmartMembers(surge, "🇺🇸USA-ISP", [1, 10, 100, 1000, 10000]);
+  const members = orderedSmartMembers(surge, "🇺🇸USA-ISP", [1, 100, 1000, 10000, 100000]);
   const clashResponse = await request(development, `${developmentAccount.subscriptionUrl}&client=clash`);
   assert.equal(clashResponse.status, 200);
   const clash = parseYaml(await clashResponse.text());

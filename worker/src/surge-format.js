@@ -68,12 +68,19 @@ export function positiveInteger(value) {
   return Number(value);
 }
 
+const SMART_PRIORITY_WEIGHTS = {
+  linear: (index) => index + 1,
+  "geometric-3": (index) => 3 ** index,
+  "geometric-10": (index) => 10 ** index,
+  "geometric-10-from-100": (index) => (index ? 10 ** (index + 1) : 1),
+};
+export const SMART_PRIORITY_SCHEMES = Object.keys(SMART_PRIORITY_WEIGHTS);
+
 // Exact-name expressions keep regex metacharacters and priority delimiters literal.
 export function orderedSmartPriority(names, scheme = "linear") {
-  if (!["linear", "geometric-3", "geometric-10"].includes(scheme)) throw new Error("Invalid Smart priority scheme");
-  const base = scheme === "geometric-10" ? 10 : 3;
+  if (!SMART_PRIORITY_SCHEMES.includes(scheme)) throw new Error("Invalid Smart priority scheme");
   return names.map((name, index) => {
-    const weight = scheme === "linear" ? index + 1 : base ** index;
+    const weight = SMART_PRIORITY_WEIGHTS[scheme](index);
     if (!Number.isSafeInteger(weight)) throw new Error("Smart priority exceeds the supported range");
     const pattern = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
       .replace(/[:;"\u0000-\u001f\u007f]/g, (char) => `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`);

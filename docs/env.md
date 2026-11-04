@@ -11,10 +11,10 @@
 | `UI_ENABLED`（变量） | `true` | `false`，根页面返回 404 |
 | `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` | `/AtlasRouter-Dev` |
 | `DEV_SUBSCRIPTION_ORIGIN`（变量） | 开发预览的固定 HTTPS origin | 不需要 |
-| `SMART_PRIORITY_SCHEME`（变量） | 不读取，不启用权重实验 | develop 源码使用 `geometric-10`：1、10、100、1000… |
+| `SMART_PRIORITY_SCHEME`（变量） | 不读取，不启用权重实验 | develop 源码使用 `geometric-10`：1、10、100、1000…；ISP 组的备用节点从 100 起：1、100、1000、10000… |
 | `SHOW_ALL_PROXY_GROUPS`（变量） | 不启用，使用模板中的可见性设置 | `true`，统一移除所有策略组的隐藏属性，Surge / Clash 全部可见 |
 
-`geometric-10` 按每位用户的主节点、备用节点顺序赋权；受安全整数校验限制，单组最多 16 个节点，最后一个系数为 `10^15`，超过后订阅生成会报错。
+`geometric-10` 按每位用户的主节点、备用节点顺序赋权。按 [Surge Smart 组说明](https://kb.nssurge.com/surge-knowledge-base/guidelines/smart-group)，系数乘在节点的延迟上，大于 1 即降低优先级。ISP 组的备用节点从 100 起（`geometric-10-from-100`），主节点出现故障或明显变慢时才会换到备用节点；WARP、IDC 组仍为 1、10、100…。受安全整数校验限制，最后一个系数最大为 `10^15`：普通组最多 16 个节点，ISP 组最多 15 个，超过后订阅生成会报错。
 
 两库 ID 必须不同；Preview 的 `DB` 与生产 UI 的 `DEV_DB` 指向同一个测试库。`DEV_SUBSCRIPTION_ORIGIN` 不能带用户信息、路径、查询或片段，且必须与生产 origin 不同。`environment=development` 仅让生产 UI 及其 API 选择测试库，不转发订阅请求，也不执行另一个分支的代码。测试库结构必须与生产管理页面兼容。
 
