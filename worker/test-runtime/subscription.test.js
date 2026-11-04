@@ -126,6 +126,33 @@ async function account(mf, subject = "alice", claims) {
   return json(await request(mf, ACCOUNT_PROFILE_PATH, { subject, claims }));
 }
 
+test("Tailnet secret adds authenticated test alternatives without changing stored nodes or assignments", async (t) => {
+  const mf = await createRuntime(t, { SUBSCRIPTION_PATH: "/AtlasRouter-Dev", TAILNET_ENDPOINTS: JSON.stringify([
+    { server: "hk.example.com", port: 443, hostname: "node.example-tailnet.ts.net" },
+  ]) });
+  const line = "🇭🇰 HK IDC = vmess, hk.example.com, 443, username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true";
+  await save(mf, [{ id: "hk", line }]);
+  const user = await account(mf);
+  const db = await mf.getD1Database("DB");
+  const before = await readSubscriptionState({ DB: db });
+  const url = new URL(user.subscriptionUrl);
+  url.pathname = "/AtlasRouter-Dev";
+  const response = await mf.dispatchFetch(url.toString());
+  assert.equal(response.status, 200);
+  const profile = await response.text();
+  assert.ok(profile.split("\n").includes(line));
+  assert.match(profile, /^Tailnet Test - 🇭🇰 HK IDC = vmess, node\.example-tailnet\.ts\.net, 443, .+underlying-proxy=Tailnet$/m);
+  assert.match(profile, /^Tailnet Test = select, Tailnet Test - 🇭🇰 HK IDC$/m);
+  assert.deepEqual(await readSubscriptionState({ DB: db }), before);
+  assert.equal((await mf.dispatchFetch(`${ORIGIN}/AtlasRouter-Dev`)).status, 401);
+  assert.equal((await mf.dispatchFetch(`${ORIGIN}/not-a-subscription`)).status, 404);
+  const clash = await mf.dispatchFetch(`${url}&client=clash`);
+  assert.equal(clash.status, 200);
+  const config = parseYaml(await clash.text());
+  assert.deepEqual(config.proxies.map((node) => node.server), ["hk.example.com"]);
+  assert.doesNotMatch(JSON.stringify(config), /Tailnet|node\.example-tailnet/);
+});
+
 test("explicit resets replace development nodes from production without syncing users or subsequent edits", async (t) => {
   const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [

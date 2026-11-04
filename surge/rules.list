@@ -2,6 +2,10 @@
 DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet
 DOMAIN-SUFFIX,ts.net,Tailnet
 
+# Keep Tailscale bootstrap on public proxies when Proxy selects Tailnet Test.
+DOMAIN,controlplane.tailscale.com,Auto
+DOMAIN,login.tailscale.com,Auto
+
 # Keep subscription and UI access independent of proxy availability, including QUIC.
 DOMAIN,atlasrouter.zslab.ai,DIRECT
 DOMAIN,develop.atlasrouter.zslab.ai,DIRECT

@@ -46,6 +46,22 @@ master 使用权重实验前的稳定 fallback 行为，并提供生产 Dev 按�
 
 生产 `DEV_DB` binding 和 Dev 按钮会随 master 的成功发布一起生效；只有构建成功、没有实际发布时，线上页面不会变化。开发库节点和用户保持独立，不自动同步生产数据。如需重置开发节点，可在生产页面切换 Dev 后点击“重置为生产节点”；仅此次点击将开发节点池完整替换为当前生产节点并重新分配（生产为空时清空开发节点），保留名称、顺序、连接配置和启停状态。不会修改生产数据或开发用户、Token；后续生产变更需要再次点击才会同步。
 
+### 可选的 Tailnet 节点测试
+
+在 `develop` Preview 设置 Secret `TAILNET_ENDPOINTS`，按公网服务器与端口匹配已有 VMess TCP TLS 节点。值是 JSON 数组，以下仅为格式示例：
+
+```json
+[{"server":"hk.example.com","port":443,"hostname":"node.example-tailnet.ts.net"}]
+```
+
+使用 `npx wrangler preview secret put TAILNET_ENDPOINTS --name develop` 从交互输入或受保护文件的标准输入设置；不要把真实映射写入仓库或命令参数。该操作只更新现有 Preview 的 Secret，代码仍由 Builds 发布。Secret 配置方式见 [Cloudflare 官方文档](https://developers.cloudflare.com/workers/previews/configuration/#secrets)。
+
+目标必须已加入同一 Tailnet，在原端口提供相同 VMess 服务，并为目标 `ts.net` 主机名配置有效证书。Worker 复用已分配节点的凭据，生成 `Tailnet Test - …` 节点；连接地址和 TLS SNI 使用目标主机名，严格校验证书，并通过 Surge 的 `underlying-proxy=Tailnet` 连接。只支持当前测试需要的 VMess TCP TLS 参数；已有代理链、证书指纹绑定和其他传输参数会返回配置错误，避免静默改变其含义。
+
+新增节点只出现在手动选择的 `Tailnet Test` 组，各业务策略组可选择它，默认选项保持原样。`Auto`、地区 Smart 组及 `DoH Proxy` 不使用测试节点；Clash 导出会移除依赖原生 Tailnet 的节点与测试组。测试不会修改节点池或用户分配。未设置 Secret 时不生成测试组；删除该 Secret 后刷新订阅即可撤回测试配置。
+
+测试时使用 Surge 规则模式。Tailscale 控制与登录域名单独走现有公网 `Auto` 组，避免它们随 `Proxy` 进入 Tailnet 测试节点后产生启动回环。此测试阶段需要保留可用公网代理；未来关闭公网节点前应同时调整并验证控制连接的独立路径。
+
 ## 4. Access 与验证
 
 保留生产页面、`/api` 和已有订阅路径的 Access 配置。开发 Preview 默认没有管理页面；如果账号的 Access 设置覆盖了开发域名，给 `develop.atlasrouter.zslab.ai/AtlasRouter-Dev` 及其子路径配置精确的 Bypass（Everyone），让订阅客户端可以访问。应用仍校验个人订阅 Token。不要放开整个生产域名或生产 `/api`。
