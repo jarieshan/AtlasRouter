@@ -4,6 +4,7 @@ import { magicRuleUrl } from "../src/magic-rules.js";
 import { identifyNodeGroup, parsePoolNodes, allocateNodes, accountView, userGroups } from "../src/node-pool.js";
 import { renderAccountPage } from "../src/pool-pages.js";
 import { renderSurgeProfile } from "../src/render-surge.js";
+import { surgeSections } from "../src/surge-format.js";
 import { getAdminRoutes } from "../src/routes.js";
 
 const NOW = "2026-01-01T00:00:00.000Z";
@@ -207,7 +208,7 @@ test("renders ordered smart groups with valid references and literal credential 
   assert.match(config, /^FINAL,Proxy,dns-failed$/m);
   assert.match(config, /\/AtlasRouter\/modules\/tencent-oa.sgmodule\?token=/);
   assert.doesNotMatch(config, /{{|💎 Select/);
-  assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
+  assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${ICON_BASE}Auto.png`));
   assert.doesNotMatch(config, /^\[MITM\]$/m);
   assert.doesNotMatch(config, /ca-p12|ca-passphrase/);
   const policyNames = new Set(["DIRECT", "REJECT"]);
@@ -237,11 +238,11 @@ test("orders selection options by IP type while preserving regional definitions 
     const nodes = groups.flatMap((group) => group.nodes);
     const nodeIds = nodes.map((node) => node.id);
     const config = renderSurgeProfile({ requestUrl: "https://atlas.example/AtlasRouter", token: "test-token", groups, nodes });
-    const proxyLines = config.split("[Proxy]\n")[1].split("[Proxy Group]")[0].trim().split("\n");
+    const proxyLines = surgeSections(config).get("proxy");
     const expectedProxyLines = ["US", "HK", "SG", "JP", "AU", "DE"]
       .flatMap((region) => ["ISP", "WARP", "IDC"].flatMap((type) =>
         nodes.filter((node) => node.region === region && node.ipType === type).map((node) => node.line)));
-    assert.deepEqual(proxyLines, expectedProxyLines);
+    assert.deepEqual(proxyLines, [...expectedProxyLines, "Tailnet = tailscale, section-name=tailnet"]);
     assert.deepEqual(nodes.map((node) => node.id), nodeIds);
     const expectedGroups = expectedRegions.flatMap((region) => ["ISP", "WARP", "IDC"].map((type) => `${region}-${type}`))
       .filter((group) => hasUsIsp || group !== "🇺🇸USA-ISP");

@@ -53,7 +53,10 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   }
   assert.doesNotMatch(plain, /jsdelivr\.net\/gh\/Loyalsoldier\/surge-rules/);
   for (const config of [plain, encrypted]) {
-    assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${iconBase}Auto.png`));
+    assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${iconBase}Auto.png`));
+    assert.match(config, /^Tailnet = tailscale, section-name=tailnet$/m);
+    assert.match(config, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
+    assert.doesNotMatch(config, /^auth-key\s*=/m);
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
     assert.ok(config.split("\n").includes(`DoH Proxy = smart, 🇭🇰 HK IDC, icon-url=${iconBase}Server.png, hidden=true`));
@@ -100,6 +103,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const surge = renderSurgeProfile({ ...input, options: { doh } });
     const output = await renderClashProfile(surge, context);
     const config = parse(output);
+    assert.doesNotMatch(JSON.stringify(config), /Tailnet|interactive-login/);
     assert.equal(config["x-clash-block-quic"], "all-proxy");
     for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
       const index = config.rules.indexOf(`DOMAIN,${hostname},DIRECT`);
@@ -555,6 +559,30 @@ test("LAN expansion includes local domains and special networks without changing
     assert.equal(rules.at(-1), "MATCH,DIRECT");
     assert.deepEqual(warnings, []);
   }
+});
+
+test("policy-regex-filter only filters included proxies and invalid expressions are omitted safely", async () => {
+  const source = `[Proxy]
+Tailnet = ${vmess}
+Tailnet backup = ${vmess}
+Internet = ${vmess}
+[Proxy Group]
+Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*
+Manual = select, Tailnet, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*
+Explicit = select, Tailnet, policy-regex-filter=^(?!Tailnet$).*
+[Rule]
+FINAL,Manual
+`;
+  const { config } = await convertSurgeToClash(source, context);
+  assert.deepEqual(config["proxy-groups"].map(({ name, proxies }) => ({ name, proxies })), [
+    { name: "Auto", proxies: ["Tailnet backup", "Internet"] },
+    { name: "Manual", proxies: ["Tailnet", "Tailnet backup", "Internet"] },
+    { name: "Explicit", proxies: ["Tailnet"] },
+  ]);
+  const invalid = await convertSurgeToClash(source.replace("[Rule]", "Invalid = select, Internet, include-all-proxies=true, policy-regex-filter=[NEVER_LOG_THIS\n[Rule]"), context);
+  assert.deepEqual(invalid.config, config);
+  assert.ok(invalid.warnings.some((warning) => warning.includes("invalid group omitted")));
+  assert.doesNotMatch(invalid.warnings.join("\n"), /NEVER_LOG_THIS/);
 });
 
 test("unsupported nodes, empty groups, cycles and dangling rules are removed without exposing values in warnings", async () => {

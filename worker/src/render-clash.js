@@ -144,9 +144,11 @@ function convertGroups(lines, proxies, general, warn) {
       if (!["select", "fallback", "url-test", "smart"].includes(type) || nodeNames.has(name)
         || ["DIRECT", "REJECT"].includes(name) || groups.some((group) => group.name === name)) throw new Error();
       const options = surgeOptions(parts.filter((part) => part.includes("=")));
-      if ([...options.keys()].some((key) => !["url", "interval", "timeout", "tolerance", "hidden", "icon-url", "include-all-proxies", "policy-priority"].includes(key))) throw new Error();
+      if ([...options.keys()].some((key) => !["url", "interval", "timeout", "tolerance", "hidden", "icon-url", "include-all-proxies", "policy-regex-filter", "policy-priority"].includes(key))) throw new Error();
       const members = parts.filter((part) => !part.includes("="));
-      if (surgeBoolean(options.get("include-all-proxies") ?? "false")) members.push(...nodeNames);
+      const policyFilter = new RegExp(options.get("policy-regex-filter") ?? "");
+      // Surge filters included policies only; explicitly listed members are unchanged.
+      if (surgeBoolean(options.get("include-all-proxies") ?? "false")) members.push(...[...nodeNames].filter((name) => policyFilter.test(name)));
       const smart = type === "smart";
       const orderedSmart = options.has("policy-priority");
       // Only the generated exact-name schemes have a defined order-preserving fallback.

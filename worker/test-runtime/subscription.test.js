@@ -634,7 +634,9 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(response.headers.get("content-type"), /text\/plain/);
         assert.equal(/^encrypted-dns-server =/m.test(text), doh === "1");
         assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), doh === "1");
-        assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
+        assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${ICON_BASE}Auto.png`));
+        assert.match(text, /^Tailnet = tailscale, section-name=tailnet$/m);
+        assert.match(text, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
         assert.ok(text.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png, hidden=true`));
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
@@ -706,7 +708,8 @@ test("Tencent OA changes proxy exceptions, preserves targeted DNS hijacking and 
       assert.match(body, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
       const skip = body.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
       for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) assert.equal(skip.includes(value), tencentOa === "1");
-      for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
+      for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
+      assert.ok(!skip.includes("100.64.0.0/10"));
       assert.equal(skip.includes("10.0.0.0/8"), tencentOa === "0");
       if (tencentOa === "0") plain = withoutOverrides(body);
       else assert.equal(withoutOverrides(body), plain);
