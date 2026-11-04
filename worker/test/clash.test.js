@@ -55,6 +55,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   for (const config of [plain, encrypted]) {
     assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${iconBase}Auto.png`));
     assert.match(config, /^Tailnet = tailscale, section-name=tailnet$/m);
+    assert.match(config, /^Tailscale = select, Tailnet$/m);
     assert.match(config, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
     assert.doesNotMatch(config, /^auth-key\s*=/m);
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
@@ -103,7 +104,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const surge = renderSurgeProfile({ ...input, options: { doh } });
     const output = await renderClashProfile(surge, context);
     const config = parse(output);
-    assert.doesNotMatch(JSON.stringify(config), /Tailnet|interactive-login/);
+    assert.doesNotMatch(JSON.stringify(config), /Tailnet|Tailscale|interactive-login/);
     assert.equal(config["x-clash-block-quic"], "all-proxy");
     for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
       const index = config.rules.indexOf(`DOMAIN,${hostname},DIRECT`);
@@ -386,7 +387,10 @@ test("ordered smart weights match exact node names and each user's primary while
     assert.equal(group["policy-priority"], undefined);
     assert.equal(group.tolerance, undefined);
     assert.ok(warnings.some((warning) => warning.includes("weighted scoring unavailable")));
-    assert.ok(!warnings.some((warning) => /unavailable members|invalid group|cyclic|empty group/.test(warning)));
+    // The Surge-only Tailnet member and its empty display group are omitted.
+    assert.deepEqual(warnings.filter((warning) => /unavailable members|invalid group|cyclic|empty group/.test(warning)), [
+      "Proxy Group: unavailable members omitted", "Proxy Group: empty group omitted",
+    ]);
   }
 });
 
