@@ -269,11 +269,10 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.ok(config.indexOf(youtubeRule) < config.indexOf(`${magicRuleUrl("GlobalMedia", "surge")},`));
     assert.doesNotMatch(config, /\/Google_rules_|token=test-token,/);
     assert.doesNotMatch(config, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
-    assert.doesNotMatch(config, /^AppleProxy = /m);
-    assert.ok(config.split("\n").includes(`AppleDirect = select, DIRECT, icon-url=${ICON_BASE}Apple.png, hidden=true`));
-    const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/artifacts\/(?:AppleTV|AppleIntelligence|iCloud|AppleDirect|Apple)_rules_/.test(line));
+    assert.doesNotMatch(config, /^Apple(?:Proxy|Direct) = /m);
+    const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/artifacts\/(?:AppleTV|AppleIntelligence|iCloud|Apple)_rules_/.test(line));
     assert.deepEqual(appleRules.map((line) => [line.match(/\/artifacts\/(\w+?)_rules_/)[1], line.split(",")[2]]), [
-      ["AppleIntelligence", "AIProxy"], ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["AppleDirect", "AppleDirect"], ["Apple", "AppleDirect"],
+      ["AppleIntelligence", "AIProxy"], ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
     ]);
     assert.doesNotMatch(config.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
     const definitions = [...config.matchAll(/^(.+) = smart, .+, policy-priority=/gm)].map((match) => match[1]);
