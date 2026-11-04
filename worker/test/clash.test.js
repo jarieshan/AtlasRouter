@@ -57,6 +57,13 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     assert.match(config, /^Tailnet = tailscale, section-name=tailnet$/m);
     assert.match(config, /^Tailscale = select, Tailnet$/m);
     assert.match(config, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
+    const ruleLines = config.split("[Rule]\n")[1].split("\n");
+    for (const tailnetRule of ["DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]) {
+      assert.ok(ruleLines.includes(tailnetRule));
+      for (const lanRule of ["RULE-SET,LAN,DIRECT,no-resolve", "RULE-SET,LAN,DIRECT"]) {
+        assert.ok(ruleLines.indexOf(tailnetRule) < ruleLines.indexOf(lanRule));
+      }
+    }
     assert.doesNotMatch(config, /^auth-key\s*=/m);
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);

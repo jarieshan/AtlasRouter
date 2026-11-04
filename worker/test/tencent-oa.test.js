@@ -86,7 +86,8 @@ test("legacy tencent_oa links replace skip-proxy with the module list and preser
   assert.equal(config.split("[Host]\n")[1].split("[Proxy]")[0], plain.split("[Host]\n")[1].split("[Proxy]")[0]);
   const withoutOverrides = (value) => value.replace(/^#!MANAGED-CONFIG .*\n/m, "").replace(/^skip-proxy = .*\n/m, "");
   assert.equal(withoutOverrides(config), withoutOverrides(plain));
-  const lines = config.split("[Rule]\n")[1].split("\n").filter(Boolean);
-  assert.deepEqual(lines.slice(0, 2), ["RULE-SET,SYSTEM,DIRECT", "RULE-SET,LAN,DIRECT,no-resolve"]);
+  const lines = config.split("[Rule]\n")[1].split("\n").filter((line) => line && !line.startsWith("#"));
+  assert.deepEqual(lines.slice(0, 3), ["RULE-SET,SYSTEM,DIRECT", "DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
+  assert.ok(lines.indexOf("DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet") < lines.indexOf("RULE-SET,LAN,DIRECT,no-resolve"));
   assert.deepEqual(lines.slice(-2), ["GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
 });
