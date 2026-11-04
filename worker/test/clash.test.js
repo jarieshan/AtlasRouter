@@ -364,7 +364,7 @@ test("ordered smart weights match exact node names and each user's primary while
   const state = { nodes: parsePoolNodes(names.map((name, index) => ({ id: `node-${index}`, line: `${name} = ${vmess}` }))),
     users: names.map((_, index) => ({ id: `user-${index}`, enabled: true })) };
   allocateNodes(state, "2026-01-01T00:00:00Z");
-  const schemes = { linear: [1, 2, 3], "geometric-3": [1, 3, 9], "geometric-10": [1, 10, 100] };
+  const schemes = { linear: [1, 2, 3], "geometric-3": [1, 3, 9], "geometric-10": [1, 100, 1000] };
   for (const [smartPriorityScheme, expectedWeights] of Object.entries(schemes)) for (const user of state.users) {
     const groups = userGroups(state, user.id);
     const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), smartPriorityScheme });
@@ -391,12 +391,33 @@ test("ordered smart weights match exact node names and each user's primary while
   }
 });
 
-test("tenfold smart priorities allow 16 members and reject unsafe values", () => {
+test("geometric-10 starts ISP backups at 100 while WARP and IDC keep tenfold steps", async () => {
+  const state = { nodes: parsePoolNodes(["ISP", "WARP", "IDC"].flatMap((type) => [1, 2, 3].map((number) => ({
+    id: `${type}-${number}`, line: `🇺🇸 US ${type} ${number} = ${vmess}`,
+  })))), users: [{ id: "user", enabled: true }] };
+  allocateNodes(state, "2026-01-01T00:00:00Z");
+  const groups = userGroups(state, "user");
+  const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), smartPriorityScheme: "geometric-10" });
+  const weights = (name) => source.split("\n").find((line) => line.startsWith(`${name} = smart, `))
+    .match(/policy-priority="([^"]*)"/)[1].split(";").map((entry) => Number(entry.split(":").at(-1)));
+  assert.deepEqual(weights("🇺🇸USA-ISP"), [1, 100, 1000]);
+  for (const name of ["🇺🇸USA-WARP", "🇺🇸USA-IDC"]) assert.deepEqual(weights(name), [1, 10, 100], name);
+  const { config } = await convertSurgeToClash(source, context);
+  for (const name of ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇺🇸USA-IDC"]) {
+    assert.equal(config["proxy-groups"].find((group) => group.name === name)?.type, "fallback", name);
+  }
+});
+
+test("tenfold smart priorities stay within safe integers and reject larger groups", () => {
   const names = Array.from({ length: 17 }, (_, index) => `node-${index}`);
   const weights = orderedSmartPriority(names.slice(0, 16), "geometric-10").split(";");
   assert.equal(weights.length, 16);
   assert.equal(weights.at(-1), "^node-15$:1000000000000000");
   assert.throws(() => orderedSmartPriority(names, "geometric-10"), /Smart priority exceeds the supported range/);
+  const ispWeights = orderedSmartPriority(names.slice(0, 15), "geometric-10-from-100").split(";");
+  assert.deepEqual(ispWeights.slice(0, 4).map((entry) => entry.split(":")[1]), ["1", "100", "1000", "10000"]);
+  assert.equal(ispWeights.at(-1), "^node-14$:1000000000000000");
+  assert.throws(() => orderedSmartPriority(names.slice(0, 16), "geometric-10-from-100"), /Smart priority exceeds the supported range/);
 });
 
 test("ordered smart conversion skips unsupported nodes without changing order and rejects other weight formats safely", async () => {

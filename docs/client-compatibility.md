@@ -6,7 +6,7 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 
 | 项目 | master / 生产 | develop / 原生 Preview |
 | --- | --- | --- |
-| 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、10、100、1000…；Clash 为同顺序 fallback |
+| 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、10、100、1000…，ISP 组为 1、100、1000、10000…；Clash 为同顺序 fallback |
 | 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy |
 | Apple | iCloud → AppleDirect → AppleProxy，几乎全部直连，含 Apple TV+ | AppleTV → `GlobalMedia`、AppleIntelligence → `AIProxy` 先匹配，其余经 iCloud / AppleDirect 直连 |
 | GlobalMedia 默认出口 | ISP → WARP → IDC，默认首个 ISP 组 | WARP → IDC → ISP，默认首个 WARP 组 |
