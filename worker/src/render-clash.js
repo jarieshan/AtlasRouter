@@ -93,7 +93,16 @@ function convertGeneral(general, warn) {
     dns.nameserver = encrypted.map((server) => `${server}#RULES`);
     dns["proxy-server-nameserver"] = [...plain];
   });
-  read("hijack-dns", (value) => { config.tun = { "dns-hijack": splitSurgeList(value).map((entry) => entry.replace(/^\*/, "any")) }; });
+  // Surge's virtual interface takes over the system resolver; hijack-dns only adds hardcoded targets.
+  config.tun = { "dns-hijack": ["any:53", "tcp://any:53"] };
+  read("hijack-dns", (value) => {
+    const extra = splitSurgeList(value).map((entry) => {
+      const [, host, port = "53"] = entry.match(/^(\*|[\w.-]+)(?::(\d{1,5}))?$/) ?? [];
+      if (!host) throw new Error();
+      return port === "53" ? [] : [`${host === "*" ? "any" : host}:${port}`];
+    });
+    config.tun["dns-hijack"].push(...extra.flat());
+  });
   read("geoip-maxmind-url", (value) => {
     if (new URL(value).protocol !== "https:") throw new Error();
     config["geodata-mode"] = false;

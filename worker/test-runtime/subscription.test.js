@@ -617,7 +617,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(dohProxy.proxies, ["🇭🇰 Example - IDC 1"]);
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
         for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
-        assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
+        assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
         assert.equal(config.rules.at(-1), "MATCH,Proxy");
         for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
         for (const name of ["AppleProxy", "AppleDirect"]) assert.ok(!config["proxy-groups"].some((group) => group.name === name), name);

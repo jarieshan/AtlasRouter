@@ -198,7 +198,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.match(output, /smart approximated by url-test/);
     assert.match(output, /ordered smart converted to fallback/);
     assert.doesNotMatch(output, /Host entry|Section host|encrypted-dns-follow-outbound-mode: unsupported/);
-    assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
+    assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
     assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
@@ -330,6 +330,17 @@ test("explicit rendering options preserve protocol behavior across visibility an
     }
     assert.deepEqual(rendered[0], rendered[1], `environment drift for doh=${doh}, tencentOa=${tencentOa}`);
   }
+});
+
+test("TUN takes over all port 53 DNS and keeps hijack targets on other ports", async () => {
+  const convert = (general) => convertSurgeToClash(`[General]\n${general}[Proxy]\nnode = ${vmess}\n[Rule]\nFINAL,node\n`, context);
+  const mapped = await convert("hijack-dns = 8.8.8.8:53, 9.9.9.9, *:5353, 1.1.1.1:5300\n");
+  assert.deepEqual(mapped.config.tun, { "dns-hijack": ["any:53", "tcp://any:53", "any:5353", "1.1.1.1:5300"] });
+  assert.deepEqual(mapped.warnings, []);
+  assert.deepEqual((await convert("")).config.tun, { "dns-hijack": ["any:53", "tcp://any:53"] });
+  const invalid = await convert("hijack-dns = 1.1.1.1:5300, [::1]:53\n");
+  assert.deepEqual(invalid.config.tun, { "dns-hijack": ["any:53", "tcp://any:53"] });
+  assert.deepEqual(invalid.warnings, ["General hijack-dns: invalid value omitted"]);
 });
 
 test("Host UDP DNS mappings preserve suffix depth and omit unsupported values without leaking them", async () => {
