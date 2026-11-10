@@ -144,6 +144,8 @@ WeChat 使用本仓库维护的 [`surge/rule-sets/WeChat.list`](../surge/rule-se
 
 模板为 MagicRule 规则设置 `update-interval=21600`，客户端每 6 小时检查一次，转换为 Clash 时对应规则提供器的 `interval: 21600`；本仓库规则集沿用默认的 24 小时。中转响应带内容 SHA-256 的 ETag 和 `cache-control: no-cache`，客户端用 `If-None-Match` 检查，内容未变时得到 304，不重新下载。Surge 自 iOS 5.14.0 / Mac 5.8.1 起支持；Mihomo 与 ProjectClash 的 `etag-support` 默认开启。Worker 读取的清单和产物在 Cloudflare 边缘最多缓存一小时，上游更新最多约一小时后出现在中转结果中，客户端在下次更新规则时取得。某条规则在 MagicRule 改名或下线时，从官方索引取新的清单地址更新 `surge/magicrule.json` 并重新部署。
 
+GitHub Actions 的 [`MagicRule check`](../.github/workflows/magicrule.yml) 每 6 小时（UTC 每天 00:17 起）分别检查 master 和 develop 登记的全部清单：清单须仍列在官方索引中，并能按 Worker 的规则取得有效列表；任一失败时任务失败，GitHub 按通知设置提醒。修改登记、模板或中转代码时也会运行。定时任务只从默认分支 master 读取工作流，合入 master 后才生效；公开仓库 60 天无活动时 GitHub 会暂停定时任务。本地可在 `worker/` 运行 `npm run check:magic-rules`。
+
 国内直连名单使用 MagicRule `China` 列表（2026-10-30 更新时约 6,300 条域名后缀和 3,900 条 IP 段，含整段 `.cn`），与其他 MagicRule 规则一样登记在 `surge/magicrule.json`。模板的 `[Rule]` 和 `[Host]` 都引用 `{{RULESET_China}}`：前者排在 LAN 解析规则之后、`GEOIP,CN` 之前直连，后者为其中的域名指定国内 DNS。Clash 使用 China 的 Mihomo 原生产物，并以同一规则提供器生成 `nameserver-policy`。名单含 `DOMAIN-SUFFIX,ms`，所有 `.ms` 域名（如 `aka.ms`）直连；还含 `microsoft`、`-cn` 等宽泛的 `DOMAIN-KEYWORD`，含这些字样的域名一律直连，排在其前的规则集已收录的除外。淘宝、百度、支付宝、阿里云在名单中只有关键字规则。
 
 不引用 MagicRule 的 Google 规则集：其当前 Surge / Mihomo 产物含 `hk`、`tw`、`sg`、`co` 等 28 个国家/地区顶级域的整段 `DOMAIN-SUFFIX`，会先于国内直连名单和 `GEOIP,CN` 把这些顶级域下的全部域名送往 `Proxy`。Google 自有域名改由后续的国内直连名单、`GEOIP,CN` 和 `FINAL,Proxy,dns-failed` 判断，通常仍经代理访问，首次访问会多一次本地 DNS 查询；YouTube、Gemini 等仍由各自规则集处理。
@@ -202,6 +204,6 @@ Mihomo 检测默认值见 [代理组公共参数](https://wiki.metacubex.one/en/
 
 Worker 规则入口只允许已部署模板 / 规则清单中的来源，不接受用户传入任意下载地址。规则最多 4 MiB（MagicRule 清单最多 256 KiB），整次获取限时 10 秒。不转发用户 Cookie、token 或 Access Header，不跟随上游跳转；上游公共内容可缓存一小时。重置 token 或停用用户会同时撤销两种订阅、模块和受 token 保护的 Worker 规则入口。MagicRule 中转入口只提供已登记的公开规则，不需要 token，也不读取用户数据；本仓库规则集由客户端直接从公开地址下载。
 
-新增 MagicRule 规则集时，在 `surge/magicrule.json` 登记同名规则在官方索引中的 Surge 与 Mihomo `manifest.json` 地址，在主模板加入 `RULE-SET,{{RULESET_<name>}},<策略>,no-resolve,update-interval=21600`，并验证两种产物可用。无需维护第二套规则内容或提交上游规则快照。
+新增 MagicRule 规则集时，在 `surge/magicrule.json` 登记同名规则在官方索引中的 Surge 与 Mihomo `manifest.json` 地址，在主模板加入 `RULE-SET,{{RULESET_<name>}},<策略>,no-resolve,update-interval=21600`，并运行 `npm run check:magic-rules` 验证两种产物可用。无需维护第二套规则内容或提交上游规则快照。
 
 新增无法转换的功能可以继续只服务 Surge；需要 Clash 支持时，再补转换映射与测试。格式参考 [Mihomo 规则](https://wiki.metacubex.one/en/config/rules/)、[规则提供器](https://wiki.metacubex.one/en/config/rule-providers/)、[DNS](https://wiki.metacubex.one/en/config/dns/)。

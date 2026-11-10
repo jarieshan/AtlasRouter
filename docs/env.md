@@ -34,7 +34,7 @@
 
 同一个 Access application 保护生产 `/` 及 `/api/*`；订阅路径及其子路径使用精确 Bypass，再由 Worker 校验个人 token。Google OAuth client ID/secret 配置在 Access 身份提供商中。Worker 不处理 Google client secret；`ACCESS_JWKS_JSON` 仅供离线测试，生产不设置。旧 `ACCESS_USER_AUD`、KV binding 和组合构建的 `DEV_ADMIN_*` 不属于当前配置。
 
-节点凭据通过受保护管理页面录入 D1，不放在普通环境变量或代码中。D1 读取权限视为敏感数据读取权限。构建凭据由 Workers Builds 管理，其 token 需有 D1 Edit 权限以迁移开发库；GitHub Actions 只验证代码，不需要 Cloudflare Secrets。构建变量与 Worker 运行时变量分开配置，个人订阅 token 不放入构建变量。
+节点凭据通过受保护管理页面录入 D1，不放在普通环境变量或代码中。D1 读取权限视为敏感数据读取权限。构建凭据由 Workers Builds 管理，其 token 需有 D1 Edit 权限以迁移开发库；GitHub Actions 只验证代码和 MagicRule 公开清单，不需要 Cloudflare Secrets。构建变量与 Worker 运行时变量分开配置，个人订阅 token 不放入构建变量。
 
 ## 本地配置与发布命令
 
