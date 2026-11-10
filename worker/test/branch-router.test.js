@@ -17,7 +17,10 @@ test("branch selection is explicit and malformed selectors never fall back to pr
     assert.equal((await app.fetch(new Request(`https://atlas.example/${query}`), env)).status, 400);
   }
   assert.equal(calls, 3);
-  assert.equal(inheritBranch(new URL("https://atlas.example/rules?token=test"), "https://atlas.example/?dev=1").searchParams.get("dev"), "1");
+  assert.equal(inheritBranch(new URL("https://atlas.example/rules?token=test"), "https://atlas.example/?dev=1").searchParams.get("dev"), null);
+  assert.equal(requestBranch("https://atlas.example/AtlasRouter-Dev?token=test"), "develop");
+  assert.equal(requestBranch("https://atlas.example/AtlasRouter-Dev/modules/test.sgmodule"), "develop");
+  assert.equal(requestBranch("https://atlas.example/AtlasRouter-Developer"), "master");
 });
 
 test("development never inherits the production database or administrator secrets", () => {

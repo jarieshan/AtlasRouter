@@ -15,7 +15,7 @@ export async function deployDevelopment({ config, production, ci, branch, commit
     || config.services?.length || config.triggers?.crons?.length || config.d1_databases?.length !== 1
     || database?.binding !== "DB" || !database.database_id || database.database_id !== expected?.database_id
     || database.database_id === live?.database_id || database.migrations_dir !== "migrations"
-    || config.vars?.UI_ENABLED !== "false" || config.vars?.SUBSCRIPTION_PATH !== "/AtlasRouter"
+    || config.vars?.UI_ENABLED !== "false" || config.vars?.SUBSCRIPTION_PATH !== "/AtlasRouter-Dev"
     || config.vars?.SUBSCRIPTION_VARIANT !== "development") {
     throw new Error("Development must use the private subscription Worker and isolated test database");
   }

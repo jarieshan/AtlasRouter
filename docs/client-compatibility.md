@@ -15,7 +15,7 @@ master 使用 Smart 节点权重之前的稳定订阅实现；Dev 开关选择�
 | AI 规则 | OpenAI、Bing、Copilot、Anthropic、Gemini → `AIProxy`（Copilot 列表含 Cursor、Grok、Meta AI 等）；Cloudflare → `Proxy` | Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor、本仓库 CustomAI（Meta AI、Muse、Grok Bot）和 AppleIntelligence → `AIProxy`，紧随 WeChat；不引用 Bing、Copilot |
 | Auto | Surge Smart；Clash url-test | 同左 |
 | UI | 默认管理正式数据 | 同一页面通过 Dev 开关管理独立测试数据 |
-| 订阅 | `/AtlasRouter`，正式 D1 token | `/AtlasRouter?dev=1`，独立测试 D1 token |
+| 订阅 | `/AtlasRouter`，正式 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
 | 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10`；ISP 组的备用节点从 100 起：1、100、1000、10000…，WARP、IDC 组为 1、10、100… |
 | Surge QUIC | `block-quic = all-proxy`，代理一律阻止 QUIC | `block-quic = per-policy`：DIRECT 放行，代理默认阻止；Surge iOS 6.0.0+ / Mac 6.11.0+ 对支持 UDP 的代理自适应 |
 | 发布 | Cloudflare master 构建，`npm run deploy` | 私有开发 Worker，`npm run deploy:development` |

@@ -1,11 +1,15 @@
+import { requestBranch } from "./branch-query.js";
+
 export const API_PATH = "/api";
+export const DEV_API_PATH = `${API_PATH}/AtlasRouter-Dev`;
 export const ACCOUNT_PATH = "/";
 export const ACCOUNT_PROFILE_PATH = `${API_PATH}/account/profile`;
 export const ACCOUNT_TOKEN_PATH = `${API_PATH}/account/token`;
 export const POOL_SUBSCRIPTION_PATH = "/AtlasRouter";
+export const DEV_SUBSCRIPTION_PATH = "/AtlasRouter-Dev";
 
-export function subscriptionPath() {
-  return POOL_SUBSCRIPTION_PATH;
+export function subscriptionPath(requestUrl) {
+  return requestUrl && requestBranch(requestUrl) === "develop" ? DEV_SUBSCRIPTION_PATH : POOL_SUBSCRIPTION_PATH;
 }
 
 export function getAdminRoutes(env) {

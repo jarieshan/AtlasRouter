@@ -1,8 +1,8 @@
 # Subscription
 
-AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配置或旧 URL。
+AtlasRouter 提供基于多用户节点池的订阅，不再兼容旧手动配置。
 
-自定义选项中的 Dev 开关与 DoH 使用相同样式。关闭时生成正式 `/AtlasRouter` 订阅；开启时生成同域名 `/AtlasRouter?dev=1`，使用独立测试节点和开发版配置。两套凭据独立，切换后需要更新客户端订阅链接。Client 与 DoH 选择会保留，Tencent OA 模块链接也跟随当前环境。旧 `/AtlasRouter-Dev` 和独立测试域名不恢复。自动更新、模块和 MagicRule 中转地址均保留当前环境选择。
+Dev 开关在当前页面切换环境，不跳转或整页刷新。关闭时生成正式 `/AtlasRouter` 订阅；开启时生成同域名 `/AtlasRouter-Dev`，使用独立测试节点和开发版配置，不生成环境查询参数。两套凭据独立，切换后需要更新客户端订阅链接。Client 与 DoH 选择会保留，模块、规则和自动更新地址跟随对应路径。订阅和节点池全部加载成功后才切换；失败时保留原环境，未完成的保存会阻止切换，未保存编辑会先提示确认。已发出的 `dev=1` 订阅保留兼容，更新后使用新路径；独立测试域名保持关闭。
 
 ## 当前入口
 
@@ -16,7 +16,9 @@ AtlasRouter 仅提供当前多用户节点池订阅，不再兼容旧手动配�
 | `/api/<slug>/pool/nodes` | PUT | 管理员 + 同源 JSON；保存 `{ revision, nodes: [{ id, line, enabled }] }` |
 | `/api/<slug>/pool/import` | POST | 管理员 + 同源 JSON；解析 `{ text, nodes }`，返回去重后的待保存清单与提示，不写入数据库 |
 | `/api/<slug>/pool/users` | PATCH | 管理员 + 同源 JSON；启停 `{ id, enabled }` |
+| `/api/AtlasRouter-Dev/...` | 同正式接口 | 使用相同 Access 与管理员校验，读写独立测试库 |
 | `/AtlasRouter?token=<token>` | GET | 用户专属 token；输出完整 Surge 配置 |
+| `/AtlasRouter-Dev?token=<token>` | GET | 测试库用户 token；输出开发版配置，模块和规则使用同一路径前缀 |
 | `/AtlasRouter?token=<token>&client=clash` | GET | 同一 token；输出从 Surge 配置转换的 Clash / Mihomo YAML |
 | `/AtlasRouter/modules/<name>.sgmodule?token=<token>` | GET | 用户专属 token；输出模块 |
 | `/AtlasRouter/rules/rule-<hash>.txt?token=<token>` | GET | 用户专属 token；输出已过滤不兼容规则的 Clash 规则集 |

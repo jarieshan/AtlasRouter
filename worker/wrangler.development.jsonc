@@ -9,7 +9,7 @@
   "keep_vars": true,
   "vars": {
     "UI_ENABLED": "false",
-    "SUBSCRIPTION_PATH": "/AtlasRouter",
+    "SUBSCRIPTION_PATH": "/AtlasRouter-Dev",
     "SUBSCRIPTION_VARIANT": "development",
     "SMART_PRIORITY_SCHEME": "geometric-10",
     "SHOW_ALL_PROXY_GROUPS": "true"

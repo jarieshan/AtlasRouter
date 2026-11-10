@@ -27,7 +27,7 @@ Worker 只保留 `atlasrouter.zslab.ai` 这个正式 Custom Domain，`previews_e
 
 ## 数据与凭据
 
-[wrangler.jsonc](../worker/wrangler.jsonc) 绑定正式 `DB`、独立 `DEV_DB` 和 `DEV_SUBSCRIPTION_SERVICE`。开发服务使用 [wrangler.development.jsonc](../worker/wrangler.development.jsonc)，只绑定测试库、不配置公开路由，`workers_dev` 和 `preview_urls` 均关闭。浏览器 API 通过 `environment=development` 选择测试库；`/AtlasRouter?dev=1` 及其模块、规则请求通过 Service binding 调用开发服务。
+[wrangler.jsonc](../worker/wrangler.jsonc) 绑定正式 `DB`、独立 `DEV_DB` 和 `DEV_SUBSCRIPTION_SERVICE`。开发服务使用 [wrangler.development.jsonc](../worker/wrangler.development.jsonc)，只绑定测试库、不配置公开路由，`workers_dev` 和 `preview_urls` 均关闭。浏览器 API 通过 `/api/AtlasRouter-Dev/*` 选择测试库；`/AtlasRouter-Dev` 及其模块、规则请求通过 Service binding 调用开发服务。
 
 Builds 使用的 Token 需要发布 Worker 和迁移正式 D1 的权限。运行时的 Access 设置、管理员 Secret 和上游订阅服务令牌见 [环境与存储](env.md)。不要把 Token、个人订阅链接或节点凭据写进构建命令、普通变量或仓库。
 
@@ -35,8 +35,8 @@ Builds 使用的 Token 需要发布 Worker 和迁移正式 D1 的权限。运行
 
 ## Access 与验证
 
-生产根页面和 `/api` 保持 Access 登录保护；只为正式 `/AtlasRouter` 及其子路径设置订阅 Bypass，Worker 继续校验个人 Token。删除旧测试域名的 Bypass，不放开整个域名。
+根页面和全部 `/api/*`（包含开发管理 API）保持 Access 登录保护；只为 `/AtlasRouter`、`/AtlasRouter-Dev` 及各自的子路径设置订阅 Bypass，Worker 继续校验对应库的个人 Token。不为整个域名设置 Bypass。
 
 发布前运行 `cd worker && npm test`。发布后验证正式订阅的 Surge / Clash 输出、错误 Token 返回 401、未知路径返回 404，以及香港两个 Tunnel 入口仍受 Access 保护且正常回源。
 
-旧 `/AtlasRouter-Dev` 保持 404。Dev 开关生成同域名 `/AtlasRouter?dev=1` 链接；浏览器管理接口只使用 `environment=development`，不能用 `dev=1` 绕过 Access。开发服务缺失时返回 503，绝不回退到正式库。验证时检查开关两侧的节点、凭据隔离，模块地址保留 `dev=1`，以及 Dev 重置凭据不影响正式订阅。
+Dev 开关原地加载订阅和节点池，生成同域名 `/AtlasRouter-Dev` 链接。浏览器管理接口使用 `/api/AtlasRouter-Dev/*`，不能通过订阅 Bypass 绕过 Access。开发服务缺失时返回 503，绝不回退到正式库。验证两库凭据隔离、模块和规则的路径归属、切换失败时保持原环境，以及 Dev 重置凭据不影响正式订阅。旧 `dev=1` 订阅继续可用，并生成新路径的自动更新地址。

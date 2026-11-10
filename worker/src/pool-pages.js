@@ -1,4 +1,4 @@
-import { ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH } from "./routes.js";
+import { ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, API_PATH, DEV_API_PATH } from "./routes.js";
 import { pagePreviewProfile } from "./page-preview.js";
 import { TENCENT_OA_MODULE } from "./tencent-oa.js";
 
@@ -34,7 +34,7 @@ function page(title, panels, isAdmin, preview = null, development = false) {
 </div></header>
 <main class="wrap">
   <div class="page-head"><h1>${title}</h1><p>${isAdmin ? "管理个人订阅、节点池与用户分配。" : "选择客户端并复制专属订阅链接。"}</p></div>
-  ${development ? `<aside class="preview-notice" role="note"><strong>Dev · 开发环境</strong> · 当前订阅、节点和管理操作均使用独立测试数据。</aside>` : ""}
+  <aside id="development-notice" class="preview-notice" role="note"${development ? "" : " hidden"}><strong>Dev · 开发环境</strong> · 当前订阅、节点和管理操作均使用独立测试数据。</aside>
   ${preview ? `<aside class="preview-notice" role="note"><strong>页面预览</strong> · ${preview.nodeSource === "database" ? "只读展示当前启用的真实节点，刷新页面获取最新数据。主备顺序仅供预览，不参与分配和统计，操作不保存。" : "模拟数据仅保留在当前页面内存中，刷新即重置，不保存账号、节点或操作记录。"}</aside>` : ""}
   ${panels.map(({ id, body }) => `<div id="${id}" class="panel">${body}</div>`).join("\n")}
 </main>${panels.map(({ id, script, previewData }) => `<script>(() => { const root = document.getElementById("${id}"); const previewData = ${JSON.stringify(previewData ?? null).replaceAll("<", "\\u003c")}; ${clientHelpers}${script} })();</script>`).join("\n")}</body>
@@ -240,12 +240,16 @@ const styles = `
 `;
 
 const clientHelpers = String.raw`
+  const pageState = document.atlasrouterEnvironment ??= {
+    development: !previewData && new URL(location.href).searchParams.get("environment") === "development",
+    pending: 0, changing: false, panels: [],
+  };
   const status = root.querySelector(".status");
   function message(text, error = false) {
     status.textContent = text;
     status.className = error ? "status error" : "status";
   }
-  async function api(path, method = "GET", body) {
+  async function api(path, method = "GET", body, targetDevelopment) {
     if (previewData) {
       if (path === ${JSON.stringify(ACCOUNT_PROFILE_PATH)} && method === "GET") return previewData;
       if (path === ${JSON.stringify(ACCOUNT_TOKEN_PATH)} && method === "POST") {
@@ -254,18 +258,24 @@ const clientHelpers = String.raw`
       }
       throw new Error("页面预览不调用正式数据接口。");
     }
+    if (pageState.changing && targetDevelopment === undefined) throw new Error("正在切换环境，请稍候。");
     const url = new URL(path, location.href);
-    if (new URL(location.href).searchParams.get("environment") === "development") url.searchParams.set("environment", "development");
-    const response = await fetch(url.pathname + url.search, {
-      method, credentials: "same-origin", cache: "no-store",
-      headers: body === undefined ? {} : { "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error(await response.text());
-    if (!response.headers.get("content-type")?.includes("application/json")) {
-      throw new Error("登录已失效，请刷新页面重新登录。");
+    if (targetDevelopment ?? pageState.development) url.pathname = ${JSON.stringify(DEV_API_PATH)} + url.pathname.slice(${API_PATH.length});
+    pageState.pending += 1;
+    try {
+      const response = await fetch(url.pathname + url.search, {
+        method, credentials: "same-origin", cache: "no-store",
+        headers: body === undefined ? {} : { "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(await response.text());
+      if (!response.headers.get("content-type")?.includes("application/json")) {
+        throw new Error("登录已失效，请刷新页面重新登录。");
+      }
+      return await response.json();
+    } finally {
+      pageState.pending -= 1;
     }
-    return response.json();
   }
   function element(tag, text) {
     const node = document.createElement(tag);
@@ -366,16 +376,47 @@ function accountPanel(preview, { development, developmentAvailable }) {
     }
     client.onchange = updateSubscription;
     doh.onchange = updateSubscription;
-    if (development) development.onchange = () => {
-      const url = new URL(location.href);
-      url.searchParams.delete("dev");
-      url.searchParams.delete("environment");
-      url.searchParams.delete("client");
-      url.searchParams.delete("doh");
-      if (development.checked) url.searchParams.set("environment", "development");
-      if (client.value === "clash") url.searchParams.set("client", "clash");
-      if (doh.checked) url.searchParams.set("doh", "1");
-      location.href = url.toString();
+    if (development) development.onchange = async () => {
+      const previous = pageState.development;
+      const selected = development.checked;
+      if (pageState.changing || pageState.pending) {
+        development.checked = previous;
+        message("请等待当前操作完成后再切换环境。", true);
+        return;
+      }
+      if (selected === previous) return;
+      if (pageState.panels.some((panel) => panel.canSwitch && !panel.canSwitch())) {
+        development.checked = previous;
+        return;
+      }
+      pageState.changing = true;
+      development.disabled = true;
+      pageState.panels.forEach((panel) => panel.lock(true));
+      message("正在加载" + (selected ? "开发" : "正式") + "环境…");
+      try {
+        const results = await Promise.allSettled(pageState.panels.map((panel) => panel.read(selected)));
+        const failed = results.find((result) => result.status === "rejected");
+        if (failed) throw failed.reason;
+        const url = new URL(location.href);
+        url.searchParams.delete("dev");
+        url.searchParams.delete("environment");
+        url.searchParams.delete("client");
+        url.searchParams.delete("doh");
+        if (client.value === "clash") url.searchParams.set("client", "clash");
+        if (doh.checked) url.searchParams.set("doh", "1");
+        history.replaceState(null, "", url);
+        pageState.development = selected;
+        development.checked = selected;
+        results.forEach((result, index) => pageState.panels[index].render(result.value));
+        document.getElementById("development-notice").hidden = !selected;
+      } catch (error) {
+        development.checked = previous;
+        message("切换失败，仍使用" + (previous ? "开发" : "正式") + "环境：" + error.message, true);
+      } finally {
+        pageState.changing = false;
+        development.disabled = false;
+        pageState.panels.forEach((panel) => panel.lock(false));
+      }
     };
     function moduleUrl() {
       const url = new URL(baseSubscriptionUrl);
@@ -422,6 +463,13 @@ function accountPanel(preview, { development, developmentAvailable }) {
       try { render(await api(${JSON.stringify(ACCOUNT_PROFILE_PATH)})); }
       catch (error) { message(error.message, true); }
     }
+    if (!previewData) pageState.panels.push({
+      read: (selected) => api(${JSON.stringify(ACCOUNT_PROFILE_PATH)}, "GET", undefined, selected),
+      render,
+      lock: (locked) => {
+        copy.disabled = rotate.disabled = installModule.disabled = copyModule.disabled = locked || !baseSubscriptionUrl;
+      },
+    });
     copy.onclick = async () => {
       try { await navigator.clipboard.writeText(subscription.value); message(previewData ? "示例链接已复制。" : "订阅链接已复制。"); }
       catch { subscription.focus(); subscription.select(); message("请手动复制已选中的链接。"); }
@@ -589,19 +637,30 @@ function poolPanel(adminRoutes) {
       root.querySelector("#counts").replaceChildren(metric("启用节点", enabled.length), metric("空闲节点", enabled.filter((node) => !node.ownerIds.length).length), metric("用户", state.users.length));
     }
     async function run(action) {
-      if (busy) return;
-      busy = true;
-      editor.readOnly = true; importer.readOnly = true;
-      root.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+      if (busy || pageState.changing) return;
+      lock(true);
       try { await action(); }
       catch (error) { message(error.message, true); }
       finally {
-        busy = false;
-        editor.readOnly = false; importer.readOnly = false;
-        root.querySelectorAll("button").forEach((button) => { button.disabled = false; });
-        save.disabled = !state; append.disabled = !state;
+        lock(false);
       }
     }
+    function lock(locked) {
+      busy = locked;
+      editor.readOnly = locked; importer.readOnly = locked;
+      root.querySelectorAll("button").forEach((button) => { button.disabled = locked; });
+      save.disabled = locked || !state; append.disabled = locked || !state;
+    }
+    pageState.panels.push({
+      read: (selected) => api(${JSON.stringify(adminRoutes.state)}, "GET", undefined, selected),
+      render: (data) => { render(data); importer.value = ""; importNotes.replaceChildren(); message("节点池已加载。"); },
+      lock,
+      canSwitch: () => {
+        if (busy) return false;
+        const saved = state ? JSON.stringify(state.nodes.map(({ id, line, enabled }) => ({ id, line, enabled })), null, 2) : "";
+        return (editor.value === saved && !importer.value.trim()) || confirm("切换环境将丢弃尚未保存的节点编辑和导入内容，继续？");
+      },
+    });
     function load() { return run(async () => { render(await api(${JSON.stringify(adminRoutes.state)})); message("节点池已加载。"); }); }
     root.querySelector("#pool-reload").onclick = () => {
       if (state && !confirm("重新加载将丢弃尚未保存的清单编辑，继续？")) return;

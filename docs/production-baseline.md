@@ -19,7 +19,7 @@ master 使用引入 Smart 节点权重之前的稳定订阅行为。Dev 开关�
 
 ## 正式入口
 
-正式页面默认管理生产 `DB`，Dev 开关开启时管理独立 `DEV_DB`。正式与开发订阅共用 `/AtlasRouter` 路径，开发链接携带 `dev=1` 并由私有开发 Worker 处理；旧独立测试域名不恢复。
+正式页面默认管理生产 `DB`，Dev 开关原地加载独立 `DEV_DB`。正式与开发订阅分别使用 `/AtlasRouter` 和 `/AtlasRouter-Dev`，开发订阅由私有开发 Worker 处理；旧独立测试域名不恢复。
 
 本次清理保持既有生产分流行为，只从订阅中删除已退役测试域名的精确 `DIRECT` 规则。香港 Access + Tunnel 配置保持独立。
 

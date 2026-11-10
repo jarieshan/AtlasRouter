@@ -4,7 +4,7 @@
 
 - 关闭 Cloudflare Builds 的预览发布，删除已有 Preview 和专用测试域名、DNS 与 Access Bypass。
 - 正式页面通过 `DEV_DB` 管理独立测试数据，通过 `DEV_SUBSCRIPTION_SERVICE` 调用私有开发 Worker；不使用 `DEV_SUBSCRIPTION_ORIGIN` 或 `previews`。
-- Dev 使用与 DoH 一致的开关样式，生成同域名 `/AtlasRouter?dev=1` 链接；原 `/AtlasRouter-Dev` 路径与旧测试域名不恢复。
+- Dev 使用与 DoH 一致的开关样式，在当前页面加载对应环境的数据，生成同域名 `/AtlasRouter-Dev` 链接；模块与规则沿用此路径，旧测试域名不恢复。
 - 香港管理及上游订阅继续直接使用 Access + Tunnel，相关 DNS、证书和转发规则独立保留。
 
 `PREVIEW_EMAIL_HASHES` 是正式站内的只读演示身份，不能获取有效订阅，与已停用的原生部署预览不同。其权限保护保持不变。

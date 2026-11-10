@@ -1,15 +1,16 @@
 import { HttpError } from "./errors.js";
 
 export function requestBranch(requestUrl) {
-  const values = new URL(requestUrl).searchParams.getAll("dev");
+  const url = new URL(requestUrl);
+  const values = url.searchParams.getAll("dev");
   if (values.length > 1 || (values.length && !["0", "1"].includes(values[0]))) {
     throw new HttpError(400, "dev must be 0 or 1 and appear only once");
   }
-  return values[0] === "1" ? "develop" : "master";
+  return url.pathname === "/AtlasRouter-Dev" || url.pathname.startsWith("/AtlasRouter-Dev/") || values[0] === "1" ? "develop" : "master";
 }
 
 export function inheritBranch(url, requestUrl) {
-  if (requestBranch(requestUrl) === "develop") url.searchParams.set("dev", "1");
-  else url.searchParams.delete("dev");
+  requestBranch(requestUrl);
+  url.searchParams.delete("dev");
   return url;
 }

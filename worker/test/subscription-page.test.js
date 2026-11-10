@@ -12,38 +12,44 @@ function element() {
   };
 }
 
-test("Dev is a switch alongside DoH and preserves client choices when changing environments", async () => {
+test("Dev switches in place and preserves client choices without navigating", async () => {
   for (const active of [false, true]) {
     const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-dev", "#install-tencent-oa", "#copy-tencent-oa", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
     fields.get("#subscription-client").value = "surge";
     fields.get("#enable-dev").checked = active;
-    const location = { href: `https://atlas.example/?client=clash&doh=1${active ? "&environment=development" : ""}` };
+    let href = `https://atlas.example/?client=clash&doh=1${active ? "&environment=development" : ""}`;
+    const location = { get href() { return href; }, set href(value) { assert.fail("Unexpected navigation: " + value); } };
+    const history = { replaceState(_state, _title, url) { href = url.toString(); } };
+    const notice = { hidden: !active };
     const calls = [];
     const html = renderAccountPage({ development: active, developmentAvailable: true });
     assert.match(html, new RegExp(`id="enable-dev" type="checkbox" role="switch"${active ? " checked" : ""}>`));
     assert.doesNotMatch(html, /environment-toggle/);
     vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
-      document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
-      URL, location, confirm: () => true,
+      document: { getElementById: (id) => id === "development-notice" ? notice : ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
+      URL, location, history, confirm: () => true,
       fetch: async (path) => {
         calls.push(path);
         return Response.json({ email: "member@example.com", status: "active", groups: [],
-          subscriptionUrl: `https://atlas.example/AtlasRouter?${active ? "dev=1&" : ""}token=TEST_ONLY` });
+          subscriptionUrl: `https://atlas.example/AtlasRouter${path.includes("/api/AtlasRouter-Dev/") ? "-Dev" : ""}?token=TEST_ONLY` });
       },
     });
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(new URL(calls[0], location.href).searchParams.get("environment"), active ? "development" : null);
+    assert.equal(calls[0].startsWith("/api/AtlasRouter-Dev/"), active);
     const subscription = new URL(fields.get("#subscription").value);
-    assert.equal(subscription.searchParams.get("dev"), active ? "1" : null);
+    assert.equal(subscription.pathname, active ? "/AtlasRouter-Dev" : "/AtlasRouter");
+    assert.equal(subscription.searchParams.get("dev"), null);
     assert.equal(subscription.searchParams.get("client"), "clash");
     assert.equal(subscription.searchParams.get("doh"), "1");
     fields.get("#enable-dev").checked = !active;
-    fields.get("#enable-dev").onchange();
+    await fields.get("#enable-dev").onchange();
     const next = new URL(location.href);
-    assert.equal(next.searchParams.get("environment"), active ? null : "development");
+    assert.equal(next.searchParams.get("environment"), null);
     assert.equal(next.searchParams.get("client"), "clash");
     assert.equal(next.searchParams.get("doh"), "1");
-    assert.equal(calls.length, 1, "switching must not rotate or edit either account");
+    assert.equal(calls.length, 2, "switching only reloads the selected account");
+    assert.equal(new URL(fields.get("#subscription").value).pathname, active ? "/AtlasRouter" : "/AtlasRouter-Dev");
+    assert.equal(notice.hidden, active);
   }
   assert.doesNotMatch(renderAccountPage({ preview: true, developmentAvailable: true }), /id="enable-dev"/);
 });

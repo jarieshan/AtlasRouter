@@ -12,16 +12,19 @@ import { buildSubscriptionUrl, readSubscriptionOptions } from "./subscription-op
 import { uiEnvironment } from "./ui-environment.js";
 import { developmentAvailable, developmentRequest } from "./development.js";
 import {
-  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
+  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, API_PATH, DEV_API_PATH, DEV_SUBSCRIPTION_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
 } from "./routes.js";
 
 const ACCOUNT_ROUTES = new Set([ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH]);
 
 export async function handlePoolRequest(request, env) {
   const url = new URL(request.url);
-  const path = url.pathname;
-  if (path === "/AtlasRouter-Dev" || path.startsWith("/AtlasRouter-Dev/")) {
-    throw new HttpError(404, "Not Found");
+  const path = url.pathname.startsWith(`${DEV_API_PATH}/`) ? API_PATH + url.pathname.slice(DEV_API_PATH.length) : url.pathname;
+  if (env.SUBSCRIPTION_VARIANT === "development" && url.searchParams.get("dev") === "1"
+    && (path === POOL_SUBSCRIPTION_PATH || path.startsWith(`${POOL_SUBSCRIPTION_PATH}/`))) {
+    url.pathname = DEV_SUBSCRIPTION_PATH + path.slice(POOL_SUBSCRIPTION_PATH.length);
+    url.searchParams.delete("dev");
+    return handlePoolRequest(new Request(url, request), env);
   }
   const developmentResponse = await developmentRequest(request, env);
   if (developmentResponse) return developmentResponse;
@@ -67,8 +70,8 @@ export async function handlePoolRequest(request, env) {
     }
     return Response.json(await callSubscriptionStore(target.env, input));
   }
-  const subscriptionPath = env.SUBSCRIPTION_PATH ?? POOL_SUBSCRIPTION_PATH;
-  if (subscriptionPath !== POOL_SUBSCRIPTION_PATH) throw new HttpError(503, "Subscription path is not configured correctly");
+  const subscriptionPath = env.SUBSCRIPTION_VARIANT === "development" ? DEV_SUBSCRIPTION_PATH : POOL_SUBSCRIPTION_PATH;
+  if (env.SUBSCRIPTION_PATH && env.SUBSCRIPTION_PATH !== subscriptionPath) throw new HttpError(503, "Subscription path is not configured correctly");
   const modulePrefix = `${subscriptionPath}/modules/`;
   const rulesPrefix = `${subscriptionPath}/rules/`;
   let ruleSource = null;

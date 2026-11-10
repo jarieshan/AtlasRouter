@@ -218,7 +218,7 @@ test("unconfigured Dev cannot change production accounts or the retained test da
   })).status, 404);
   const retired = new URL(profile.subscriptionUrl);
   retired.pathname = "/AtlasRouter-Dev";
-  assert.equal((await request(mf, retired.toString())).status, 404);
+  assert.equal((await request(mf, retired.toString())).status, 503);
   assert.equal((await request(mf, profile.subscriptionUrl + "&dev=1")).status, 503);
   for (const client of ["surge", "clash"]) assert.equal((await request(mf, profile.subscriptionUrl + "&client=" + client)).status, 200);
   const page = await request(mf, "/", { subject: "admin" });
@@ -248,10 +248,14 @@ test("Dev portal and private service isolate data, tokens, module links and toke
   const production = await account(mf);
   const before = await readSubscriptionState({ DB: prodDb });
   const query = "?environment=development";
-  await json(await request(mf, POOL_NODES_PATH + query, { subject: "admin", method: "PUT",
+  const devApi = (path) => path.replace("/api/", "/api/AtlasRouter-Dev/");
+  await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT",
     body: { revision: 0, nodes: nodes(3).map((node) => ({ ...node, line: node.line.replace("Example", "Development") })) } }));
-  const dev = await json(await request(mf, ACCOUNT_PROFILE_PATH + query, { subject: "alice" }));
-  assert.equal(new URL(dev.subscriptionUrl).searchParams.get("dev"), "1");
+  const dev = await json(await request(mf, devApi(ACCOUNT_PROFILE_PATH), { subject: "alice" }));
+  assert.equal(new URL(dev.subscriptionUrl).pathname, "/AtlasRouter-Dev");
+  assert.equal(new URL(dev.subscriptionUrl).searchParams.get("dev"), null);
+  assert.equal((await request(mf, devApi(ACCOUNT_PROFILE_PATH))).status, 403);
+  assert.equal((await json(await request(mf, devApi(ACCOUNT_PROFILE_PATH) + "?environment=production", { subject: "alice" }))).subscriptionUrl, dev.subscriptionUrl);
   assert.notEqual(new URL(dev.subscriptionUrl).searchParams.get("token"), new URL(production.subscriptionUrl).searchParams.get("token"));
   const page = await request(mf, "/" + query, { subject: "admin" });
   assert.match(await page.text(), /id="enable-dev" type="checkbox" role="switch" checked/);
@@ -264,12 +268,18 @@ test("Dev portal and private service isolate data, tokens, module links and toke
   }
   assert.equal((await request(mf, production.subscriptionUrl + "&dev=1")).status, 401);
   const wrong = new URL(dev.subscriptionUrl);
-  wrong.searchParams.delete("dev");
+  wrong.pathname = "/AtlasRouter";
   assert.equal((await request(mf, wrong.toString())).status, 401);
   const module = new URL(dev.subscriptionUrl);
   module.pathname += "/modules/tencent-oa.sgmodule";
   assert.equal((await request(mf, module.toString())).status, 200);
-  const rotated = await json(await request(mf, ACCOUNT_TOKEN_PATH + query, { subject: "alice", method: "POST", body: {} }));
+  const legacy = new URL(dev.subscriptionUrl);
+  legacy.pathname = "/AtlasRouter";
+  legacy.searchParams.set("dev", "1");
+  const compatibility = await request(mf, legacy.toString());
+  assert.equal(compatibility.status, 200);
+  assert.match(await compatibility.text(), /^#!MANAGED-CONFIG https:\/\/atlas\.example\/AtlasRouter-Dev\?token=/);
+  const rotated = await json(await request(mf, devApi(ACCOUNT_TOKEN_PATH), { subject: "alice", method: "POST", body: {} }));
   assert.equal((await request(mf, dev.subscriptionUrl)).status, 401);
   assert.equal((await request(mf, rotated.subscriptionUrl)).status, 200);
   assert.equal((await request(mf, production.subscriptionUrl)).status, 200);

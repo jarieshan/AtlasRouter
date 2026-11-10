@@ -10,7 +10,7 @@
 | `UI_ENABLED`（变量） | `true` |
 | `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` |
 
-正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。`environment=development` 选择测试库并生成 `/AtlasRouter?dev=1` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务可设置 `SMART_PRIORITY_SCHEME=geometric-10`、`SHOW_ALL_PROXY_GROUPS=true`；正式分流行为保持独立。
+正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。开发管理请求使用 `/api/AtlasRouter-Dev/*`，读取测试库并生成 `/AtlasRouter-Dev` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务可设置 `SMART_PRIORITY_SCHEME=geometric-10`、`SHOW_ALL_PROXY_GROUPS=true`；正式分流行为保持独立。旧环境参数仅供已发出链接兼容，新页面不再生成。
 
 生产网页和浏览器 API 还需要以下配置：
 

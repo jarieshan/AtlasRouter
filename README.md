@@ -8,7 +8,7 @@ AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统�
 
 ## 当前状态
 
-已实现登录、自动分配和订阅生成。自定义选项中的 Dev 开关可切换独立测试节点与开发版配置；关闭时使用正式订阅。开发订阅通过同一域名调用私有开发 Worker，原生预览和独立测试域名保持关闭。配置见 [部署说明](docs/deployment-cloudflare.md)。
+已实现登录、自动分配和订阅生成。Dev 开关在当前页面切换独立测试节点与开发版配置，不跳转或整页刷新；关闭时使用正式订阅。开发订阅通过同一域名的 `/AtlasRouter-Dev` 调用私有开发 Worker，原生预览和独立测试域名保持关闭。配置见 [部署说明](docs/deployment-cloudflare.md)。
 
 - `README.md`：项目说明与维护入口。
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
@@ -79,7 +79,7 @@ npm run check:live-security -- https://<worker-domain>
 
 正式 `atlas-router` Worker 提供页面及正式订阅；私有 `atlas-router-development` Worker 只提供开发订阅。生产由 master 构建发布，开发服务使用 `npm run deploy:development`；原生 Preview Builds 保持关闭。
 
-页面默认读写正式 `DB`，开启 Dev 后仅管理独立 `DEV_DB`，生成同域名 `/AtlasRouter?dev=1` 订阅。两套用户、凭据和节点独立；香港和洛杉矶的 Access + Tunnel 入口不参与环境切换。
+页面默认读写正式 `DB`，开启 Dev 后仅管理独立 `DEV_DB`，生成同域名 `/AtlasRouter-Dev` 订阅。两套用户、凭据和节点独立；香港和洛杉矶的 Access + Tunnel 入口不参与环境切换。
 
 生产分流基线见 [生产基线](docs/production-baseline.md)，部署步骤见 [部署说明](docs/deployment-cloudflare.md)，历史下线记录见 [预览下线](docs/native-previews.md)。
 

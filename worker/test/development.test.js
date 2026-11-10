@@ -5,11 +5,12 @@ import { uiEnvironment } from "../src/ui-environment.js";
 import { deployDevelopment } from "../scripts/deploy-development.js";
 import { readFile } from "node:fs/promises";
 
-test("Dev selects only its own database and generates a same-origin development subscription", () => {
+test("Dev selects only its own database and generates a subscription using its path", () => {
   const env = { DB: {}, DEV_DB: {}, DEV_SUBSCRIPTION_SERVICE: { fetch() {} } };
   const target = uiEnvironment("https://atlas.example/?environment=development&client=clash", env);
   assert.equal(target.env.DB, env.DEV_DB);
-  assert.equal(target.subscriptionBase, "https://atlas.example/AtlasRouter?dev=1");
+  assert.equal(target.subscriptionBase, "https://atlas.example/AtlasRouter-Dev");
+  assert.equal(uiEnvironment("https://atlas.example/api/AtlasRouter-Dev/account/profile", env).env.DB, env.DEV_DB);
   assert.equal(uiEnvironment("https://atlas.example/", env).env, env);
   for (const invalid of [{ ...env, DEV_DB: env.DB }, { ...env, DEV_DB: undefined }, { ...env, DEV_SUBSCRIPTION_SERVICE: undefined }]) {
     assert.equal(developmentAvailable(invalid), false);
@@ -21,7 +22,8 @@ test("private Dev forwarding excludes browser and Access credentials and rejects
   let calls = 0;
   const env = { DB: {}, DEV_DB: {}, DEV_SUBSCRIPTION_SERVICE: { async fetch(request) {
     calls += 1;
-    assert.equal(new URL(request.url).searchParams.get("dev"), "1");
+    assert.equal(new URL(request.url).pathname, "/AtlasRouter-Dev");
+    assert.equal(new URL(request.url).searchParams.get("dev"), null);
     assert.deepEqual([...request.headers], [["accept", "text/plain"]]);
     return new Response("development");
   } } };

@@ -1,6 +1,6 @@
 import { requestBranch } from "./branch-query.js";
 import { HttpError } from "./errors.js";
-import { POOL_SUBSCRIPTION_PATH } from "./routes.js";
+import { DEV_SUBSCRIPTION_PATH, POOL_SUBSCRIPTION_PATH } from "./routes.js";
 
 export function developmentAvailable(env) {
   return Boolean(env.DEV_DB && env.DEV_DB !== env.DB && typeof env.DEV_SUBSCRIPTION_SERVICE?.fetch === "function");
@@ -11,7 +11,7 @@ export function developmentAvailable(env) {
 export async function developmentRequest(request, env) {
   const url = new URL(request.url);
   const development = requestBranch(request.url) === "develop";
-  const subscription = url.pathname === POOL_SUBSCRIPTION_PATH || url.pathname.startsWith(`${POOL_SUBSCRIPTION_PATH}/`);
+  const subscription = [POOL_SUBSCRIPTION_PATH, DEV_SUBSCRIPTION_PATH].some((path) => url.pathname === path || url.pathname.startsWith(`${path}/`));
   if (env.SUBSCRIPTION_VARIANT === "development") {
     if (!development || !subscription) throw new HttpError(404, "Not Found");
     return null;
@@ -24,6 +24,10 @@ export async function developmentRequest(request, env) {
   for (const name of ["accept", "if-none-match"]) {
     if (request.headers.has(name)) headers.set(name, request.headers.get(name));
   }
+  if (url.pathname === POOL_SUBSCRIPTION_PATH || url.pathname.startsWith(`${POOL_SUBSCRIPTION_PATH}/`)) {
+    url.pathname = DEV_SUBSCRIPTION_PATH + url.pathname.slice(POOL_SUBSCRIPTION_PATH.length);
+  }
+  url.searchParams.delete("dev");
   const response = await env.DEV_SUBSCRIPTION_SERVICE.fetch(new Request(url, { method: "GET", headers, redirect: "manual" }));
   return new Response(response.body, response);
 }

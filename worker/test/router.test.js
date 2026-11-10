@@ -261,7 +261,7 @@ test("legacy pages, APIs, subscriptions and unknown paths return 404 without rea
     `${POOL_SUBSCRIPTION_PATH}/hosts/TencentOA-Host.conf`,
     `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/Copilot.list`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/Copilot.yaml`,
     `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/OpenAI.yaml`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/OpenAI.list`,
-    `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/WeChat.list`, `/AtlasRouter-Dev/rules/magicrule/surge/OpenAI.list`,
+    `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/WeChat.list`,
   ]) {
     for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]) {
       for (const headers of [{}, accessHeaders()]) {
@@ -401,7 +401,7 @@ test("unconfigured Dev routes cannot access either database even with stale bind
   }
   for (const path of ["/AtlasRouter-Dev", "/AtlasRouter-Dev/modules/skip-proxy-lists.sgmodule",
     "/AtlasRouter?dev=1", routes.state.replace("/state", "/reset-production")]) {
-    assert.equal((await request(path, { method: "POST", headers, body: "{}" }, env)).status, path === "/AtlasRouter?dev=1" ? 405 : 404);
+    assert.equal((await request(path, { method: "POST", headers, body: "{}" }, env)).status, path.includes("AtlasRouter") ? 405 : 404);
   }
   for (const query of ["?environment=unknown", "?environment=development&environment=production"]) {
     assert.equal((await request(ACCOUNT_PROFILE_PATH + query, { headers }, env)).status, 400);
