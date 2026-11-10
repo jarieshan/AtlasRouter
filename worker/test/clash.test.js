@@ -157,7 +157,15 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(config.rules.includes(youtubeRule));
     assert.ok(config.rules.indexOf(youtubeRule) < config.rules.indexOf("RULE-SET,GlobalMedia,GlobalMedia,no-resolve"));
     for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
-    assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    // The SS WARP node has no UDP relay; rules that can select it reject skipped UDP like Surge.
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
+    assert.equal(config.rules[config.rules.indexOf(youtubeRule) + 1], "AND,((NETWORK,UDP),(RULE-SET,YouTube,no-resolve)),REJECT");
+    for (const rule of ["RULE-SET,IBKR,DIRECT,no-resolve", "RULE-SET,China,DIRECT,no-resolve", "DOMAIN,dns.alidns.com,DIRECT"]) {
+      assert.doesNotMatch(config.rules[config.rules.indexOf(rule) + 1], /UDP/, rule);
+    }
+    const twins = config.rules.filter((rule) => rule.startsWith("AND,((NETWORK,UDP),") || rule === "NETWORK,UDP,REJECT");
+    assert.ok(twins.every((rule) => rule.endsWith(",REJECT")));
+    assert.match(output, new RegExp(`^# Rules: ${twins.length} rules may select a node without UDP relay; their UDP falls back to REJECT as in Surge$`, "m"));
     const resolvedLan = config.rules.indexOf("IP-CIDR,192.168.0.0/16,DIRECT");
     const directRule = config.rules.indexOf("RULE-SET,China,DIRECT,no-resolve");
     assert.ok(resolvedLan >= 0 && resolvedLan < directRule);
@@ -256,7 +264,7 @@ test("subscriptions without IDC nodes reject foreign DoH while retaining domesti
     assert.match(source, /^FINAL,Proxy,dns-failed$/m);
     const { config } = await convertSurgeToClash(source, context);
     assert.ok(!config["proxy-groups"].some(({ name }) => name === "DoH Proxy"));
-    assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
     for (const [hostname, policy] of [["cloudflare-dns.com", "REJECT"], ["dns.google", "REJECT"], ["dns.alidns.com", "DIRECT"], ["doh.pub", "DIRECT"]]) {
       const rule = `DOMAIN,${hostname},${policy}`;
       assert.ok(source.split("\n").includes(rule));
@@ -285,7 +293,7 @@ test("Clash rejects foreign DoH if all IDC nodes are unsupported and retains any
     }
     for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},${keepCompatible ? "DoH Proxy" : "REJECT"}`));
     for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
-    assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
     assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
   }
 });
@@ -319,7 +327,7 @@ test("explicit rendering options preserve protocol behavior across visibility an
       if (!tencentOa) {
         const { config, warnings } = await convertSurgeToClash(source, { requestUrl, token });
         assert.equal(config["x-clash-block-quic"], "all-proxy");
-        assert.equal(config.rules.at(-1), "MATCH,Proxy");
+        assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
         assert.ok(config.proxies.filter(({ type }) => ["vmess", "trojan"].includes(type)).every(({ udp }) => udp === true));
         assert.equal(config["proxy-groups"].some((group) => group.hidden === true), !showAllGroups);
         for (const group of config["proxy-groups"]) delete group.hidden;
@@ -341,6 +349,32 @@ test("TUN takes over all port 53 DNS and keeps hijack targets on other ports", a
   const invalid = await convert("hijack-dns = 1.1.1.1:5300, [::1]:53\n");
   assert.deepEqual(invalid.config.tun, { "dns-hijack": ["any:53", "tcp://any:53"] });
   assert.deepEqual(invalid.warnings, ["General hijack-dns: invalid value omitted"]);
+});
+
+test("UDP skipped for an outbound without UDP relay falls back like Surge instead of matching later rules", async () => {
+  const ss = "ss, ss.example.com, 8388, encrypt-method=aes-128-gcm, password=TEST_ONLY";
+  const convert = (general, rules) => convertSurgeToClash(`[General]\n${general}[Proxy]\ntcp-only = ${ss}\nudp-ss = ${ss}, udp-relay=true\nudp-vmess = ${vmess}\n[Proxy Group]\nMixed = select, udp-vmess, tcp-only\nNested = select, Mixed, DIRECT\nCapable = select, udp-ss, udp-vmess, DIRECT\n[Rule]\n${rules}`, context);
+  const rules = "DOMAIN,a.example,Nested\nIP-CIDR,192.0.2.0/24,tcp-only,no-resolve\nPROCESS-NAME,Helper (Renderer),Mixed\nDOMAIN,c.example,Capable\nDOMAIN-SUFFIX,d.example,DIRECT\nFINAL,Mixed\n";
+  const twins = (fallback) => [
+    "DOMAIN,a.example,Nested", `AND,((NETWORK,UDP),(DOMAIN,a.example)),${fallback}`,
+    "IP-CIDR,192.0.2.0/24,tcp-only,no-resolve", `AND,((NETWORK,UDP),(IP-CIDR,192.0.2.0/24,no-resolve)),${fallback}`,
+    "PROCESS-NAME,Helper (Renderer),Mixed", `PROCESS-NAME,Helper (Renderer),${fallback}`,
+    "DOMAIN,c.example,Capable", "DOMAIN-SUFFIX,d.example,DIRECT",
+    "MATCH,Mixed", `NETWORK,UDP,${fallback}`,
+  ];
+  const note = (fallback) => `Rules: 4 rules may select a node without UDP relay; their UDP falls back to ${fallback} as in Surge`;
+  const rejected = await convert("", rules);
+  assert.deepEqual(rejected.config.rules, twins("REJECT"));
+  assert.deepEqual(rejected.warnings, [note("REJECT")]);
+  const direct = await convert("udp-policy-not-supported-behaviour = DIRECT\n", rules);
+  assert.deepEqual(direct.config.rules, twins("DIRECT"));
+  assert.deepEqual(direct.warnings, [note("DIRECT")]);
+  const invalid = await convert("udp-policy-not-supported-behaviour = Proxy\n", rules);
+  assert.deepEqual(invalid.config.rules, twins("REJECT"));
+  assert.deepEqual(invalid.warnings, ["General udp-policy-not-supported-behaviour: invalid value; Surge default REJECT used", note("REJECT")]);
+  const capable = await convert("", "DOMAIN,c.example,Capable\nFINAL,udp-vmess\n");
+  assert.deepEqual(capable.config.rules, ["DOMAIN,c.example,Capable", "MATCH,udp-vmess"]);
+  assert.deepEqual(capable.warnings, []);
 });
 
 test("Host UDP DNS mappings preserve suffix depth and omit unsupported values without leaking them", async () => {

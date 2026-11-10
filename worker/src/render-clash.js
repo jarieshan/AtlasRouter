@@ -27,7 +27,8 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
   if (!proxies.length) throw new HttpError(422, "No nodes can be converted to Clash");
   const groups = convertGroups(sections.get("proxy group") ?? [], proxies, general, warn);
   const policies = new Set(["DIRECT", "REJECT", ...proxies.map(({ name }) => name), ...groups.map(({ name }) => name)]);
-  const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn);
+  const udp = { udpless: udpIncapablePolicies(proxies, groups), udpFallback: udpFallbackPolicy(general, warn) };
+  const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn, udp);
   const hostDns = await convertHostDns(sections.get("host") ?? [], providers, general, requestUrl, warn);
   config.dns["nameserver-policy"] = { "use-application-dns.net": "rcode://name_error", ...hostDns };
   for (const name of sections.keys()) {
@@ -110,9 +111,29 @@ function convertGeneral(general, warn) {
   });
   consumed.add("test-timeout");
   consumed.add("proxy-test-url");
+  consumed.add("udp-policy-not-supported-behaviour");
   for (const key of general.keys()) if (!consumed.has(key)) warn(`General ${key}: unsupported setting omitted`);
   config.dns = dns;
   return config;
+}
+
+function udpFallbackPolicy(general, warn) {
+  const value = (general.get("udp-policy-not-supported-behaviour") ?? "REJECT").toUpperCase();
+  if (["DIRECT", "REJECT"].includes(value)) return value;
+  warn("General udp-policy-not-supported-behaviour: invalid value; Surge default REJECT used");
+  return "REJECT";
+}
+
+// Groups resolve to their current member at connection time, so any path to such a node counts.
+function udpIncapablePolicies(proxies, groups) {
+  const udpless = new Set(proxies.filter(({ udp }) => udp !== true).map(({ name }) => name));
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const { name, proxies: members } of groups) {
+      if (!udpless.has(name) && members.some((member) => udpless.has(member))) { udpless.add(name); changed = true; }
+    }
+  }
+  return udpless;
 }
 
 async function convertHostDns(lines, providers, general, requestUrl, warn) {

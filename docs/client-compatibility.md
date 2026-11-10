@@ -35,7 +35,7 @@ master 源码不因设置旧实验变量而生成节点权重。真正的开发�
 | Auto | 两端都包含本订阅的可转换代理节点 | Surge 是 Smart；Clash 是 300 秒、容差 0 的 url-test。不能复现真实连接评分、站点记忆或重试顺序 |
 | DoH Proxy（develop） | 两端均可见，仅含 IDC 节点；Surge Smart，Clash url-test；Cloudflare / Google 使用该组，阿里 / 腾讯直连 | 无 IDC 或 Clash 过滤后无兼容 IDC 时省略该组，国外 DoH 规则改为 REJECT，其他订阅内容保留 |
 | UDP | VMess / Trojan 显式输出 `udp: true`；SS / SOCKS5 需显式开启 | VMess / Trojan 的显式 `udp-relay=false` 在转换器中保留为关闭；Surge 官方将此开关列为其他协议的可选能力，不能依赖它在这两类 Surge 节点上关闭 UDP。服务器可用性另需实测 |
-| UDP 不受支持时 | 不伪造等价行为 | Mihomo 可能跳过指向不支持 UDP 节点的规则继续匹配；Surge 由 `udp-policy-not-supported-behaviour` 决定，当前文档默认 REJECT；存在最终走不同出口的可能 |
+| UDP 不受支持时 | 规则的策略可能选中不支持 UDP 的节点时，Clash 在其后追加只匹配 UDP 的同条件 REJECT 规则（`MATCH` 后为 `NETWORK,UDP,REJECT`），对应 Surge `udp-policy-not-supported-behaviour` 的默认 REJECT；全部节点支持 UDP 时不追加 | 只依据节点声明的 UDP 能力，服务端 UDP 是否实际可用需实测；Surge 显式设为 DIRECT 时 Clash 同样改用 DIRECT |
 | QUIC | Surge `all-proxy`（master）或 `per-policy`（develop）→ `x-clash-block-quic: all-proxy` | 仅支持该扩展的 ProjectClash 可按最终代理出口拦截；普通 Mihomo 可能忽略。DIRECT 的 QUIC 放行，不等于拦截所有 UDP/443；ProjectClash 没有自适应模式，只用 QUIC、不回退 TCP 的应用在 Clash 中仍被阻止 |
 | 节点传输默认值 | VMess AES-128-GCM；TLS/WS 默认关闭；TLS 校验开启；TFO 默认关闭；保留显式值 | VMess 仅转换显式 AEAD；不支持的协议、连接选项或 `sni=off` 会删去节点，并清理空组/失效规则；所有节点不可转换时返回 422 |
 | 测速参数 | 全局测试 URL 与 5 秒超时映射；fallback/url-test 省略间隔时 600 秒；url-test 默认容差 100 ms | Surge 组级 timeout 是结果延迟筛选，不能映射为 Mihomo 请求超时；节点测速覆盖、DIRECT 独立测速不等价 |
