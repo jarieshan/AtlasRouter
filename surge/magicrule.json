@@ -1,106 +1,106 @@
 {
   "Binance": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Binance_rules_50609329ecf8b551.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Binance_classical_c9de9678cd2de92a.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/4e9a94ba442ad6a6f999d0dd/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/adb35ee125847f494c4e50e6/manifest.json"
   },
   "OKX": {
-    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/OKX_rules_b4a882ddff8a4b8d.list",
-    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/OKX_classical_cb63c8140960023f.yaml"
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/eef165677c2c625bb7856ffe/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/95bbcde1b4b0a0112a090930/manifest.json"
   },
   "Bybit": {
-    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/Bybit_rules_74d87d27547ef617.list",
-    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/Bybit_classical_1e61957fd4a49295.yaml"
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/80adcc0f4668f884d689cd62/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/4619b2247a648e4e2b0315b9/manifest.json"
   },
   "IBKR": {
-    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/IBKR_rules_1e5462042bd6ab54.list",
-    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/IBKR_classical_7088eb4c853cc6a1.yaml"
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/f4eb5063a59d218925a2d98d/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/9e4647594c581247aae3a91c/manifest.json"
   },
   "LongBridge": {
-    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/LongBridge_rules_efc65b47f8834ddb.list",
-    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/LongBridge_classical_e8e990a42442b634.yaml"
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/9f67a4e9f6487baf5e16293e/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/5efaba053765e80bf8115357/manifest.json"
   },
   "AppleTV": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/AppleTV_rules_f9dcb0d2f34bf797.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/AppleTV_classical_86f028de323ba85a.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/688313d0df0057ca622b6f7b/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/a9daa1bec10908b223185f32/manifest.json"
   },
   "AppleIntelligence": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/AppleIntelligence_rules_34a35d75e35ebe12.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/AppleIntelligence_classical_a9556117e85c2326.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/ea59b4298a3a45e53e0b3150/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/fb0e992fbc7324836b9dc821/manifest.json"
   },
   "iCloud": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/iCloud_rules_2ed29d3d438b7646.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/iCloud_classical_126b2d39c45db9a6.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/9d4d9b3f0482a5f641bc661d/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/2193b70ddecc8e473c65013f/manifest.json"
   },
   "Apple": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Apple_rules_50be57f093bd1fff.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Apple_classical_0fa29647e779e764.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/d4a1a49a4f9301369ccbdd07/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/b2261511504559990e0aa6c2/manifest.json"
   },
   "Direct": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Direct_rules_471bc079c5184e1f.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Direct_classical_055a900ccd414d6a.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/ebcad06afe41e90eb7c458c6/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/28d7e954e540500404fb0596/manifest.json"
   },
   "OpenAI": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/OpenAI_rules_f362ba1006ae0e0c.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/OpenAI_classical_cda01886e7b2ee62.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/4c1d8b995467164e963303c7/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/061c95bbc13be9748fe57368/manifest.json"
   },
   "Anthropic": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Anthropic_rules_f9e0decc2657fdcd.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Anthropic_classical_f09788cbf2bd0c25.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/8369068e24d25c302aac61f4/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/3ff599b48d821c429a504e28/manifest.json"
   },
   "Gemini": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Gemini_rules_8da136e527c6fa11.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Gemini_classical_5cce94bda31ad8d5.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/8de44444d4a4780c33c398a7/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/e7044fe6ee6caa9ace69d968/manifest.json"
   },
   "Grok": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Grok_rules_1686b96ebfe522d0.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Grok_classical_a6f6c20793a48fed.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/a0ab082a996c4af6de1d7731/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/47c73b8966c5f69502dafd87/manifest.json"
   },
   "Cursor": {
-    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/Cursor_rules_8a4e9d63f4d5df0f.list",
-    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/Cursor_classical_8d95480fc380f5ba.yaml"
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/974ea1320492a005c3d4ebd6/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/0d9f9f54dd16a4eaf0f48c57/manifest.json"
   },
   "Telegram": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Telegram_rules_4acef626d1aec7ca.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Telegram_classical_1b14a0a6432f12dc.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/7dd68efe605596f2a48e96d1/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/032dffc4064edc7b7007bfd1/manifest.json"
   },
   "Twitter": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Twitter_rules_0924ca0971e18745.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Twitter_classical_d405159ccf6c8682.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/cfc49340994011b20ee559f3/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/7978590f66f1bb7c6d5eb3da/manifest.json"
   },
   "Discord": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Discord_rules_cab38c2c0b331080.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Discord_classical_6d212a56316192c6.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/1df652f115d9be2694c58056/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/3d50b46a7f99ccba5cae36d6/manifest.json"
   },
   "YouTube": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/YouTube_rules_329ca26de78c21fe.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/YouTube_classical_59b6d0fe3b15c19e.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/c85f9c240d90c5205bad91c6/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/1a6ba4dd16046f0804a68c62/manifest.json"
   },
   "Cloudflare": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Cloudflare_rules_0b5a777a5d47686a.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Cloudflare_classical_896dbe0a45adbef2.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/534fa8682ff5a4171e21af88/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/20a7f0833e30cce2260cc511/manifest.json"
   },
   "Netflix": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Netflix_rules_56d52a775e1c2240.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Netflix_classical_c2f68b0a92395ef4.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/5f5a7c13c4bb96d5ac4d0e09/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/f0a6a79aef98b32470e3c653/manifest.json"
   },
   "Disney": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Disney_rules_2b565301c4989fb0.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Disney_classical_4359ca60d289bb6f.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/1ea6258bb62b99df154f6003/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/203f2074430b82b0c69bc3cd/manifest.json"
   },
   "Hulu": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/Hulu_rules_165371c5bea81db8.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/Hulu_classical_3ab1bf5853c5c37d.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/8429cffac7b8adccd2901c60/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/be42d24a4345f02c30adae5d/manifest.json"
   },
   "IMDB": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/IMDB_rules_8f7fea0a5833b83a.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/IMDB_classical_e94ae0b75feb981f.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/ebd72e81a1972573f4ef912b/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/508c489da8de679cc204cffd/manifest.json"
   },
   "GlobalMedia": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/GlobalMedia_rules_cbbbcb6dca56af83.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/GlobalMedia_classical_f0880cec2c24ebd6.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/d4ebc6d5779db345a0689d53/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/c65052025f410efdebf1ad6e/manifest.json"
   },
   "China": {
-    "surge": "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list",
-    "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/China_classical_488d107c687bae96.yaml"
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/11af2559235209b8783239b3/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/3cf8a9f4c33c2ff30d0b23ea/manifest.json"
   }
 }

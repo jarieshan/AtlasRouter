@@ -28,7 +28,7 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const groups = convertGroups(sections.get("proxy group") ?? [], proxies, general, warn);
   const policies = new Set(["DIRECT", "REJECT", ...proxies.map(({ name }) => name), ...groups.map(({ name }) => name)]);
   const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn);
-  const hostDns = await convertHostDns(sections.get("host") ?? [], providers, general, warn);
+  const hostDns = await convertHostDns(sections.get("host") ?? [], providers, general, requestUrl, warn);
   if (Object.keys(hostDns).length) config.dns["nameserver-policy"] = hostDns;
   for (const name of sections.keys()) {
     if (!["general", "host", "proxy", "proxy group", "rule"].includes(name)) {
@@ -103,7 +103,7 @@ function convertGeneral(general, warn) {
   return config;
 }
 
-async function convertHostDns(lines, providers, general, warn) {
+async function convertHostDns(lines, providers, general, requestUrl, warn) {
   const policies = Object.create(null);
   for (const [index, line] of lines.entries()) {
     try {
@@ -120,7 +120,7 @@ async function convertHostDns(lines, providers, general, warn) {
       const reference = name.match(/^(DOMAIN-SET|RULE-SET):(.+)$/);
       if (reference) {
         const source = await ruleSource([reference[1], reference[2]]);
-        const provider = source && (nativeMagicRuleSource(source)?.name ?? source.id);
+        const provider = source && (nativeMagicRuleSource(source, requestUrl)?.name ?? source.id);
         if (!provider || !Object.hasOwn(providers, provider)) throw new Error();
         pattern = `rule-set:${provider}`;
       } else {

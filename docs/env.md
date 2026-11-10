@@ -34,6 +34,8 @@
 
 同一个 Access application 保护生产 `/` 及 `/api/*`；订阅路径及其子路径使用精确 Bypass，再由 Worker 校验个人 token。Google OAuth client ID/secret 配置在 Access 身份提供商中。Worker 不处理 Google client secret；`ACCESS_JWKS_JSON` 仅供离线测试，生产不设置。旧 `ACCESS_USER_AUD`、KV binding 和组合构建的 `DEV_ADMIN_*` 不属于当前配置。
 
+MagicRule 定时检查（见 [订阅说明](subscription.md)）用可选 Secret `BARK_DEVICE_KEY` 推送提醒。值是 Bark App 中的设备 key，持有者可向该设备发送任意通知。只需在生产环境设置，Preview 不运行定时任务：在 Cloudflare Dashboard 的 `atlas-router` → Settings → Variables and Secrets 中以 Secret 类型添加，或在 `worker/` 运行 `npx wrangler secret put BARK_DEVICE_KEY` 后按提示输入；不要写入仓库、构建变量或命令参数。生产发布只上传新的管理路径 Secret，其余 Secret 保持不变。Bark 返回错误时，日志只记录 HTTP 状态。未设置时检查照常进行，需要提醒时只在 Worker 日志中记录警告。
+
 节点凭据通过受保护管理页面录入 D1，不放在普通环境变量或代码中。D1 读取权限视为敏感数据读取权限。构建凭据由 Workers Builds 管理，其 token 需有 D1 Edit 权限以迁移开发库；GitHub Actions 只验证代码，不需要 Cloudflare Secrets。构建变量与 Worker 运行时变量分开配置，个人订阅 token 不放入构建变量。
 
 ## 本地配置与发布命令
@@ -50,7 +52,7 @@ Cloudflare 生产 Deploy command 使用 `npm run deploy`。旧 `build:branches`�
 
 ## D1 关系表
 
-数据库结构见 [0002_relational.sql](../worker/migrations/0002_relational.sql)。运行时不保存 JSON 快照：
+数据库结构见 [0002_relational.sql](../worker/migrations/0002_relational.sql)、[0003_magic_rule_sets.sql](../worker/migrations/0003_magic_rule_sets.sql) 和 [0004_magic_rule_checks.sql](../worker/migrations/0004_magic_rule_checks.sql)。运行时不保存 JSON 快照：
 
 | 表 | 用途与主要字段 |
 | --- | --- |
@@ -58,6 +60,8 @@ Cloudflare 生产 Deploy command 使用 `npm run deploy`。旧 `build:branches`�
 | `nodes` | 节点 ID、唯一名称、地区、IP 类型、组名、Surge 配置值、启用状态、历史分配次数、首次分配时间、录入顺序 |
 | `assignments` | 用户 ID、组名、主节点 ID、同一主节点内的分配顺序；`(user_id, group_name)` 为主键 |
 | `store_versions` | 节点池的写入版本、事务标识和管理员清单版本 |
+| `magic_rule_sets` | MagicRule 规则名、客户端、内容 SHA-256、最后一次通过校验的公开规则内容和写入时间；`(name, client)` 为主键，不含用户数据 |
+| `magic_rule_checks` | MagicRule 规则名、客户端、定时检查的连续失败次数、是否已推送失败提醒和更新时间；`(name, client)` 为主键，不含用户数据 |
 
 外键保证归属引用有效用户及同组节点，唯一约束保证每人每组最多一个主节点；多个用户可引用同一节点。当前分配人数由 `assignments` 统计，历史次数保存在 `nodes.assignment_count`。固定录入顺序与 `owner_order` 共同决定主备顺序，不保存重复的备用节点列表。
 

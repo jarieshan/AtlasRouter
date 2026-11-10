@@ -2,6 +2,7 @@ import { isAdminEmail, requireAccessAdmin, requireAccessUser } from "./access-au
 import { HttpError } from "./errors.js";
 import { importPoolNodes } from "./node-import.js";
 import { downloadClashRuleSet, findClashRuleSource } from "./clash-rules.js";
+import { findMagicRuleSource, serveMagicRuleSet } from "./magic-rules.js";
 import { renderAccountPage } from "./pool-pages.js";
 import { isPreviewIdentity, readPreviewProfile } from "./page-preview.js";
 import { renderClashProfile } from "./render-clash.js";
@@ -75,6 +76,11 @@ export async function handlePoolRequest(request, env) {
   const rulesPrefix = `${subscriptionPath}/rules/`;
   let ruleSource = null;
   if (path.startsWith(rulesPrefix)) {
+    const magicRule = findMagicRuleSource(path.slice(rulesPrefix.length));
+    if (magicRule) {
+      requireMethod(request, "GET");
+      return serveMagicRuleSet(request, env, magicRule);
+    }
     ruleSource = await findClashRuleSource(path.slice(rulesPrefix.length));
     if (!ruleSource) throw new HttpError(404, "Not Found");
   }

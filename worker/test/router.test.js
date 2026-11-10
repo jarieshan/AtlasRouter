@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, createSign, generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 import { parse as parseYaml } from "yaml";
-import { magicRuleUrl } from "../src/magic-rules.js";
+import { findMagicRuleSource, magicRuleUrl } from "../src/magic-rules.js";
 import { handleRequest } from "../src/index.js";
 import { createD1Env } from "../test-helpers/d1.js";
 import { readSubscriptionState } from "../src/subscription-db.js";
@@ -337,6 +337,8 @@ test("legacy pages, APIs, subscriptions and unknown paths return 404 without rea
     `${POOL_SUBSCRIPTION_PATH}/rules/TencentOA-Domain.list`, `${POOL_SUBSCRIPTION_PATH}/rules/TencentOA-IP.list`,
     `${POOL_SUBSCRIPTION_PATH}/hosts/TencentOA-Host.conf`,
     `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/Copilot.list`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/Copilot.yaml`,
+    `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/OpenAI.yaml`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/OpenAI.list`,
+    `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/WeChat.list`, `${DEV_SUBSCRIPTION_PATH}/rules/magicrule/surge/OpenAI.list`,
   ]) {
     for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]) {
       for (const headers of [{}, accessHeaders()]) {
@@ -364,7 +366,7 @@ test("subscription routes require their own token and only accept GET", async ()
   }
 });
 
-test("MagicRule rules point at official artifacts without the subscription token", async (t) => {
+test("MagicRule lists are relayed without the subscription token, with ETags and the last valid copy", async (t) => {
   const env = createEnv();
   const headers = { ...accessHeaders(), origin: "https://atlas.example", "content-type": "application/json" };
   const saved = await request(routes.nodes, { method: "PUT", headers, body: JSON.stringify({ revision: 0, nodes: [{ id: "node", line: "🇺🇸 Test ISP = trojan, example.com, 443, password=TEST_ONLY" }] }) }, env);
@@ -372,13 +374,46 @@ test("MagicRule rules point at official artifacts without the subscription token
   const profile = await (await request(ACCOUNT_PROFILE_PATH, { headers }, env)).json();
   const subscription = new URL(profile.subscriptionUrl);
   const token = subscription.searchParams.get("token");
-  t.mock.method(globalThis, "fetch", assert.fail);
+  const upstream = t.mock.method(globalThis, "fetch", assert.fail);
   const surge = await (await request(`${subscription.pathname}${subscription.search}`, {}, env)).text();
-  assert.ok(surge.split("\n").includes(`RULE-SET,${magicRuleUrl("OpenAI", "surge")},AIProxy,no-resolve`));
-  assert.doesNotMatch(surge.split("[Rule]\n")[1], new RegExp(`/rules/|${token}`));
+  const relay = magicRuleUrl("OpenAI", "surge", subscription.href);
+  assert.equal(relay, "https://atlas.example/AtlasRouter/rules/magicrule/surge/OpenAI.list");
+  assert.ok(surge.split("\n").includes(`RULE-SET,${relay},AIProxy,no-resolve,update-interval=21600`));
+  assert.doesNotMatch(surge, /pages\.dev/);
+  assert.doesNotMatch(surge.split("[Rule]\n")[1], new RegExp(token));
   const config = parseYaml(await (await request(`${subscription.pathname}${subscription.search}&client=clash`, {}, env)).text());
-  assert.equal(config["rule-providers"].OpenAI.url, magicRuleUrl("OpenAI", "mihomo"));
+  assert.equal(config["rule-providers"].OpenAI.url, magicRuleUrl("OpenAI", "mihomo", subscription.href));
+  assert.equal(config["rule-providers"].OpenAI.interval, 21600);
   assert.ok(Object.values(config["rule-providers"]).every(({ url }) => !url.includes(token)));
+
+  const source = findMagicRuleSource("magicrule/surge/OpenAI.list");
+  const list = "DOMAIN-SUFFIX,openai.com\n";
+  let available = true;
+  upstream.mock.mockImplementation(async (url) => {
+    if (!available) return new Response("<html></html>");
+    return url === source.manifest
+      ? Response.json({ client: "Surge", rule: "OpenAI", artifacts: [{ role: "full", ext: "list", url: "https://magicrule.pages.dev/data/_shared/artifacts/OpenAI_rules_test.list" }] })
+      : new Response(list);
+  });
+  const path = new URL(relay).pathname;
+  const fresh = await request(path, {}, env);
+  assert.equal(fresh.status, 200);
+  assert.equal(await fresh.text(), list);
+  assertSecurityHeaders(fresh, "no-cache");
+  const etag = fresh.headers.get("etag");
+  const cached = await request(path, { headers: { "if-none-match": etag } }, env);
+  assert.equal(cached.status, 304);
+  assertSecurityHeaders(cached, "no-cache");
+  available = false;
+  const stored = await request(path, {}, env);
+  assert.equal(stored.status, 200);
+  assert.equal(await stored.text(), list);
+  assert.equal(stored.headers.get("etag"), etag);
+  const missing = await request(new URL(magicRuleUrl("OpenAI", "mihomo", subscription.href)).pathname, {}, env);
+  assert.equal(missing.status, 502);
+  assert.equal(await missing.text(), "Unable to load MagicRule list");
+  assertSecurityHeaders(missing);
+  for (const method of ["POST", "PUT", "DELETE", "OPTIONS", "HEAD"]) assert.equal((await request(path, { method }, env)).status, 405);
 });
 
 test("unexpected storage errors do not expose internal details", async () => {
@@ -468,7 +503,7 @@ test("production UI manages independent development credentials and links direct
     if (client === "clash") {
       const providers = Object.values(parseYaml(body)["rule-providers"]).map((provider) => provider.url);
       assert.ok(providers.length > 5);
-      assert.ok(providers.every((value) => /^https:\/\/(?:cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@develop\/surge\/rule-sets|(?:magicrule|rule-26r)\.pages\.dev\/data\/_shared\/artifacts)\/[^?#]+$/.test(value)));
+      assert.ok(providers.every((value) => /^https:\/\/(?:cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@develop\/surge\/rule-sets\/[^?#]+|develop\.atlas\.example\/AtlasRouter-Dev\/rules\/magicrule\/mihomo\/[A-Za-z]+\.yaml)$/.test(value)));
       continue;
     }
     const urls = body.match(/https:\/\/develop\.atlas\.example[^\s]+/g);
@@ -477,7 +512,8 @@ test("production UI manages independent development credentials and links direct
       const link = new URL(value.split(",")[0]);
       assert.equal(link.origin, devUrl.origin);
       assert.ok(link.pathname === DEV_SUBSCRIPTION_PATH || link.pathname.startsWith(`${DEV_SUBSCRIPTION_PATH}/`));
-      assert.equal(link.searchParams.get("token"), devUrl.searchParams.get("token"));
+      if (link.pathname.startsWith(`${DEV_SUBSCRIPTION_PATH}/rules/magicrule/`)) assert.equal(link.search, "");
+      else assert.equal(link.searchParams.get("token"), devUrl.searchParams.get("token"));
     }
     assert.ok(body.startsWith(`#!MANAGED-CONFIG ${url.toString().replace("&client=surge", "")}`));
   }
@@ -562,8 +598,8 @@ function base64Url(value) {
     .replace(/\//g, "_");
 }
 
-function assertSecurityHeaders(response) {
-  assert.equal(response.headers.get("cache-control"), "no-store");
+function assertSecurityHeaders(response, cacheControl = "no-store") {
+  assert.equal(response.headers.get("cache-control"), cacheControl);
   assert.equal(response.headers.get("referrer-policy"), "no-referrer");
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(response.headers.get("x-frame-options"), "DENY");

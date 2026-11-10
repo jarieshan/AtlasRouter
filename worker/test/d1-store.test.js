@@ -83,7 +83,7 @@ test("migration preserves tokens, shared-owner order, counters and manual profil
   assert.equal(stored.rows.assignments.length, 6);
   assert.equal((await env.DB.prepare("SELECT count(*) AS count FROM manual_profiles").first()).count, 1, "historical migrations preserve retired data");
   const { results: tables } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all();
-  assert.deepEqual(tables.map((row) => row.name).sort(), ["assignments", "manual_mitm", "manual_nodes", "manual_profiles", "nodes", "store_versions", "users"]);
+  assert.deepEqual(tables.map((row) => row.name).sort(), ["assignments", "magic_rule_checks", "magic_rule_sets", "manual_mitm", "manual_nodes", "manual_profiles", "nodes", "store_versions", "users"]);
   for (const person of state.users) {
     const result = await callSubscriptionStore(env, { action: "subscription", token: person.subscribeToken });
     assert.deepEqual(result.groups.map((group) => group.nodes.map((node) => node.id)), userGroups(state, person.id).map((group) => group.nodes.map((node) => node.id)));

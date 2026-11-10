@@ -26,7 +26,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
       ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
       : ["223.5.5.5", "119.29.29.29"]).join(", "),
     ...Object.fromEntries(Object.keys(ASSETS.magicRules).map((name) => [
-      `RULESET_${name}`, magicRuleUrl(name, "surge"),
+      `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl),
     ])),
   };
   const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames, tailnetNodes).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
