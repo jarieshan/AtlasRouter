@@ -150,11 +150,11 @@ test("Tailnet secret adds authenticated test alternatives without changing store
   const clash = await mf.dispatchFetch(`${url}&client=clash`);
   assert.equal(clash.status, 200);
   const config = parseYaml(await clash.text());
-  assert.deepEqual(config.proxies.map((node) => [node.name, node.type, node.server]), [
-    ["🇭🇰 HK IDC", "vmess", "hk.example.com"],
-    ["Tailnet", "tailscale", undefined],
+  assert.deepEqual(config.proxies.map((node) => [node.name, node.type, node.server, node["dialer-proxy"]]), [
+    ["🇭🇰 HK IDC", "vmess", "hk.example.com", undefined],
+    ["Tailnet Test - 🇭🇰 HK IDC", "vmess", "node.example-tailnet.ts.net", "Tailnet"],
+    ["Tailnet", "tailscale", undefined, undefined],
   ]);
-  assert.doesNotMatch(JSON.stringify(config), /node\.example-tailnet/);
 });
 
 test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {

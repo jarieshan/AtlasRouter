@@ -76,6 +76,7 @@ export function convertClashNode(line, warn = () => {}) {
       node["ws-opts"].headers = headers;
     }
   }
+  if (options.has("underlying-proxy")) node["dialer-proxy"] = take("underlying-proxy");
   if (options.size) throw new Error("Unsupported connection options");
   return node;
 }

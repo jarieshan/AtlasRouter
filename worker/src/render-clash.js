@@ -19,17 +19,24 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
     catch { warn(`General entry ${index + 1}: invalid setting omitted`); }
   }
   const config = convertGeneral(general, warn);
-  const proxies = [];
+  const entries = [];
   const tailnets = [];
   for (const [index, line] of (sections.get("proxy") ?? []).entries()) {
     try {
       const note = (message) => warn(`Proxy entry ${index + 1}: ${message}`);
       const tailnet = splitSurgeList(surgeAssignment(line)[1])[0]?.toLowerCase() === "tailscale" ? convertClashTailscale(line, sections, note) : null;
       const node = tailnet?.node ?? convertClashNode(line, note);
-      if (["DIRECT", "REJECT"].includes(node.name) || proxies.some(({ name }) => name === node.name)) throw new Error();
-      proxies.push(node);
+      if (["DIRECT", "REJECT"].includes(node.name) || entries.some((entry) => entry.node.name === node.name)) throw new Error();
+      entries.push({ index, node });
       if (tailnet) tailnets.push({ index, ...tailnet });
     } catch { warn(`Proxy entry ${index + 1}: unsupported protocol, parameter or invalid value; node omitted`); }
+  }
+  // Surge's underlying-proxy may also name a group; only a node that dials directly cannot form a loop.
+  const direct = new Set(entries.filter(({ node }) => node["dialer-proxy"] === undefined).map(({ node }) => node.name));
+  const proxies = [];
+  for (const { index, node } of entries) {
+    if (node["dialer-proxy"] === undefined || direct.has(node["dialer-proxy"])) proxies.push(node);
+    else warn(`Proxy entry ${index + 1}: underlying-proxy must be a converted node without its own underlying-proxy; node omitted`);
   }
   if (!proxies.length) throw new HttpError(422, "No nodes can be converted to Clash");
   for (const { index, interactive, autoRoute } of tailnets) {

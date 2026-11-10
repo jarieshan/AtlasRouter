@@ -659,6 +659,16 @@ test("Tailscale policies become Mihomo tailscale proxies with their section and 
   }
 });
 
+test("underlying-proxy becomes dialer-proxy only through a converted node that dials directly", async () => {
+  const source = `[Proxy]\nhop = ${vmess}\nvia-hop = ${vmess}, underlying-proxy=hop\nvia-group = ${vmess}, underlying-proxy=Group\nvia-missing = ${vmess}, underlying-proxy=NEVER_LOG_THIS\nvia-chain = ${vmess}, underlying-proxy=via-hop\n[Proxy Group]\nGroup = select, hop, via-group\n[Rule]\nFINAL,Group\n`;
+  const { config, warnings } = await convertSurgeToClash(source, context);
+  assert.deepEqual(config.proxies.map((node) => [node.name, node["dialer-proxy"]]), [["hop", undefined], ["via-hop", "hop"]]);
+  assert.deepEqual(config["proxy-groups"], [{ name: "Group", type: "select", proxies: ["hop"] }]);
+  assert.deepEqual(warnings.filter((warning) => warning.includes("underlying-proxy")), [3, 4, 5].map((entry) =>
+    `Proxy entry ${entry}: underlying-proxy must be a converted node without its own underlying-proxy; node omitted`));
+  assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
+});
+
 test("policy-regex-filter only filters included proxies and invalid expressions are omitted safely", async () => {
   const source = `[Proxy]
 Tailnet = ${vmess}
