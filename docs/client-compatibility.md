@@ -10,7 +10,7 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy 和 AppleDirect |
 | Apple | iCloud → AppleDirect → AppleProxy，几乎全部直连，含 Apple TV+ | AppleTV → `GlobalMedia`、AppleIntelligence → `AIProxy` 先匹配；iCloud 可切换，默认直连；其余 Apple 服务直接 `DIRECT` |
 | GlobalMedia 默认出口 | ISP → WARP → IDC，默认首个 ISP 组 | WARP → IDC → ISP，默认首个 WARP 组 |
-| 加密货币交易所 | Binance 固定直连；OKX、Coinbase、Bybit、Bitget 无专门规则 | 五家均进入 `Coin`，DIRECT → ISP → WARP → IDC，默认直连 |
+| 加密货币交易所 | Binance 固定直连；OKX、Coinbase、Bybit、Bitget 无专门规则 | 五家均进入 `Coin`，ISP → WARP → IDC → DIRECT，默认首个 ISP 组 |
 | 券商 | `longbridge.global`、`ibkr.com` 固定直连 | MagicRule IBKR → `DIRECT`（`[Host]` 指定国内 DNS），LongBridge → `Proxy`，均紧随 CustomDirect |
 | AI 规则 | OpenAI、Bing、Copilot、Anthropic、Gemini → `AIProxy`（Copilot 列表含 Cursor、Grok、Meta AI 等）；Cloudflare → `Proxy` | Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor、本仓库 CustomAI（Meta AI、Muse、Grok Bot）和 AppleIntelligence → `AIProxy`，紧随 WeChat；不引用 Bing、Copilot |
 | Auto | Surge Smart；Clash url-test | 同左 |

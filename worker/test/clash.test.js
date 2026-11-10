@@ -141,7 +141,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(wechat.proxies, ["DIRECT", "🇭🇰HK-IDC", "🇺🇸USA-WARP", "🇺🇸USA-ISP"]);
     assert.ok(!wechat.hidden);
     assert.ok(config.rules.includes(`RULE-SET,${wechatSource.id},WeChat,no-resolve`));
-    assert.deepEqual(config["proxy-groups"].find((group) => group.name === "Coin").proxies, ["DIRECT", "🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC"]);
+    assert.deepEqual(config["proxy-groups"].find((group) => group.name === "Coin").proxies, ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC", "DIRECT"]);
     assert.ok(config.rules.includes("RULE-SET,IBKR,DIRECT,no-resolve"));
     assert.ok(config.rules.includes("RULE-SET,LongBridge,Proxy,no-resolve"));
     for (const name of ["Binance", "OKX", "Bybit"]) assert.ok(config.rules.includes(`RULE-SET,${name},Coin,no-resolve`), name);

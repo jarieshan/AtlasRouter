@@ -131,7 +131,7 @@ master 的地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中�
 
 `YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组；没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 GlobalMedia 之前。这是手动选择项顺序；地区/IP 类型组内，Surge / Clash 使用同顺序的 `fallback`。
 
-`Coin` 是可见的独立策略组，接收 Binance、OKX、Coinbase、Bybit 和 Bitget 的流量，选项按 `DIRECT` → ISP → WARP → IDC 排列，默认直连。Binance、OKX、Bybit 使用 MagicRule 的独立规则；MagicRule 没有 Coinbase、Bitget 的独立规则，这两家的域名维护在本仓库的 [`surge/rule-sets/Coin.list`](../surge/rule-sets/Coin.list)，经 jsDelivr 引用。这些规则排在 Telegram、X、Discord、YouTube 之后、GlobalMedia 之前。`[Host]` 不为这些域名单独指定 DNS，按默认 DNS 设置解析。
+`Coin` 是可见的独立策略组，接收 Binance、OKX、Coinbase、Bybit 和 Bitget 的流量，选项按 ISP → WARP → IDC → `DIRECT` 排列，默认选择首个可用的 ISP 组。Binance、OKX、Bybit 使用 MagicRule 的独立规则；MagicRule 没有 Coinbase、Bitget 的独立规则，这两家的域名维护在本仓库的 [`surge/rule-sets/Coin.list`](../surge/rule-sets/Coin.list)，经 jsDelivr 引用。这些规则排在 Telegram、X、Discord、YouTube 之后、GlobalMedia 之前。`[Host]` 不为这些域名单独指定 DNS，按默认 DNS 设置解析。
 
 业务策略组使用纯文字名称，图标来自 [Koolson/Qure Color](https://github.com/Koolson/Qure/tree/master/IconSet/Color)，通过 jsDelivr 公共链接加载。WeChat、Telegram、X、YouTube、Apple、iCloud 使用对应服务 Logo；Auto 使用 `Auto.png` 自动选择图标；DoH Proxy 使用 `Server.png` 服务器图标；Proxy、AIProxy、GlobalMedia、Coin 分别使用通用代理、AI、影音、加密货币图标。首次从带 emoji 的旧组名更新后，客户端已保存的手动选择可能需要重新设置。Surge 使用 [`icon-url`](https://manual.nssurge.com/policy-groups/parameters.html)（Mac 6.5.0+），转换为 Clash 时映射为 [`icon`](https://wiki.metacubex.one/en/config/proxy-groups/#icon)，显示效果取决于客户端面板支持。策略组可见性遵循上述环境设置：Dev 统一显示全部组，生产按模板设置。
 
