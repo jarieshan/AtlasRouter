@@ -614,7 +614,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(config.dns["nameserver-policy"], {
           "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
           "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "China"].map((id) => [`rule-set:${id}`, doh === "1"
+          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "IBKR", "China"].map((id) => [`rule-set:${id}`, doh === "1"
             ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
             : ["223.5.5.5", "119.29.29.29"]])),
         });
@@ -671,6 +671,10 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
         for (const url of [CUSTOM_DIRECT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
+        assert.ok(text.split("\n").some((line) => {
+          const [, url, servers] = line.match(/^RULE-SET:(\S+) = server:(.+)$/) ?? [];
+          return url && magicRuleArtifact(url, "IBKR", "rules", "list") && servers === directDns;
+        }));
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(text.includes(`DOMAIN,${hostname},DoH Proxy\n`));
         for (const hostname of ["dns.alidns.com", "doh.pub"]) {
           const rule = `DOMAIN,${hostname},DIRECT\n`;
@@ -695,7 +699,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         }
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
         assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/artifacts\/([A-Za-z]+)_/)[1], policy]), [
-          [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
+          [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], ["IBKR", "DIRECT"], ["LongBridge", "Proxy"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
           ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
           ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],

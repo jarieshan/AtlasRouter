@@ -1,9 +1,6 @@
 # NAME: CustomDirect
 # Always DIRECT. The profile's [Host] also resolves these domains with the domestic DNS servers.
 
-DOMAIN-SUFFIX,longbridge.global
-DOMAIN-SUFFIX,ibkr.com
-
 # Hong Kong banks and government, without selectable policy groups.
 # HSBC
 DOMAIN-SUFFIX,hsbc.com.hk
@@ -27,3 +24,8 @@ DOMAIN-SUFFIX,hangseng.com
 DOMAIN-SUFFIX,gov.hk
 
 DOMAIN-SUFFIX,cdn.kineticbloom.org
+
+# ByteDance's domestic API; MagicRule GlobalMedia also lists it ahead of the China list.
+DOMAIN-SUFFIX,snssdk.com
+# Anjuke images; foreign DoH resolves them to overseas CDN nodes.
+DOMAIN-SUFFIX,ajkimg.com

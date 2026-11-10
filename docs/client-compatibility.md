@@ -10,7 +10,8 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy 和 AppleDirect |
 | Apple | iCloud → AppleDirect → AppleProxy，几乎全部直连，含 Apple TV+ | AppleTV → `GlobalMedia`、AppleIntelligence → `AIProxy` 先匹配；iCloud 可切换，默认直连；其余 Apple 服务直接 `DIRECT` |
 | GlobalMedia 默认出口 | ISP → WARP → IDC，默认首个 ISP 组 | WARP → IDC → ISP，默认首个 WARP 组 |
-| 加密货币交易所 | Binance 固定直连；OKX、Coinbase、Bybit、Bitget 无专门规则 | 五家均进入 `Coin`，DIRECT → ISP → WARP → IDC，默认直连 |
+| 加密货币交易所 | Binance 固定直连；OKX、Coinbase、Bybit、Bitget 无专门规则 | 五家均进入 `Coin`，ISP → WARP → IDC → DIRECT，默认首个 ISP 组 |
+| 券商 | `longbridge.global`、`ibkr.com` 固定直连 | MagicRule IBKR → `DIRECT`（`[Host]` 指定国内 DNS），LongBridge → `Proxy`，均紧随 CustomDirect |
 | AI 规则 | OpenAI、Bing、Copilot、Anthropic、Gemini → `AIProxy`（Copilot 列表含 Cursor、Grok、Meta AI 等）；Cloudflare → `Proxy` | Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor、本仓库 CustomAI（Meta AI、Muse、Grok Bot）和 AppleIntelligence → `AIProxy`，紧随 WeChat；不引用 Bing、Copilot |
 | Auto | Surge Smart；Clash url-test | 同左 |
 | UI | 开启，Dev 按钮可管理测试数据 | 关闭 |
@@ -29,7 +30,7 @@ master 同一份源码在生产/Preview 参数下均不生成节点权重。真�
 
 | 项目 | 当前结果 | 边界 |
 | --- | --- | --- |
-| 规则、业务组顺序 | develop 依次为 CustomReject、CustomDirect、MagicRule Direct、WeChat、AI（含 Cloudflare、AppleIntelligence）、Apple、Telegram / X / Discord / YouTube、Coin、GlobalMedia；AppleTV、AppleIntelligence、iCloud 在 Apple 完整规则前；YouTube 在 GlobalMedia 前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
+| 规则、业务组顺序 | develop 依次为 CustomReject、CustomDirect、IBKR / LongBridge、MagicRule Direct、WeChat、AI（含 Cloudflare、AppleIntelligence）、Apple、Telegram / X / Discord / YouTube、Coin、GlobalMedia；AppleTV、AppleIntelligence、iCloud 在 Apple 完整规则前；YouTube 在 GlobalMedia 前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
 | 节点主备 | master 两端均为同顺序 fallback、300 秒间隔 | 各客户端的测速时机和结果可能不同，不保证同一时刻选中同一节点；develop 单独试验 Smart 权重 |
 | Auto | 两端都包含本订阅的可转换代理节点 | Surge 是 Smart；Clash 是 300 秒、容差 0 的 url-test。不能复现真实连接评分、站点记忆或重试顺序 |
 | DoH Proxy（develop） | 两端均可见，仅含 IDC 节点；Surge Smart，Clash url-test；Cloudflare / Google 使用该组，阿里 / 腾讯直连 | 无 IDC 或 Clash 过滤后无兼容 IDC 时省略该组，国外 DoH 规则改为 REJECT，其他订阅内容保留 |
@@ -39,7 +40,7 @@ master 同一份源码在生产/Preview 参数下均不生成节点权重。真�
 | 节点传输默认值 | VMess AES-128-GCM；TLS/WS 默认关闭；TLS 校验开启；TFO 默认关闭；保留显式值 | VMess 仅转换显式 AEAD；不支持的协议、连接选项或 `sni=off` 会删去节点，并清理空组/失效规则；所有节点不可转换时返回 422 |
 | 测速参数 | 全局测试 URL 与 5 秒超时映射；fallback/url-test 省略间隔时 600 秒；url-test 默认容差 100 ms | Surge 组级 timeout 是结果延迟筛选，不能映射为 Mihomo 请求超时；节点测速覆盖、DIRECT 独立测速不等价 |
 | 调度与失败次数 | Smart 转换后的组输出间隔 300 秒 | Surge Smart 固定五分钟重测；Clash 保留 Mihomo 的 lazy 默认 true，未选中组不测。max-failed-times 默认 5 触发强制健康检查，不表示容忍五次测速失败后才切换；当前无固定失败次数/固定 IP 保证 |
-| DNS | 普通 DNS、默认与直连名单（CustomDirect、MagicRule China）的 DoH、上游及节点引导 DNS、系统 hosts、IPv6 关闭、两项 DNS 劫持目标已映射 | Clash 使用 redir-host；域名集 DNS 复用规则提供器；TUN 是否开启由客户端控制。DoH 按已知上游域名分流，Clash 通过 `#RULES` 使用这些规则；阿里和腾讯 DoH 域名固定使用普通 DNS 解析 |
+| DNS | 普通 DNS、默认与直连名单（CustomDirect、MagicRule IBKR / China）的 DoH、上游及节点引导 DNS、系统 hosts、IPv6 关闭、两项 DNS 劫持目标已映射 | Clash 使用 redir-host；域名集 DNS 复用规则提供器；TUN 是否开启由客户端控制。DoH 按已知上游域名分流，Clash 通过 `#RULES` 使用这些规则；阿里和腾讯 DoH 域名固定使用普通 DNS 解析 |
 | 规则内容 | 同名 MagicRule 列表（含 China）由客户端直接下载 Surge / Mihomo 完整产物，不带 token，保留引用顺序及 no-resolve；文件未变时凭 ETag 得到 304，不重新下载 | 上游两种产物不保证逐条相同；仓库规则集（`surge/rule-sets/`）由客户端直接读取，不支持的类型（如 WeChat 的 USER-AGENT）由 Mihomo / ProjectClash 跳过并记录警告；其他远程列表经 Worker 过滤不支持类型。MagicRule 更换或停用地址时需更新登记 |
 | 专用功能 | 可映射项保留；YAML 注释列出省略或近似项 | SYSTEM、FINAL 的 dns-failed、skip-proxy、脚本、模块、MitM 等不能等价转换。Tencent OA 为 Surge Mac 模块，旧链接的 `tencent_oa=1` 与 Clash 组合明确返回 400；图标/隐藏属性由面板支持决定 |
 
