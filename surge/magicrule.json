@@ -11,6 +11,14 @@
     "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/Bybit_rules_74d87d27547ef617.list",
     "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/Bybit_classical_1e61957fd4a49295.yaml"
   },
+  "IBKR": {
+    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/IBKR_rules_1e5462042bd6ab54.list",
+    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/IBKR_classical_7088eb4c853cc6a1.yaml"
+  },
+  "LongBridge": {
+    "surge": "https://rule-26r.pages.dev/data/_shared/artifacts/LongBridge_rules_efc65b47f8834ddb.list",
+    "mihomo": "https://rule-26r.pages.dev/data/_shared/artifacts/LongBridge_classical_e8e990a42442b634.yaml"
+  },
   "AppleTV": {
     "surge": "https://magicrule.pages.dev/data/_shared/artifacts/AppleTV_rules_f9dcb0d2f34bf797.list",
     "mihomo": "https://magicrule.pages.dev/data/_shared/artifacts/AppleTV_classical_86f028de323ba85a.yaml"

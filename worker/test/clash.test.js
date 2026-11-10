@@ -47,7 +47,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   assert.deepEqual(plain.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.match(encrypted, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
   assert.match(encrypted, /^encrypted-dns-follow-outbound-mode = true$/m);
-  for (const url of [customDirectUrl, directUrl]) {
+  for (const url of [customDirectUrl, magicRuleUrl("IBKR", "surge"), directUrl]) {
     assert.ok(plain.split("\n").includes(`RULE-SET:${url} = server:223.5.5.5, 119.29.29.29`));
     assert.ok(encrypted.split("\n").includes(`RULE-SET:${url} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query`));
   }
@@ -142,6 +142,8 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(!wechat.hidden);
     assert.ok(config.rules.includes(`RULE-SET,${wechatSource.id},WeChat,no-resolve`));
     assert.deepEqual(config["proxy-groups"].find((group) => group.name === "Coin").proxies, ["DIRECT", "🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC"]);
+    assert.ok(config.rules.includes("RULE-SET,IBKR,DIRECT,no-resolve"));
+    assert.ok(config.rules.includes("RULE-SET,LongBridge,Proxy,no-resolve"));
     for (const name of ["Binance", "OKX", "Bybit"]) assert.ok(config.rules.includes(`RULE-SET,${name},Coin,no-resolve`), name);
     assert.ok(config.rules.includes(`RULE-SET,${coinSource.id},Coin,no-resolve`));
     const telegram = config["proxy-groups"].find((group) => group.name === "Telegram");
@@ -167,7 +169,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.dns["nameserver-policy"], {
       "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
       "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-      ...Object.fromEntries([customDirectSource.id, "China"].map((provider) => [`rule-set:${provider}`, doh
+      ...Object.fromEntries([customDirectSource.id, "IBKR", "China"].map((provider) => [`rule-set:${provider}`, doh
         ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
         : ["223.5.5.5", "119.29.29.29"]])),
     });
@@ -194,7 +196,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
     for (const id of ["Cloudflare", "Grok", "Cursor", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|Apple),/.test(rule)), [
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
