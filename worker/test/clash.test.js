@@ -75,7 +75,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(hosts.split("\n").includes(mapping));
       assert.ok(hosts.indexOf(mapping) < hosts.indexOf(`RULE-SET:${directUrl}`));
     }
-    for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
+    for (const hostname of ["atlasrouter.zslab.ai"]) {
       const directRule = `DOMAIN,${hostname},DIRECT`;
       assert.ok(config.indexOf(directRule) >= 0);
       assert.ok(config.indexOf(directRule) < config.indexOf("DOMAIN,dns.alidns.com,DIRECT"));
@@ -113,7 +113,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const config = parse(output);
     assert.doesNotMatch(JSON.stringify(config), /Tailnet|Tailscale|interactive-login/);
     assert.equal(config["x-clash-block-quic"], "all-proxy");
-    for (const hostname of ["atlasrouter.zslab.ai", "develop.atlasrouter.zslab.ai"]) {
+    for (const hostname of ["atlasrouter.zslab.ai"]) {
       const index = config.rules.indexOf(`DOMAIN,${hostname},DIRECT`);
       assert.ok(index >= 0);
       assert.ok(index < config.rules.findIndex((rule) => rule.startsWith("RULE-SET,")));
@@ -285,12 +285,12 @@ test("Clash rejects foreign DoH if all IDC nodes are unsupported and retains any
   }
 });
 
-test("native production and Preview profiles differ only in addresses, tokens, visibility and Surge priority factors", async () => {
-  // Compare the current source under both deployments, not the historical master branch.
+test("explicit rendering options preserve protocol behavior across visibility and priority settings", async () => {
+  // Exercise optional rendering settings without creating another deployment.
   const deployment = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   const environments = [
     { vars: deployment.vars, origin: "https://atlas.example", token: `ar_${"a".repeat(64)}` },
-    { vars: deployment.previews.vars, origin: "https://develop.atlas.example", token: `ar_${"b".repeat(64)}` },
+    { vars: { ...deployment.vars, SMART_PRIORITY_SCHEME: "geometric-10", SHOW_ALL_PROXY_GROUPS: "true" }, origin: "https://atlas.example", token: `ar_${"b".repeat(64)}` },
   ];
   assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME ?? "linear", "linear");
   assert.equal(environments[1].vars.SMART_PRIORITY_SCHEME, "geometric-10");

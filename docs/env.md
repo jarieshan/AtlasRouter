@@ -1,26 +1,18 @@
 # Worker 环境与存储
 
-当前使用同一 Worker 的生产环境和原生 Preview；配置入口是 [wrangler.jsonc](../worker/wrangler.jsonc)。Cloudflare 接入步骤见 [部署说明](deployment-cloudflare.md)，域名、路径和数据流见 [原生预览方案](native-previews.md)。`dev=1` 不再用于当前入口切换分支代码。
+正式页面通过 Service binding 调用私有开发订阅服务；配置入口是 [wrangler.jsonc](../worker/wrangler.jsonc) 与 [wrangler.development.jsonc](../worker/wrangler.development.jsonc)，发布步骤见 [部署说明](deployment-cloudflare.md)。
 
 ## 运行时配置
 
-| 配置 | 生产 | `develop` Preview |
-| --- | --- | --- |
-| `DB`（D1 binding） | `atlas-router` 正式库 | `atlas-router-dev` 测试库 |
-| `DEV_DB`（D1 binding） | 测试库，仅供生产 UI 管理测试数据 | 不绑定 |
-| `UI_ENABLED`（变量） | `true` | `false`，根页面返回 404 |
-| `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` | `/AtlasRouter-Dev` |
-| `DEV_SUBSCRIPTION_ORIGIN`（变量） | 开发预览的固定 HTTPS origin | 不需要 |
-| `SMART_PRIORITY_SCHEME`（变量） | 不读取，不启用权重实验 | develop 源码使用 `geometric-10`：1、10、100、1000…；ISP 组的备用节点从 100 起：1、100、1000、10000… |
-| `SHOW_ALL_PROXY_GROUPS`（变量） | 不启用，使用模板中的可见性设置 | `true`，统一移除所有策略组的隐藏属性，Surge / Clash 全部可见 |
+| 配置 | 正式环境 |
+| --- | --- |
+| `DB`（D1 binding） | `atlas-router` 正式库 |
+| `UI_ENABLED`（变量） | `true` |
+| `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` |
 
-`geometric-10` 按每位用户的主节点、备用节点顺序赋权。按 [Surge Smart 组说明](https://kb.nssurge.com/surge-knowledge-base/guidelines/smart-group)，系数乘在节点的延迟上，大于 1 即降低优先级。ISP 组的备用节点从 100 起（`geometric-10-from-100`），主节点出现故障或明显变慢时才会换到备用节点；WARP、IDC 组仍为 1、10、100…。受安全整数校验限制，最后一个系数最大为 `10^15`：普通组最多 16 个节点，ISP 组最多 15 个，超过后订阅生成会报错。
+正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。`environment=development` 选择测试库并生成 `/AtlasRouter?dev=1` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务可设置 `SMART_PRIORITY_SCHEME=geometric-10`、`SHOW_ALL_PROXY_GROUPS=true`；正式分流行为保持独立。
 
-两库 ID 必须不同；Preview 的 `DB` 与生产 UI 的 `DEV_DB` 指向同一个测试库。`DEV_SUBSCRIPTION_ORIGIN` 不能带用户信息、路径、查询或片段，且必须与生产 origin 不同。`environment=development` 仅让生产 UI 及其 API 选择测试库，不转发订阅请求，也不执行另一个分支的代码。测试库结构必须与生产管理页面兼容。
-
-上述变量来自各分支的仓库配置。master 固定生成顺序 fallback，不读取遗留的 `SMART_PRIORITY_SCHEME`；develop 源码和 Preview 配置独立，继续试验 Smart 权重。完整差异见 [兼容性核对](client-compatibility.md)。
-
-生产网页和浏览器 API 还需要以下配置。Preview 默认关闭 UI，订阅只依赖测试 D1 中的个人 token；若另行启用 Preview 浏览器 API，须明确配置其 Access 参数，不能依赖生产 Secrets 自动继承。
+生产网页和浏览器 API 还需要以下配置：
 
 | 名称 | 类型 | 用途 |
 | --- | --- | --- |
@@ -34,9 +26,28 @@
 
 同一个 Access application 保护生产 `/` 及 `/api/*`；订阅路径及其子路径使用精确 Bypass，再由 Worker 校验个人 token。Google OAuth client ID/secret 配置在 Access 身份提供商中。Worker 不处理 Google client secret；`ACCESS_JWKS_JSON` 仅供离线测试，生产不设置。旧 `ACCESS_USER_AUD`、KV binding 和组合构建的 `DEV_ADMIN_*` 不属于当前配置。
 
-MagicRule 定时检查（见 [订阅说明](subscription.md)）用可选 Secret `BARK_DEVICE_KEY` 推送提醒。值是 Bark App 中的设备 key，持有者可向该设备发送任意通知。只需在生产环境设置，Preview 不运行定时任务：在 Cloudflare Dashboard 的 `atlas-router` → Settings → Variables and Secrets 中以 Secret 类型添加，或在 `worker/` 运行 `npx wrangler secret put BARK_DEVICE_KEY` 后按提示输入；不要写入仓库、构建变量或命令参数。生产发布只上传新的管理路径 Secret，其余 Secret 保持不变。Bark 返回错误时，日志只记录 HTTP 状态。未设置时检查照常进行，需要提醒时只在 Worker 日志中记录警告。
+管理页面导入受 Cloudflare Access 保护的上游订阅时，可配置以下项目。上游 Access application 应只允许指定服务令牌的 **Service Auth** 策略；3x-ui 面板使用独立的管理员登录策略。两者通过 Tunnel 回源，源站端口不需要向公网开放。
 
-节点凭据通过受保护管理页面录入 D1，不放在普通环境变量或代码中。D1 读取权限视为敏感数据读取权限。构建凭据由 Workers Builds 管理，其 token 需有 D1 Edit 权限以迁移开发库；GitHub Actions 只验证代码，不需要 Cloudflare Secrets。构建变量与 Worker 运行时变量分开配置，个人订阅 token 不放入构建变量。
+| 名称 | 类型 | 用途 |
+| --- | --- | --- |
+| `NODE_IMPORT_ACCESS_ORIGIN` | 普通变量 | 唯一可信上游，例如 `https://subscription.example.com`，不能包含路径、查询、片段或用户信息 |
+| `NODE_IMPORT_ACCESS_CLIENT_ID` | Secret | 上游 Access 服务令牌的 Client ID |
+| `NODE_IMPORT_ACCESS_CLIENT_SECRET` | Secret | 同一服务令牌的 Client Secret |
+| `NODE_IMPORT_ACCESS_UPSTREAMS` | 可选 Secret | 额外上游的 JSON 数组，每项包含 `origin`、`clientId`、`clientSecret`；各上游使用各自的服务凭据 |
+
+使用原有单上游配置时，前三项必须同时配置。Worker 仅向 HTTPS origin（协议、域名、端口）完全匹配的导入地址发送服务凭据，拒绝跟随重定向；其他订阅地址保持普通导入。配置不完整时，链接导入返回 503，避免无认证访问上游。导入时使用新的 Tunnel HTTPS 域名，保留原订阅路径和订阅标识，省略源站 `:2096` 端口。
+
+需要多个受保护上游时，可保留原三项并通过 `NODE_IMPORT_ACCESS_UPSTREAMS` 添加额外上游，也可只使用该数组。示例结构为 `[{"origin":"https://second.example.com","clientId":"REPLACE_WITH_CLIENT_ID","clientSecret":"REPLACE_WITH_CLIENT_SECRET"}]`。该值整体作为 Secret 保存。重复的 origin、无效地址或缺少凭据都会使链接导入返回 503；每个请求只携带其精确匹配上游的凭据。
+
+服务凭据不下发到浏览器、Surge 或 Clash，也不写入节点清单。现有个人订阅仍由 AtlasRouter 从 D1 生成，不要求客户端使用 Access 服务令牌。这些配置保留在正式 Worker。服务令牌到期前需在 Access 中续期或轮换并同步 Secrets；源站与 Cloudflare 边缘的 HTTPS 证书独立续期。
+
+Workers Preview 已关闭。管理和上游订阅域名直接通过 Access 与 Tunnel 回源，不需要额外的转发 Worker。配置方式见 [部署说明](deployment-cloudflare.md)。
+
+入口域名必须由 Access 保护，cloudflared 必须再次验证对应应用的 Access JWT。面板回源 Host 使用公开面板域名；3x-ui 入站的分享地址应显式设置为实际 Xray 域名，订阅 URI 则使用公开订阅入口。仅修改回源 Host 仍可能被转发头覆盖，不能保证生成正确的节点地址。
+
+节点凭据通过受保护管理页面录入 D1，不放在普通环境变量或代码中。D1 读取权限视为敏感数据读取权限。构建凭据由 Workers Builds 管理，其 token 需有 D1 Edit 权限以迁移正式库和测试库；GitHub Actions 只验证代码，不需要 Cloudflare Secrets。构建变量与 Worker 运行时变量分开配置，个人订阅 token 不放入构建变量。
+
+MagicRule 定时检查（见 [订阅说明](subscription.md)）用可选 Secret `BARK_DEVICE_KEY` 推送提醒。值是 Bark App 中的设备 key，持有者可向该设备发送任意通知。只需在生产环境设置，私有开发订阅服务不运行定时任务：在 Cloudflare Dashboard 的 `atlas-router` → Settings → Variables and Secrets 中以 Secret 类型添加，或在 `worker/` 运行 `npx wrangler secret put BARK_DEVICE_KEY` 后按提示输入；不要写入仓库、构建变量或命令参数。生产发布只上传新的管理路径 Secret，其余 Secret 保持不变。Bark 返回错误时，日志只记录 HTTP 状态。未设置时检查照常进行，需要提醒时只在 Worker 日志中记录警告。
 
 ## 本地配置与发布命令
 
@@ -44,11 +55,10 @@ MagicRule 定时检查（见 [订阅说明](subscription.md)）用可选 Secret 
 
 - `npm test`：单元测试、构建和本地运行时测试。
 - `npm run build`：当前源代码的 Wrangler dry-run，不发布。
-- `npm run deploy:preview -- --dry-run`：只校验 Preview 发布配置。
-- `npm run deploy:preview`：仅允许 `develop`；迁移测试库后发布固定的 `develop` Preview。
-- `npm run deploy`：只允许 Cloudflare Workers Builds 的 master 构建执行；先迁移两库，再发布生产 UI 和稳定分流代码。本地运行会拒绝发布。
+- `npm run deploy`：只允许 Cloudflare Workers Builds 的 master 构建执行；先迁移正式库与独立测试库，再发布正式页面。
+- `npm run deploy:development`：只允许 develop 构建执行；只迁移测试库并发布私有开发服务。加 `--dry-run` 可在本地校验。
 
-Cloudflare 生产 Deploy command 使用 `npm run deploy`。旧 `build:branches`、`deploy:branches`、`setup:builds` 不用于当前流程。发布只由 Cloudflare 监听 Git 推送触发；不从本机手工部署，也不通过 GitHub Actions 发布。
+Cloudflare 生产 Deploy command 使用 `npm run deploy`。预览与旧双分支发布入口已移除。发布只由 Cloudflare 监听 Git 推送触发；不从本机手工部署，也不通过 GitHub Actions 发布。
 
 ## D1 关系表
 
@@ -71,7 +81,7 @@ Cloudflare 生产 Deploy command 使用 `npm run deploy`。旧 `build:branches`�
 
 管理员只需打开根路径。Worker 验证管理员邮箱后将随机管理路径注入 HTML；普通用户页面和个人 API 不包含该值。随机路径不能替代 Access JWT、邮箱白名单和同源写入检查。
 
-master 构建在两库迁移成功后自动生成新的 `ADMIN_API_SLUG`，通过权限受限的临时 Secrets 文件与代码一同发布。发布后旧路径失效，管理员页面需要刷新；其他 Secrets、个人 token 和节点分配保持。Preview 发布不轮换生产标识，也不需要 `DEV_ADMIN_API_SLUG`。
+master 构建在两库迁移成功后自动生成新的 `ADMIN_API_SLUG`，通过权限受限的临时 Secrets 文件与正式页面一同发布。开发服务不接收管理请求、不轮换该值；其他 Secrets、个人 token 和节点分配保持。
 
 节点只从根路径管理区域录入，格式为 `节点名 = Surge 节点配置`。国家旗帜和 `IDC`、`ISP`、`WARP` 决定分组，完整约定见 [multi-user.md](multi-user.md)。保存时提交 `{ revision, nodes: [{ id, line, enabled }] }`，Worker 拆入节点和分配关系表。
 

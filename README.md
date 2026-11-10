@@ -8,7 +8,7 @@ AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统�
 
 ## 当前状态
 
-首版已实现登录、自动分配、订阅生成。当前采用同一 Worker 的生产 / 原生 Preview：生产页面通过 Dev 按钮管理测试数据，生成开发域名下的 `/AtlasRouter-Dev` 链接，订阅由开发预览直接处理。链接、页面、绑定配置和 `deploy:preview` 发布命令已实现；Cloudflare 连接步骤见 [部署说明](docs/deployment-cloudflare.md)，生产由 Cloudflare 的 master 构建发布。GitHub Actions 只运行验证。参见 [原生预览方案](docs/native-previews.md)。
+已实现登录、自动分配和订阅生成。自定义选项中的 Dev 开关可切换独立测试节点与开发版配置；关闭时使用正式订阅。开发订阅通过同一域名调用私有开发 Worker，原生预览和独立测试域名保持关闭。配置见 [部署说明](docs/deployment-cloudflare.md)。
 
 - `README.md`：项目说明与维护入口。
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
@@ -60,7 +60,7 @@ npm test
 
 使用 Node.js 24。`npm test` 包括单元测试、部署构建检查和 Miniflare/workerd 集成测试，覆盖本地 D1 的并发分配与重启持久化。测试、构建和部署前会将 `surge/` 和 `modules/` 中的静态资产打包进 Worker。
 
-统一网页入口为域名根路径 `/`，订阅链接为 `/AtlasRouter?token=<token>`。普通用户看到个人订阅，管理员在同一页还可管理节点池和用户；角色由验证后的邮箱及 `ADMIN_EMAILS` 决定。个人 API 位于 `/api/account/*`，管理 API 位于 `/api/<slug>/pool/*`；随机标识由 `ADMIN_API_SLUG` Secret 提供，仅注入管理员页面；每次 master 构建发布会轮换该 Secret，发布后需刷新已打开的管理员页面。原生 Preview 发布不轮换生产标识。`/admin`、`/api/admin/*` 和旧订阅等入口均已停用，到达 Worker 后返回 404。完整部署步骤见 [Cloudflare 部署](docs/deployment-cloudflare.md)，分配规则见 [多用户与节点池](docs/multi-user.md)。
+统一网页入口为域名根路径 `/`，订阅链接为 `/AtlasRouter?token=<token>`。普通用户看到个人订阅，管理员在同一页还可管理节点池和用户；角色由验证后的邮箱及 `ADMIN_EMAILS` 决定。个人 API 位于 `/api/account/*`，管理 API 位于 `/api/<slug>/pool/*`；随机标识由 `ADMIN_API_SLUG` Secret 提供，仅注入管理员页面；每次 master 构建发布会轮换该 Secret，发布后需刷新已打开的管理员页面。`/admin`、`/api/admin/*` 和旧订阅等入口均已停用，到达 Worker 后返回 404。完整部署步骤见 [Cloudflare 部署](docs/deployment-cloudflare.md)，分配规则见 [多用户与节点池](docs/multi-user.md)。
 
 页面可选启用 DoH 和 Client（默认 Surge / Clash），分别通过 `doh=1`、`client=clash` 注入订阅链接。Tencent OA 兼容以 Surge Mac 模块提供，可在页面一键安装或复制模块链接，在 Surge 中开关，无需更换订阅链接。Clash / Mihomo 输出由同一份完整 Surge 配置转换，自动跳过不兼容内容，不需要维护两份分流配置。参数与兼容范围见 [订阅说明](docs/subscription.md)。
 
@@ -75,23 +75,19 @@ npm run check:live-security -- https://<worker-domain>
 
 完整安全测试流程见 `docs/security-pentest.md`。
 
-## 分支与原生 Preview
+## 发布边界
 
-一个 `atlas-router` Worker 使用生产与原生 Preview 两套运行环境：`master` 为生产分支，`develop` 为开发分支。Cloudflare Workers Builds 直接监听推送，GitHub Actions 只运行验证。`master` 使用 Smart 权重实验之前的 D1／Clash 稳定行为：地区/IP 类型组为顺序 fallback；`develop` 保留 Smart 权重实验。基线来源见 [生产基线](docs/production-baseline.md)。分支差异及两种客户端的非等价行为见 [兼容性核对](docs/client-compatibility.md)。
+正式 `atlas-router` Worker 提供页面及正式订阅；私有 `atlas-router-development` Worker 只提供开发订阅。生产由 master 构建发布，开发服务使用 `npm run deploy:development`；原生 Preview Builds 保持关闭。
 
-生产页面的 Dev 按钮进入 `/?environment=development`，通过 `DEV_DB` 管理测试节点和凭据，生成开发域名下的 `/AtlasRouter-Dev` 链接。客户端直接请求原生 Preview；无需组合分支代码或生产反向代理。正式订阅仍使用 `/AtlasRouter`，两库 token 不能互换。管理员可在 Dev 节点池点击“重置为生产节点”，按当前生产节点完整替换开发节点池并重新分配；仅点击时同步，生产数据保持不变。
+页面默认读写正式 `DB`，开启 Dev 后仅管理独立 `DEV_DB`，生成同域名 `/AtlasRouter?dev=1` 订阅。两套用户、凭据和节点独立；香港和洛杉矶的 Access + Tunnel 入口不参与环境切换。
 
-```sh
-npm --prefix worker run deploy:preview -- --dry-run
-```
-
-Cloudflare Preview command 使用 `npm run deploy:preview`。生产 Deploy command 使用 `npm run deploy`，只接受 Cloudflare Workers Builds 的 master 构建上下文；本地只运行验证，不发布。旧组合构建脚本保留作历史实现，不用于当前流程。域名、D1、Access 和连接状态的核对步骤见 [部署说明](docs/deployment-cloudflare.md)，环境变量见 [env.md](docs/env.md)。
+生产分流基线见 [生产基线](docs/production-baseline.md)，部署步骤见 [部署说明](docs/deployment-cloudflare.md)，历史下线记录见 [预览下线](docs/native-previews.md)。
 
 ## Cloudflare Worker 配置约定
 
 实际变量名由 Worker 实现决定，但应遵守以下边界：
 
-- 通过 `DB` / `DEV_DB` binding 分别使用两个 D1，节点池使用 `users`、`nodes`、`assignments` 表，分配更新通过版本检查和多表事务提交。D1 读取权限视为敏感配置读取权限；不再需要 KV 或 Durable Object binding。
+- 通过 `DB` binding 使用正式 D1，节点池使用 `users`、`nodes`、`assignments` 表，分配更新通过版本检查和多表事务提交。D1 读取权限视为敏感配置读取权限；不再需要 KV 或 Durable Object binding。
 - 网页及 API 由同一个 Cloudflare Access + Google 应用保护，Worker 校验 JWT；管理操作还校验管理员邮箱白名单。
 - `ADMIN_EMAILS`、`ADMIN_API_SLUG` 使用 Worker Secret；Google OAuth 客户端密钥配置在 Cloudflare Access 身份提供商中。
 - 本地开发时不要提交 `.dev.vars*`、`.env*` 或任何真实节点信息。

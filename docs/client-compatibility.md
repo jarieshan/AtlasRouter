@@ -1,10 +1,10 @@
 # 分支与客户端兼容性核对
 
-master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev 页面入口；develop 保留权重实验。基线来源及与原生产 bundle 的比较见 [生产基线](production-baseline.md)。旧 KV master 的审计结论仅适用于历史提交 `ac91a54`，不再代表当前 master。
+master 使用 Smart 节点权重之前的稳定订阅实现；Dev 开关选择独立测试节点与 develop 配置，由私有开发 Worker 执行。基线见 [生产基线](production-baseline.md)。原生公开预览保持关闭。
 
-## master 与 develop
+## master 与 develop 的源码差异
 
-| 项目 | master / 生产 | develop / 原生 Preview |
+| 项目 | master / 正式订阅 | develop / Dev 订阅 |
 | --- | --- | --- |
 | 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、10、100、1000…；Clash 为同顺序 fallback |
 | 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy 和 AppleDirect |
@@ -14,15 +14,15 @@ master 已恢复 Smart 节点权重之前的稳定订阅实现，并补上 Dev �
 | 券商 | `longbridge.global`、`ibkr.com` 固定直连 | MagicRule IBKR → `DIRECT`（`[Host]` 指定国内 DNS），LongBridge → `Proxy`，均紧随 CustomDirect |
 | AI 规则 | OpenAI、Bing、Copilot、Anthropic、Gemini → `AIProxy`（Copilot 列表含 Cursor、Grok、Meta AI 等）；Cloudflare → `Proxy` | Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor、本仓库 CustomAI（Meta AI、Muse、Grok Bot）和 AppleIntelligence → `AIProxy`，紧随 WeChat；不引用 Bing、Copilot |
 | Auto | Surge Smart；Clash url-test | 同左 |
-| UI | 开启，Dev 按钮可管理测试数据 | 关闭 |
-| 订阅 | `/AtlasRouter`，生产 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
+| UI | 默认管理正式数据 | 同一页面通过 Dev 开关管理独立测试数据 |
+| 订阅 | `/AtlasRouter`，正式 D1 token | `/AtlasRouter?dev=1`，独立测试 D1 token |
 | 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10`；ISP 组的备用节点从 100 起：1、100、1000、10000…，WARP、IDC 组为 1、10、100… |
 | Surge QUIC | `block-quic = all-proxy`，代理一律阻止 QUIC | `block-quic = per-policy`：DIRECT 放行，代理默认阻止；Surge iOS 6.0.0+ / Mac 6.11.0+ 对支持 UDP 的代理自适应 |
-| 发布 | Cloudflare master 构建，`npm run deploy` | Cloudflare develop 构建，`npm run deploy:preview` |
+| 发布 | Cloudflare master 构建，`npm run deploy` | 私有开发 Worker，`npm run deploy:development` |
 
-两分支保留相同的 Proxy / Auto 选项顺序，以及可映射的 UDP 参数；Apple 规则顺序见上表；Clash 两端都输出 `x-clash-block-quic: all-proxy`，Surge 的 QUIC 策略见上表。develop 的 DoH 分流使用 IDC 专用组，国内上游直连，详见下表。主备分配逻辑一致，但数据库独立，实际节点和 token 不同。Smart 的选择语义并不等于 fallback；不能要求两分支始终使用同一出口。
+两分支保留相同的 Proxy / Auto 选项顺序，以及可映射的 UDP 参数；Apple 规则顺序见上表；Clash 两端都输出 `x-clash-block-quic: all-proxy`，Surge 的 QUIC 策略见上表。develop 的 DoH 分流使用 IDC 专用组，国内上游直连，详见下表。主备分配逻辑一致，正式与测试数据库独立。Smart 的选择语义并不等于 fallback；不能要求两分支始终使用同一出口。
 
-master 同一份源码在生产/Preview 参数下均不生成节点权重。真正的开发权重来自 develop 分支代码，不能只靠设置 master 的环境变量打开它。
+master 源码不因设置旧实验变量而生成节点权重。真正的开发权重来自 develop 分支代码，不能只靠设置 master 的环境变量打开它。
 
 ## Surge 与 Clash：已对齐和无法等价的行为
 
@@ -48,6 +48,6 @@ master 同一份源码在生产/Preview 参数下均不生成节点权重。真�
 
 ## 验证范围
 
-master 的测试覆盖权重前的 fallback、默认参数、排序、过滤、警告脱敏、Dev 按钮、两库隔离、URL 归属、401/404、正常订阅，以及 Cloudflare 发布前的两库迁移和本地发布拒绝。另用合成数据比较原线上代码与候选版本的六种订阅输出。
+master 的测试覆盖权重前的 fallback、默认参数、排序、过滤、警告脱敏、Dev 开关与两库隔离、URL 归属、401/404、正常订阅，以及 Cloudflare 发布前的两库迁移和本地发布拒绝。另用合成数据比较原线上代码与候选版本的六种订阅输出。
 
 develop 保留自身的 Smart 系数和转换测试。上游规则内容、真实 Surge / iOS Clash 故障切换、UDP/QUIC 抓包和客户端固定出口行为仍需设备侧验收，不将本地代码测试视为这些项目已通过。

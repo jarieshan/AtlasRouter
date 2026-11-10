@@ -12,19 +12,21 @@
   "keep_vars": true,
   "vars": {
     "UI_ENABLED": "true",
-    "SUBSCRIPTION_PATH": "/AtlasRouter",
-    "DEV_SUBSCRIPTION_ORIGIN": "https://develop.atlasrouter.zslab.ai"
+    "SUBSCRIPTION_PATH": "/AtlasRouter"
   },
   "routes": [
     {
       "pattern": "atlasrouter.zslab.ai",
       "custom_domain": true,
-      "previews_enabled": true
+      "previews_enabled": false
     }
   ],
   "triggers": {
     "crons": ["*/5 * * * *"]
   },
+  "services": [
+    { "binding": "DEV_SUBSCRIPTION_SERVICE", "service": "atlas-router-development" }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -39,26 +41,6 @@
       "migrations_dir": "migrations"
     }
   ],
-  "previews": {
-    "vars": {
-      "UI_ENABLED": "false",
-      "SUBSCRIPTION_PATH": "/AtlasRouter-Dev",
-      "SMART_PRIORITY_SCHEME": "geometric-10",
-      "SHOW_ALL_PROXY_GROUPS": "true"
-    },
-    "d1_databases": [
-      {
-        "binding": "DB",
-        "database_name": "atlas-router-dev",
-        "database_id": "af8d5520-678b-4fe7-b8eb-8d0ee214aaa1",
-        "migrations_dir": "migrations"
-      }
-    ],
-    "observability": {
-      "enabled": true,
-      "redact_query_string": true
-    }
-  },
   "observability": {
     "enabled": true,
     "redact_query_string": true,

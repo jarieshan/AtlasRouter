@@ -85,6 +85,115 @@ test("converts URL-safe UTF-8 VMess and WebSocket options while keeping native S
   assert.match(noTls.nodes[0].line, /ws-path=\/$/);
 });
 
+const ACCESS = {
+  NODE_IMPORT_ACCESS_ORIGIN: "https://subscription.example.com:2096",
+  NODE_IMPORT_ACCESS_CLIENT_ID: "TEST_ONLY_CLIENT_ID.access",
+  NODE_IMPORT_ACCESS_CLIENT_SECRET: "TEST_ONLY_CLIENT_SECRET",
+};
+
+test("sends Access credentials only to the configured exact HTTPS origin", async () => {
+  const urls = [URL, "https://SUBSCRIPTION.EXAMPLE.COM:2096/second",
+    "https://subscription.example.com/other-port", "https://subscription.example.com.attacker.example/node",
+    "https://other.example.com:2096/node", "https://subscription.example.com.:2096/node"];
+  const seen = [];
+  const result = await importPoolNodes({ text: urls.join("\n"), nodes: [] }, async (url, options) => {
+    seen.push(url);
+    const trusted = seen.length <= 2;
+    assert.equal(options.headers["CF-Access-Client-Id"], trusted ? ACCESS.NODE_IMPORT_ACCESS_CLIENT_ID : undefined);
+    assert.equal(options.headers["CF-Access-Client-Secret"], trusted ? ACCESS.NODE_IMPORT_ACCESS_CLIENT_SECRET : undefined);
+    assert.equal(options.redirect, "manual");
+    return new Response(vmess());
+  }, ACCESS);
+  assert.equal(seen.length, urls.length);
+  assert.equal(result.added, 1);
+  assert.equal(result.duplicates, urls.length - 1);
+  assert.doesNotMatch(JSON.stringify(result), /TEST_ONLY_CLIENT/);
+});
+
+test("does not follow protected upstream redirects or expose credentials on failure", async () => {
+  for (const status of [302, 401, 403]) {
+    let calls = 0;
+    await assert.rejects(importPoolNodes({ text: URL, nodes: [] }, async (_url, options) => {
+      calls += 1;
+      assert.equal(options.headers["CF-Access-Client-Secret"], ACCESS.NODE_IMPORT_ACCESS_CLIENT_SECRET);
+      return new Response(ACCESS.NODE_IMPORT_ACCESS_CLIENT_SECRET, { status,
+        headers: { location: "https://other.example.com/node" } });
+    }, ACCESS), (error) => error.status === 400 && !error.message.includes("TEST_ONLY_CLIENT"));
+    assert.equal(calls, 1);
+  }
+});
+
+test("selects separate upstream credentials while preserving the existing Access origin", async () => {
+  const second = { origin: "https://second.example.com", clientId: "TEST_SECOND_ID", clientSecret: "TEST_SECOND_SECRET" };
+  const env = { ...ACCESS, NODE_IMPORT_ACCESS_UPSTREAMS: JSON.stringify([second]) };
+  const urls = [URL, "https://SECOND.EXAMPLE.COM/sub", "https://second.example.com:2096/sub",
+    "https://second.example.com.attacker.example/sub", "https://second.example.com./sub"];
+  const seen = [];
+  const result = await importPoolNodes({ text: urls.join("\n"), nodes: [] }, async (url, options) => {
+    const origin = new globalThis.URL(url).origin;
+    const expected = origin === ACCESS.NODE_IMPORT_ACCESS_ORIGIN
+      ? [ACCESS.NODE_IMPORT_ACCESS_CLIENT_ID, ACCESS.NODE_IMPORT_ACCESS_CLIENT_SECRET]
+      : origin === second.origin ? [second.clientId, second.clientSecret] : [undefined, undefined];
+    assert.deepEqual([options.headers["CF-Access-Client-Id"], options.headers["CF-Access-Client-Secret"]], expected);
+    assert.equal(options.redirect, "manual");
+    seen.push(origin);
+    return new Response(vmess());
+  }, env);
+  assert.equal(seen.length, urls.length);
+  assert.equal(result.added, 1);
+  assert.doesNotMatch(JSON.stringify(result), /TEST_(?:ONLY|SECOND)/);
+});
+
+test("supports an upstream map without legacy credentials and blocks its redirects", async () => {
+  const env = { NODE_IMPORT_ACCESS_UPSTREAMS: JSON.stringify([
+    { origin: ACCESS.NODE_IMPORT_ACCESS_ORIGIN, clientId: ACCESS.NODE_IMPORT_ACCESS_CLIENT_ID,
+      clientSecret: ACCESS.NODE_IMPORT_ACCESS_CLIENT_SECRET },
+  ]) };
+  let calls = 0;
+  await assert.rejects(importPoolNodes({ text: URL, nodes: [] }, async (_url, options) => {
+    calls += 1;
+    assert.equal(options.headers["CF-Access-Client-Secret"], ACCESS.NODE_IMPORT_ACCESS_CLIENT_SECRET);
+    assert.equal(options.redirect, "manual");
+    return new Response("TEST_ONLY_CLIENT_SECRET", { status: 302, headers: { location: "https://other.example.com/sub" } });
+  }, env), (error) => error.status === 400 && !error.message.includes("TEST_ONLY_CLIENT"));
+  assert.equal(calls, 1);
+});
+
+test("rejects malformed, incomplete and duplicate upstream credentials before any fetch", async () => {
+  const entry = { origin: ACCESS.NODE_IMPORT_ACCESS_ORIGIN, clientId: "TEST_ID", clientSecret: "TEST_SECRET" };
+  const invalid = ["not-json", "null", "{}", JSON.stringify([null]), JSON.stringify([{}]),
+    JSON.stringify([{ ...entry, origin: "http://second.example.com" }]),
+    JSON.stringify([{ ...entry, origin: "https://second.example.com/path" }]),
+    JSON.stringify([{ ...entry, origin: "https://127.0.0.1" }]),
+    JSON.stringify([{ ...entry, clientSecret: "TEST_SECRET\r\nX-Injected: yes" }]),
+    JSON.stringify([entry, { ...entry, origin: "https://SUBSCRIPTION.EXAMPLE.COM:2096/" }])];
+  for (const value of invalid) {
+    await assert.rejects(importPoolNodes({ text: URL, nodes: [] }, unreachable,
+      { NODE_IMPORT_ACCESS_UPSTREAMS: value }), (error) => error.status === 503 && !error.message.includes("TEST_SECRET"));
+  }
+  await assert.rejects(importPoolNodes({ text: URL, nodes: [] }, unreachable,
+    { ...ACCESS, NODE_IMPORT_ACCESS_UPSTREAMS: JSON.stringify([entry]) }), (error) => error.status === 503);
+});
+
+test("fails closed on incomplete or unsafe Access configuration before fetching", async () => {
+  const invalid = [
+    { ...ACCESS, NODE_IMPORT_ACCESS_CLIENT_SECRET: undefined },
+    { ...ACCESS, NODE_IMPORT_ACCESS_CLIENT_ID: "" },
+    { ...ACCESS, NODE_IMPORT_ACCESS_ORIGIN: undefined },
+    { ...ACCESS, NODE_IMPORT_ACCESS_CLIENT_SECRET: "TEST_ONLY_CLIENT_SECRET\r\nX-Injected: yes" },
+    ...["http://subscription.example.com", "https://127.0.0.1", "https://router.internal",
+      "https://user:TEST_ONLY_CLIENT_SECRET@subscription.example.com", "https://subscription.example.com/path",
+      "https://subscription.example.com?token=TEST_ONLY_CLIENT_SECRET", "https://subscription.example.com#fragment"]
+      .map((origin) => ({ ...ACCESS, NODE_IMPORT_ACCESS_ORIGIN: origin })),
+  ];
+  for (const env of invalid) {
+    await assert.rejects(importPoolNodes({ text: URL, nodes: [] }, unreachable, env), (error) =>
+      error.status === 503 && !error.message.includes("TEST_ONLY_CLIENT"));
+  }
+  // Direct node input does not need an upstream service or its credentials.
+  assert.equal((await importPoolNodes({ text: vmess(), nodes: [] }, unreachable, invalid[0])).added, 1);
+});
+
 test("deduplicates links, names, parameter order and VMess defaults without changing existing entries", async () => {
   const existing = { id: "keep-this-id", line: native(), enabled: false };
   const snapshot = structuredClone(existing);

@@ -12,14 +12,12 @@ import { magicRuleSources } from "../src/magic-rules.js";
 import { allocateNodes, parsePoolNodes, userGroups } from "../src/node-pool.js";
 import { readSubscriptionState } from "../src/subscription-db.js";
 import { splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
-import { compileBranches } from "../scripts/build-branches.js";
 import {
   ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
 } from "../src/routes.js";
 
 const ADMIN_API_SLUG = "0123456789abcdef0123456789abcdef";
-const { state: POOL_STATE_PATH, nodes: POOL_NODES_PATH, users: POOL_USERS_PATH, import: POOL_IMPORT_PATH,
-  resetProduction: POOL_RESET_PATH } = getAdminRoutes({ ADMIN_API_SLUG });
+const { state: POOL_STATE_PATH, nodes: POOL_NODES_PATH, users: POOL_USERS_PATH, import: POOL_IMPORT_PATH } = getAdminRoutes({ ADMIN_API_SLUG });
 const ORIGIN = "https://atlas.example";
 
 const WECHAT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list";
@@ -67,11 +65,12 @@ function accessHeaders(subject = "alice", claims = {}) {
   return { "cf-access-jwt-assertion": `${body}.${signature}` };
 }
 
-function runtimeOptions(directory, bindings = {}) {
+function runtimeOptions(directory, bindings = {}, outboundService) {
   return convertV4MiniflareOptions({
     name: "atlas-router-tests", modules: true, scriptPath: ".wrangler/test-dist/index.js",
     compatibilityDate: "2026-05-12",
     d1Databases: ["DB"],
+    ...(outboundService ? { outboundService } : {}),
     ...(directory ? { resourcePersistencePath: directory } : {}),
     bindings: {
       ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app",
@@ -129,7 +128,7 @@ async function account(mf, subject = "alice", claims) {
 }
 
 test("Tailnet secret adds authenticated test alternatives without changing stored nodes or assignments", async (t) => {
-  const mf = await createRuntime(t, { SUBSCRIPTION_PATH: "/AtlasRouter-Dev", TAILNET_ENDPOINTS: JSON.stringify([
+  const mf = await createRuntime(t, { SUBSCRIPTION_PATH: "/AtlasRouter", TAILNET_ENDPOINTS: JSON.stringify([
     { server: "hk.example.com", port: 443, hostname: "node.example-tailnet.ts.net" },
   ]) });
   const line = "🇭🇰 HK IDC = vmess, hk.example.com, 443, username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true";
@@ -138,7 +137,7 @@ test("Tailnet secret adds authenticated test alternatives without changing store
   const db = await mf.getD1Database("DB");
   const before = await readSubscriptionState({ DB: db });
   const url = new URL(user.subscriptionUrl);
-  url.pathname = "/AtlasRouter-Dev";
+  url.pathname = "/AtlasRouter";
   const response = await mf.dispatchFetch(url.toString());
   assert.equal(response.status, 200);
   const profile = await response.text();
@@ -146,153 +145,13 @@ test("Tailnet secret adds authenticated test alternatives without changing store
   assert.match(profile, /^Tailnet Test - 🇭🇰 HK IDC = vmess, node\.example-tailnet\.ts\.net, 443, .+underlying-proxy=Tailnet$/m);
   assert.match(profile, /^Tailnet Test = select, Tailnet Test - 🇭🇰 HK IDC$/m);
   assert.deepEqual(await readSubscriptionState({ DB: db }), before);
-  assert.equal((await mf.dispatchFetch(`${ORIGIN}/AtlasRouter-Dev`)).status, 401);
+  assert.equal((await mf.dispatchFetch(`${ORIGIN}/AtlasRouter`)).status, 401);
   assert.equal((await mf.dispatchFetch(`${ORIGIN}/not-a-subscription`)).status, 404);
   const clash = await mf.dispatchFetch(`${url}&client=clash`);
   assert.equal(clash.status, 200);
   const config = parseYaml(await clash.text());
   assert.deepEqual(config.proxies.map((node) => node.server), ["hk.example.com"]);
   assert.doesNotMatch(JSON.stringify(config), /Tailnet|node\.example-tailnet/);
-});
-
-test("explicit resets replace development nodes from production without syncing users or subsequent edits", async (t) => {
-  const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
-  const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
-    { ...common, name: "production", d1Databases: { DB: "production", DEV_DB: "development" },
-      bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
-        ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG, DEV_SUBSCRIPTION_ORIGIN: "https://develop.atlas.example" } },
-    { ...common, name: "development", d1Databases: { DB: "development" },
-      bindings: { UI_ENABLED: "false", SUBSCRIPTION_PATH: "/AtlasRouter-Dev" } },
-  ] }));
-  t.after(() => mf.dispose());
-  const prodDb = await mf.getD1Database("DB", "production");
-  const devDb = await mf.getD1Database("DB", "development");
-  await applyMigrations(prodDb);
-  await applyMigrations(devDb);
-  const preview = await mf.getWorker("development");
-  const source = [...nodes(2), { id: "disabled", enabled: false,
-    line: "🇭🇰 Disabled IDC = trojan, disabled.example.com, 443, password=TEST_ONLY" }];
-  const definitions = (nodes) => nodes.map(({ line, enabled }) => ({ line, enabled }));
-  await save(mf, source);
-  const production = await account(mf, "alice");
-  const dev = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "bob" }));
-  assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 503);
-  const before = await readSubscriptionState({ DB: prodDb });
-  const reset = await json(await request(mf, `${POOL_RESET_PATH}?environment=development`, {
-    subject: "admin", method: "POST", body: { revision: 0 },
-  }));
-  assert.deepEqual(definitions(reset.nodes), definitions(source));
-  assert.deepEqual(reset.users.map((user) => user.email), ["bob@example.com"]);
-  assert.equal(reset.users[0].status, "active");
-  assert.ok(reset.nodes.every((node) => !before.state.nodes.some((source) => source.id === node.id)));
-  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), before);
-  const current = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "bob" }));
-  assert.equal(current.subscriptionUrl, dev.subscriptionUrl);
-  const surge = await preview.fetch(dev.subscriptionUrl);
-  assert.equal(surge.status, 200);
-  assert.doesNotMatch(await surge.text(), /disabled\.example\.com/);
-  assert.equal((await preview.fetch(`${dev.subscriptionUrl}&client=clash`)).status, 200);
-  const productionUrl = new URL(production.subscriptionUrl);
-  const wrongToken = new URL(dev.subscriptionUrl);
-  wrongToken.searchParams.set("token", productionUrl.searchParams.get("token"));
-  assert.equal((await preview.fetch(wrongToken.toString())).status, 401);
-
-  // Manual development edits remain local until the next explicit reset.
-  const edited = [...reset.nodes].reverse().map((node) => ({ ...node, enabled: !node.enabled }));
-  const draft = [...edited, ...nodes(1, "WARP", "🇸🇬")];
-  const saved = await json(await request(mf, `${POOL_NODES_PATH}?environment=development`, {
-    subject: "admin", method: "PUT", body: { revision: reset.revision, nodes: draft },
-  }));
-  const devBeforeReset = await readSubscriptionState({ DB: devDb });
-  const changedSource = [
-    { ...source[1], line: source[1].line.replace("node-2.example.com", "updated.example.com"), enabled: false },
-    { ...source[2], enabled: true },
-    { ...source[2], id: "alias", line: source[2].line.replace("Disabled IDC", "Alias IDC"), enabled: true },
-  ];
-  await save(mf, changedSource, 1);
-  const productionBeforeReset = await readSubscriptionState({ DB: prodDb });
-  assert.deepEqual(productionBeforeReset.state.users, before.state.users);
-  await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "bob" }));
-  await json(await request(mf, `${POOL_STATE_PATH}?environment=development`, { subject: "admin" }));
-  assert.equal((await request(mf, "/?environment=development", { subject: "admin" })).status, 200);
-  assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 200);
-  assert.deepEqual(await readSubscriptionState({ DB: devDb }), devBeforeReset, "production edits and page reads must never sync nodes");
-  const replaced = await json(await request(mf, `${POOL_RESET_PATH}?environment=development`, {
-    subject: "admin", method: "POST", body: { revision: saved.revision },
-  }));
-  assert.deepEqual(definitions(replaced.nodes), definitions(changedSource));
-  assert.ok(replaced.nodes.every((node) => !devBeforeReset.state.nodes.some((old) => old.id === node.id)));
-  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), productionBeforeReset);
-  assert.deepEqual((await readSubscriptionState({ DB: devDb })).state.users, devBeforeReset.state.users);
-  assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 200);
-  assert.equal((await preview.fetch(`${dev.subscriptionUrl}&client=clash`)).status, 200);
-
-  // An empty production snapshot is also an exact replacement, with no stale allocations.
-  await save(mf, [], 2);
-  const emptyProduction = await readSubscriptionState({ DB: prodDb });
-  const cleared = await json(await request(mf, `${POOL_RESET_PATH}?environment=development`, {
-    subject: "admin", method: "POST", body: { revision: replaced.revision },
-  }));
-  assert.deepEqual(cleared.nodes, []);
-  assert.equal(cleared.users[0].status, "pending");
-  const emptyDev = await readSubscriptionState({ DB: devDb });
-  assert.deepEqual(emptyDev.rows.assignments, []);
-  assert.deepEqual(emptyDev.state.users, devBeforeReset.state.users);
-  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), emptyProduction);
-  assert.equal((await preview.fetch(dev.subscriptionUrl)).status, 503);
-});
-
-test("native preview consumes links from the production UI with separate D1 data and no preview UI", async (t) => {
-  const config = JSON.parse(await readFile("wrangler.jsonc", "utf8"));
-  assert.notEqual(config.d1_databases[0].database_id, config.previews.d1_databases[0].database_id);
-  assert.equal(config.d1_databases.find((db) => db.binding === "DEV_DB").database_id, config.previews.d1_databases[0].database_id);
-  const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
-  const devOrigin = "https://develop.atlas.example";
-  const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
-    { ...common, name: "production", d1Databases: { DB: "production", DEV_DB: "development" },
-      bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
-        ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG, DEV_SUBSCRIPTION_ORIGIN: devOrigin } },
-    { ...common, name: "development", d1Databases: { DB: "development" }, bindings: config.previews.vars },
-  ] }));
-  t.after(() => mf.dispose());
-  const prodDb = await mf.getD1Database("DB", "production");
-  await applyMigrations(prodDb);
-  await applyMigrations(await mf.getD1Database("DB", "development"));
-  const preview = await mf.getWorker("development");
-  await save(mf);
-  const production = await account(mf);
-  const before = await readSubscriptionState({ DB: prodDb });
-  await json(await request(mf, `${POOL_NODES_PATH}?environment=development`, { subject: "admin", method: "PUT",
-    body: { revision: 0, nodes: [...nodes(5, "WARP"), ...nodes(1, "IDC", "🇭🇰")] } }));
-  const dev = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?environment=development`, { subject: "alice" }));
-  const url = new URL(dev.subscriptionUrl);
-  assert.equal(url.origin, devOrigin);
-  assert.equal(url.pathname, "/AtlasRouter-Dev");
-  assert.notEqual(url.searchParams.get("token"), new URL(production.subscriptionUrl).searchParams.get("token"));
-  const response = await preview.fetch(dev.subscriptionUrl);
-  assert.equal(response.status, 200);
-  const surge = await response.text();
-  orderedSmartMembers(surge, "🇺🇸USA-WARP", [1, 10, 100, 1000, 10000]);
-  assert.doesNotMatch(surge, /Example - ISP/);
-  assert.ok(surge.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png`));
-  assert.doesNotMatch(surge.split("[Proxy Group]\n")[1].split("[Rule]\n")[0], /hidden\s*=/i);
-  const moduleUrl = surge.match(/https:\/\/develop\.atlas\.example\/AtlasRouter-Dev\/modules\/[^\s]+/)[0];
-  assert.equal((await preview.fetch(moduleUrl)).status, 200);
-  const clashResponse = await preview.fetch(`${dev.subscriptionUrl}&client=clash`);
-  assert.equal(clashResponse.status, 200);
-  const clash = parseYaml(await clashResponse.text());
-  assert.ok(clash["proxy-groups"].every((group) => group.hidden === undefined));
-  assert.deepEqual(clash["proxy-groups"].find(({ name }) => name === "DoH Proxy").proxies, ["🇭🇰 Example - IDC 1"]);
-  assert.equal(clash["proxy-groups"].find(({ name }) => name === "DoH Proxy").icon, `${ICON_BASE}Server.png`);
-  const providerUrls = Object.values(clash["rule-providers"]).map(({ url }) => url);
-  assert.deepEqual(providerUrls.filter((url) => REPOSITORY_RULE_SET_URLS.includes(url)), REPOSITORY_RULE_SET_URLS);
-  assert.ok(providerUrls.filter((url) => !REPOSITORY_RULE_SET_URLS.includes(url)).every((url) => magicRuleRelay(url, "[A-Za-z]+", "mihomo", `${devOrigin}/AtlasRouter-Dev`)));
-  assert.equal((await preview.fetch(`${devOrigin}/`)).status, 404);
-  assert.equal((await preview.fetch(`${devOrigin}/missing`)).status, 404);
-  assert.equal((await preview.fetch(`${devOrigin}/AtlasRouter-Dev`)).status, 401);
-  assert.equal((await preview.fetch(`${devOrigin}/AtlasRouter${url.search}`)).status, 404);
-  assert.equal((await request(mf, `/AtlasRouter-Dev${url.search}`)).status, 404);
-  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), before);
 });
 
 test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {
@@ -329,54 +188,93 @@ test("development uses independent identities, tokens and node data with geometr
   assert.deepEqual(await readSubscriptionState({ DB: await production.getD1Database("DB") }), before);
 });
 
-test("one Worker preserves dev across real subscription, module, rule and account links", async (t) => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "atlas-one-worker-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  const script = await compileBranches({ master: path.resolve(".wrangler/test-dist/index.js"),
-    develop: path.resolve(".wrangler/test-dist/index.js") }, directory);
-  const devSlug = "fedcba9876543210fedcba9876543210";
-  const devRoutes = getAdminRoutes({ ADMIN_API_SLUG: devSlug });
-  const mf = new Miniflare(convertV4MiniflareOptions({ name: "single-router", modules: true,
-    script: await readFile(script, "utf8"), compatibilityDate: "2026-05-12",
-    d1Databases: { DB: "production", DEV_DB: "development" },
+test("unconfigured Dev cannot change production accounts or the retained test database", async (t) => {
+  const mf = new Miniflare(convertV4MiniflareOptions({ name: "production-only", modules: true,
+    scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12",
+    d1Databases: { DB: "production", DEV_DB: "retained-test" },
     bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
-      ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG,
-      DEV_ADMIN_EMAILS: "devadmin@example.com", DEV_ADMIN_API_SLUG: devSlug, DEV_SMART_PRIORITY_SCHEME: "geometric-3" },
+      ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG, DEV_SUBSCRIPTION_ORIGIN: "https://retired.example" },
   }));
   t.after(() => mf.dispose());
-  const productionDb = await mf.getD1Database("DB");
-  await applyMigrations(productionDb);
-  await applyMigrations(await mf.getD1Database("DEV_DB"));
+  const db = await mf.getD1Database("DB");
+  const testDb = await mf.getD1Database("DEV_DB");
+  await applyMigrations(db);
+  await applyMigrations(testDb);
   await save(mf);
+  const profile = await account(mf);
+  const before = await readSubscriptionState({ DB: db });
+  const testBefore = await readSubscriptionState({ DB: testDb });
+  for (const query of ["?environment=development", "?dev=1"]) {
+    for (const [route, method, body] of [["/", "GET"], [ACCOUNT_PROFILE_PATH, "GET"],
+      [ACCOUNT_TOKEN_PATH, "POST", {}], [POOL_STATE_PATH, "GET"],
+      [POOL_NODES_PATH, "PUT", { revision: 1, nodes: [] }],
+      [POOL_USERS_PATH, "PATCH", { id: before.state.users[0].id, enabled: false }],
+      [POOL_IMPORT_PATH, "POST", { text: "https://retired.example/sub", nodes: [] }]]) {
+      assert.equal((await request(mf, route + query, { subject: "admin", method, body })).status, query.includes("environment") ? 503 : 404);
+    }
+  }
+  assert.equal((await request(mf, POOL_STATE_PATH.replace("/state", "/reset-production"), {
+    subject: "admin", method: "POST", body: { revision: 1 },
+  })).status, 404);
+  const retired = new URL(profile.subscriptionUrl);
+  retired.pathname = "/AtlasRouter-Dev";
+  assert.equal((await request(mf, retired.toString())).status, 404);
+  assert.equal((await request(mf, profile.subscriptionUrl + "&dev=1")).status, 503);
+  for (const client of ["surge", "clash"]) assert.equal((await request(mf, profile.subscriptionUrl + "&client=" + client)).status, 200);
+  const page = await request(mf, "/", { subject: "admin" });
+  assert.equal(page.status, 200);
+  assert.doesNotMatch(await page.text(), /environment=development|reset-production|>Dev</);
+  assert.equal((await account(mf)).subscriptionUrl, profile.subscriptionUrl);
+  assert.deepEqual(await readSubscriptionState({ DB: db }), before);
+  assert.deepEqual(await readSubscriptionState({ DB: testDb }), testBefore);
+});
+
+test("Dev portal and private service isolate data, tokens, module links and token rotation", async (t) => {
+  const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
+  const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
+    { ...common, name: "portal", d1Databases: { DB: "production", DEV_DB: "development" },
+      serviceBindings: { DEV_SUBSCRIPTION_SERVICE: "development" },
+      bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
+        ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG } },
+    { ...common, name: "development", d1Databases: { DB: "development" },
+      bindings: { UI_ENABLED: "false", SUBSCRIPTION_VARIANT: "development", SMART_PRIORITY_SCHEME: "geometric-10", SHOW_ALL_PROXY_GROUPS: "true" } },
+  ] }));
+  t.after(() => mf.dispose());
+  const prodDb = await mf.getD1Database("DB", "portal");
+  const devDb = await mf.getD1Database("DB", "development");
+  await applyMigrations(prodDb);
+  await applyMigrations(devDb);
+  await save(mf, nodes(2).map((node) => ({ ...node, line: node.line.replace("Example", "Production") })));
   const production = await account(mf);
-  const before = await readSubscriptionState({ DB: productionDb });
-  assert.equal((await request(mf, `${devRoutes.state}?dev=1`, { subject: "admin" })).status, 403);
-  assert.equal((await request(mf, POOL_STATE_PATH, { subject: "devadmin" })).status, 403);
-  await json(await request(mf, `${devRoutes.nodes}?dev=1`, { subject: "devadmin", method: "PUT",
-    body: { revision: 0, nodes: nodes(5) } }));
-  const development = await json(await request(mf, `${ACCOUNT_PROFILE_PATH}?dev=1`, { subject: "alice" }));
-  const developmentUrl = new URL(development.subscriptionUrl);
-  assert.equal(developmentUrl.searchParams.get("dev"), "1");
-  assert.equal(new URL(production.subscriptionUrl).searchParams.has("dev"), false);
-  assert.equal((await request(mf, `${production.subscriptionUrl}&dev=1`)).status, 401);
-  const noSelector = new URL(development.subscriptionUrl);
-  noSelector.searchParams.delete("dev");
-  assert.equal((await request(mf, noSelector.toString())).status, 401);
-  const surge = await (await request(mf, development.subscriptionUrl)).text();
-  orderedSmartMembers(surge, "🇺🇸USA-ISP", [1, 3, 9, 27, 81]);
-  const urls = [...surge.matchAll(/https:\/\/atlas\.example\/AtlasRouter[^\s,"]+/g)].map(([url]) => new URL(url));
-  assert.ok(urls.length >= 2);
-  assert.ok(urls.every((url) => url.searchParams.get("dev") === "1"));
-  const module = urls.find((url) => url.pathname.includes("/modules/"));
-  assert.ok(module);
+  const before = await readSubscriptionState({ DB: prodDb });
+  const query = "?environment=development";
+  await json(await request(mf, POOL_NODES_PATH + query, { subject: "admin", method: "PUT",
+    body: { revision: 0, nodes: nodes(3).map((node) => ({ ...node, line: node.line.replace("Example", "Development") })) } }));
+  const dev = await json(await request(mf, ACCOUNT_PROFILE_PATH + query, { subject: "alice" }));
+  assert.equal(new URL(dev.subscriptionUrl).searchParams.get("dev"), "1");
+  assert.notEqual(new URL(dev.subscriptionUrl).searchParams.get("token"), new URL(production.subscriptionUrl).searchParams.get("token"));
+  const page = await request(mf, "/" + query, { subject: "admin" });
+  assert.match(await page.text(), /id="enable-dev" type="checkbox" role="switch" checked/);
+  for (const client of ["surge", "clash"]) {
+    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&doh=1");
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    assert.match(text, /Development/);
+    assert.doesNotMatch(text, /Production/);
+  }
+  assert.equal((await request(mf, production.subscriptionUrl + "&dev=1")).status, 401);
+  const wrong = new URL(dev.subscriptionUrl);
+  wrong.searchParams.delete("dev");
+  assert.equal((await request(mf, wrong.toString())).status, 401);
+  const module = new URL(dev.subscriptionUrl);
+  module.pathname += "/modules/tencent-oa.sgmodule";
   assert.equal((await request(mf, module.toString())).status, 200);
-  const clash = parseYaml(await (await request(mf, `${development.subscriptionUrl}&client=clash`)).text());
-  const providers = Object.values(clash["rule-providers"]);
-  assert.ok(providers.some((provider) => provider.format === "yaml"));
-  assert.ok(providers.filter(({ url }) => !REPOSITORY_RULE_SET_URLS.includes(url)).every(({ url }) => magicRuleRelay(url, "[A-Za-z]+", "mihomo", undefined, "?dev=1")));
-  assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?dev=1`)).status, 401);
-  assert.equal((await request(mf, "/missing?dev=1")).status, 404);
-  assert.deepEqual(await readSubscriptionState({ DB: productionDb }), before);
+  const rotated = await json(await request(mf, ACCOUNT_TOKEN_PATH + query, { subject: "alice", method: "POST", body: {} }));
+  assert.equal((await request(mf, dev.subscriptionUrl)).status, 401);
+  assert.equal((await request(mf, rotated.subscriptionUrl)).status, 200);
+  assert.equal((await request(mf, production.subscriptionUrl)).status, 200);
+  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), before);
+  assert.equal((await (await mf.getWorker("development")).fetch(ORIGIN + "/")).status, 404);
 });
 
 test("Access guards member and admin pages, validates claims, methods and paths", async (t) => {
@@ -987,6 +885,45 @@ test("imported drafts deduplicate and reach subscriptions only after an explicit
   assert.equal((await request(mf, POOL_IMPORT_PATH, {
     subject: "admin", method: "POST", body: { text: link, nodes: [] }, headers: { origin: "https://foreign.example" },
   })).status, 403);
+});
+
+test("admin imports authenticate the protected upstream without exposing service credentials", async (t) => {
+  const bindings = {
+    NODE_IMPORT_ACCESS_ORIGIN: "https://subscription.example.com",
+    NODE_IMPORT_ACCESS_CLIENT_ID: "TEST_ONLY_CLIENT_ID.access",
+    NODE_IMPORT_ACCESS_CLIENT_SECRET: "TEST_ONLY_CLIENT_SECRET",
+  };
+  let calls = 0;
+  const mf = new Miniflare(runtimeOptions(undefined, bindings, async (upstream) => {
+    calls += 1;
+    assert.equal(upstream.url, "https://subscription.example.com/test-only/node");
+    assert.equal(upstream.headers.get("CF-Access-Client-Id"), bindings.NODE_IMPORT_ACCESS_CLIENT_ID);
+    assert.equal(upstream.headers.get("CF-Access-Client-Secret"), bindings.NODE_IMPORT_ACCESS_CLIENT_SECRET);
+    assert.equal(upstream.headers.get("cf-access-jwt-assertion"), null);
+    return new Response(nodes(1)[0].line);
+  }));
+  t.after(() => mf.dispose());
+  await initializeDatabase(mf);
+  const body = { text: "https://subscription.example.com/test-only/node", nodes: [] };
+  for (const subject of [undefined, "alice"]) {
+    assert.equal((await request(mf, POOL_IMPORT_PATH, { subject, method: "POST", body })).status, 403);
+  }
+  assert.equal(calls, 0);
+  const draft = await json(await request(mf, POOL_IMPORT_PATH, { subject: "admin", method: "POST", body }));
+  assert.equal(calls, 1);
+  assert.equal(draft.added, 1);
+  assert.doesNotMatch(JSON.stringify(draft), /TEST_ONLY_CLIENT/);
+  const page = await (await request(mf, ACCOUNT_PATH, { subject: "admin" })).text();
+  assert.doesNotMatch(page, /TEST_ONLY_CLIENT/);
+  assert.equal((await json(await request(mf, POOL_STATE_PATH, { subject: "admin" }))).nodes.length, 0);
+});
+
+test("incomplete upstream authentication fails closed through the management API", async (t) => {
+  const mf = await createRuntime(t, { NODE_IMPORT_ACCESS_ORIGIN: "https://subscription.example.com" });
+  const response = await request(mf, POOL_IMPORT_PATH, { subject: "admin", method: "POST",
+    body: { text: "https://subscription.example.com/test-only/node", nodes: [] } });
+  assert.equal(response.status, 503);
+  assert.match(await response.text(), /订阅服务认证未正确配置/);
 });
 
 test("mutations reject cross-origin, malformed and stale writes without corrupting state", async (t) => {

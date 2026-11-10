@@ -14,18 +14,19 @@ export async function deployProduction({ config, ci, branch, commit, ciWorkerNam
     throw new Error("Production must use atlas-router, the current entrypoint, and the production UI and subscription path");
   }
   const production = config.d1_databases?.find((db) => db.binding === "DB");
-  const development = config.d1_databases?.find((db) => db.binding === "DEV_DB");
-  if (!production?.database_id || !development?.database_id || production.database_id === development.database_id
-    || production.migrations_dir !== "migrations" || development.migrations_dir !== "migrations") {
-    throw new Error("Production UI requires separate production and development D1 databases");
+  if (!production?.database_id || production.migrations_dir !== "migrations") {
+    throw new Error("Production requires its D1 database and migrations");
   }
-  const origin = new URL(config.vars.DEV_SUBSCRIPTION_ORIGIN);
-  if (origin.protocol !== "https:" || origin.username || origin.password || origin.pathname !== "/"
-    || origin.search || origin.hash || config.routes?.some((route) => route.pattern === origin.hostname)) {
-    throw new Error("Development subscriptions require an independent HTTPS origin");
+  const development = config.d1_databases.find((db) => db.binding === "DEV_DB");
+  const developmentService = config.services?.find((service) => service.binding === "DEV_SUBSCRIPTION_SERVICE");
+  if (config.d1_databases.length !== 2 || !development?.database_id || development.database_id === production.database_id
+    || development.migrations_dir !== "migrations" || developmentService?.service !== "atlas-router-development"
+    || config.vars.DEV_SUBSCRIPTION_ORIGIN || config.previews
+    || config.workers_dev !== false || config.preview_urls !== false
+    || config.routes?.length !== 1 || config.routes[0].previews_enabled !== false) {
+    throw new Error("Production requires an isolated Dev database and private service; public Preview configuration is disabled");
   }
   await deploy({ dryRun, run, log, configPath: "wrangler.jsonc", beforePublish: async () => {
-    // The production UI manages development data as well as its own database.
     await run(["d1", "migrations", "apply", "DEV_DB", "--remote", "--config", "wrangler.jsonc"]);
   } });
 }

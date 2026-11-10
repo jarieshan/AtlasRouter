@@ -11,10 +11,10 @@
 
 当前文档：
 
-- [生产基线](production-baseline.md)：权重实验前的稳定行为、Dev UI 回移与 Cloudflare 自动发布。
+- [生产基线](production-baseline.md)：权重实验前的稳定行为、正式入口与 Cloudflare 自动发布。
 
-- [部署说明](deployment-cloudflare.md)：Cloudflare Builds、原生 Preview 接入与分支发布边界。
-- [原生预览方案](native-previews.md)：生产 UI、开发域名、两库隔离与 URL 生成。
+- [部署说明](deployment-cloudflare.md)：Cloudflare Builds、仅生产发布与香港 Tunnel 边界。
+- [预览下线记录](native-previews.md)：原生预览下线、Dev 开关恢复与 Tunnel 边界。
 - [环境与存储](env.md)：运行时变量、Secrets、D1 表和本地排除文件。
 - [订阅说明](subscription.md)：Surge / Clash 路由、选项、默认值与兼容范围。
 - [兼容性核对](client-compatibility.md)：master / develop 基线、客户端差异及验证边界。

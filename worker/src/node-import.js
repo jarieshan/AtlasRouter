@@ -8,7 +8,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 // Import only prepares a draft. Saving, classification and allocation still use
 // the existing inventory endpoint and its revision check.
-export async function importPoolNodes({ text, nodes }, fetcher = fetch) {
+export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}) {
   if (typeof text !== "string" || new TextEncoder().encode(text).length > MAX_BYTES
     || !Array.isArray(nodes) || nodes.length > MAX_NODES) {
     throw invalid("请提供导入文本和待保存节点清单。");
@@ -34,10 +34,11 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch) {
   if (urls.size > MAX_LINKS) throw invalid("每次最多导入 20 个不同的订阅链接，请分批导入。");
   const downloaded = new Map();
   const links = [...urls];
+  const access = links.length ? readImportAccess(env) : null;
   // Bound concurrent connections, and fetch repeated URLs only once per import.
   for (let offset = 0; offset < links.length; offset += 4) {
     const batch = await Promise.all(links.slice(offset, offset + 4).map(async (url) => {
-      try { return [url, { text: await downloadSubscription(url, fetcher) }]; }
+      try { return [url, { text: await downloadSubscription(url, fetcher, access) }]; }
       catch (error) { return [url, { error }]; }
     }));
     for (const [url, value] of batch) downloaded.set(url, value);
@@ -265,13 +266,45 @@ function subscriptionUrl(value) {
   return url.toString();
 }
 
-async function downloadSubscription(url, fetcher) {
+function readImportAccess(env) {
+  const { NODE_IMPORT_ACCESS_ORIGIN: origin, NODE_IMPORT_ACCESS_CLIENT_ID: clientId,
+    NODE_IMPORT_ACCESS_CLIENT_SECRET: clientSecret } = env;
+  try {
+    const entries = [];
+    if (![origin, clientId, clientSecret].every((value) => value === undefined || value === "")) {
+      entries.push({ origin, clientId, clientSecret });
+    }
+    if (env.NODE_IMPORT_ACCESS_UPSTREAMS !== undefined && env.NODE_IMPORT_ACCESS_UPSTREAMS !== "") {
+      const additional = JSON.parse(env.NODE_IMPORT_ACCESS_UPSTREAMS);
+      if (!Array.isArray(additional)) throw new Error("Invalid Access configuration");
+      entries.push(...additional);
+    }
+    const access = new Map();
+    for (const entry of entries) {
+      const configured = new URL(entry.origin);
+      subscriptionUrl(entry.origin);
+      if (configured.pathname !== "/" || configured.search || configured.hash || access.has(configured.origin)
+        || ![entry.clientId, entry.clientSecret].every((value) => typeof value === "string" && /^[\x21-\x7e]+$/.test(value))) {
+        throw new Error("Invalid Access configuration");
+      }
+      access.set(configured.origin, {
+        "CF-Access-Client-Id": entry.clientId, "CF-Access-Client-Secret": entry.clientSecret,
+      });
+    }
+    return access;
+  } catch { throw new HttpError(503, "订阅服务认证未正确配置。"); }
+}
+
+async function downloadSubscription(url, fetcher, access) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const response = await fetcher(url, {
       method: "GET", redirect: "manual", signal: controller.signal, cache: "no-store",
-      headers: { accept: "text/plain, */*", "user-agent": "AtlasRouter-Node-Import/1.0" },
+      // Never forward service credentials to another origin or through redirects.
+      headers: { accept: "text/plain, */*", "user-agent": "AtlasRouter-Node-Import/1.0",
+        ...access?.get(new URL(url).origin),
+      },
     });
     if (!response.ok) {
       await response.body?.cancel();

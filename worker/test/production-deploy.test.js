@@ -8,7 +8,7 @@ import { deployProduction } from "../scripts/deploy-production.js";
 const config = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
 const context = { config, ci: "1", branch: "master", commit: "a".repeat(40), log() {} };
 
-test("Cloudflare master builds migrate both UI databases before publishing production", async () => {
+test("Cloudflare master builds migrate the independent databases before publishing the portal", async () => {
   const calls = [];
   await deployProduction({ ...context, async run(args) { calls.push(args); } });
   assert.deepEqual(calls.slice(0, 2), ["DB", "DEV_DB"].map((binding) =>
@@ -25,7 +25,12 @@ test("production refuses non-Cloudflare, non-master and invalid build contexts b
 
 test("invalid production UI configuration stops before migrations", async () => {
   for (const change of [
-    (value) => { value.d1_databases[1].database_id = value.d1_databases[0].database_id; },
+    (value) => { value.d1_databases = []; },
+    (value) => { value.d1_databases.push({ binding: "DEV_DB", database_id: "test-only" }); },
+    (value) => { value.previews = {}; },
+    (value) => { value.preview_urls = true; },
+    (value) => { value.workers_dev = true; },
+    (value) => { value.routes[0].previews_enabled = true; },
     (value) => { value.vars.UI_ENABLED = "false"; },
     (value) => { value.vars.DEV_SUBSCRIPTION_ORIGIN = "https://atlasrouter.zslab.ai"; },
     (value) => { value.vars.DEV_SUBSCRIPTION_ORIGIN = "https://dev.example/path"; },
@@ -36,13 +41,13 @@ test("invalid production UI configuration stops before migrations", async () => 
   }
 });
 
-test("a development database migration failure prevents production upload", async () => {
+test("a production database migration failure prevents production upload", async () => {
   const calls = [];
   await assert.rejects(deployProduction({ ...context, async run(args) {
     calls.push(args);
-    if (args[3] === "DEV_DB") throw new Error("migration failed");
+    if (args[3] === "DB") throw new Error("migration failed");
   } }), /migration failed/);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
   assert.ok(calls.every((args) => args[0] === "d1"));
 });
 

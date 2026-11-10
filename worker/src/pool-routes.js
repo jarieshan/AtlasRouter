@@ -8,11 +8,11 @@ import { isPreviewIdentity, readPreviewProfile } from "./page-preview.js";
 import { renderClashProfile } from "./render-clash.js";
 import { getModule, renderSurgeProfile } from "./render-surge.js";
 import { callSubscriptionStore } from "./subscription-store.js";
-import { readNodeDefinitions } from "./subscription-db.js";
 import { buildSubscriptionUrl, readSubscriptionOptions } from "./subscription-options.js";
 import { uiEnvironment } from "./ui-environment.js";
+import { developmentAvailable, developmentRequest } from "./development.js";
 import {
-  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, DEV_SUBSCRIPTION_PATH, getAdminRoutes,
+  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
 } from "./routes.js";
 
 const ACCOUNT_ROUTES = new Set([ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH]);
@@ -20,6 +20,11 @@ const ACCOUNT_ROUTES = new Set([ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKE
 export async function handlePoolRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
+  if (path === "/AtlasRouter-Dev" || path.startsWith("/AtlasRouter-Dev/")) {
+    throw new HttpError(404, "Not Found");
+  }
+  const developmentResponse = await developmentRequest(request, env);
+  if (developmentResponse) return developmentResponse;
   if (ACCOUNT_ROUTES.has(path)) {
     if (path === ACCOUNT_PATH && env.UI_ENABLED === "false") throw new HttpError(404, "Not Found");
     const identity = await requireAccessUser(request, env);
@@ -32,9 +37,8 @@ export async function handlePoolRequest(request, env) {
       const adminRoutes = isAdmin ? getAdminRoutes(env) : null;
       if (isAdmin && !adminRoutes) throw new HttpError(503, "Management API is not configured");
       const previewProfile = previewIdentity ? await readPreviewProfile(target.env) : null;
-      const developmentAvailable = !preview && Boolean(env.DEV_DB && env.DEV_SUBSCRIPTION_ORIGIN);
       return html(renderAccountPage({ isAdmin, adminRoutes, preview, previewProfile,
-        development: target.development, developmentAvailable }));
+        development: target.development, developmentAvailable: developmentAvailable(env) }));
     }
     if (path === ACCOUNT_TOKEN_PATH) await readMutation(request);
     if (previewIdentity) return Response.json(await readPreviewProfile(target.env));
@@ -48,16 +52,9 @@ export async function handlePoolRequest(request, env) {
     await requireAccessAdmin(request, env);
     const target = uiEnvironment(request.url, env);
     requireMethod(request, path === adminRoutes.nodes ? "PUT" : path === adminRoutes.users ? "PATCH"
-      : [adminRoutes.import, adminRoutes.resetProduction].includes(path) ? "POST" : "GET");
-    if (path === adminRoutes.resetProduction) {
-      if (!target.development || env.UI_ENABLED === "false") throw new HttpError(400, "Resetting to production nodes requires the development UI");
-      const body = await readMutation(request);
-      if (!Number.isSafeInteger(body.revision) || body.revision < 0) throw new HttpError(400, "Invalid inventory revision");
-      const nodes = await readNodeDefinitions(env);
-      return Response.json(await callSubscriptionStore(target.env, { action: "reset-nodes", nodes, revision: body.revision }));
-    }
+      : path === adminRoutes.import ? "POST" : "GET");
     if (path === adminRoutes.import) {
-      return Response.json(await importPoolNodes(await readMutation(request)));
+      return Response.json(await importPoolNodes(await readMutation(request), fetch, env));
     }
     let input = { action: "inventory" };
     if (path === adminRoutes.nodes) {
@@ -71,7 +68,7 @@ export async function handlePoolRequest(request, env) {
     return Response.json(await callSubscriptionStore(target.env, input));
   }
   const subscriptionPath = env.SUBSCRIPTION_PATH ?? POOL_SUBSCRIPTION_PATH;
-  if (![POOL_SUBSCRIPTION_PATH, DEV_SUBSCRIPTION_PATH].includes(subscriptionPath)) throw new HttpError(503, "Subscription path is not configured correctly");
+  if (subscriptionPath !== POOL_SUBSCRIPTION_PATH) throw new HttpError(503, "Subscription path is not configured correctly");
   const modulePrefix = `${subscriptionPath}/modules/`;
   const rulesPrefix = `${subscriptionPath}/rules/`;
   let ruleSource = null;

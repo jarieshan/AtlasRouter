@@ -8,7 +8,6 @@ DOMAIN,login.tailscale.com,Auto
 
 # Keep subscription and UI access independent of proxy availability, including QUIC.
 DOMAIN,atlasrouter.zslab.ai,DIRECT
-DOMAIN,develop.atlasrouter.zslab.ai,DIRECT
 
 # Route DoH upstreams by hostname in both Surge and Clash.
 DOMAIN,dns.alidns.com,DIRECT

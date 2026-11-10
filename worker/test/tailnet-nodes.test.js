@@ -8,7 +8,7 @@ import { createTailnetNodes } from "../src/tailnet-nodes.js";
 
 const endpoint = { server: "hk.example.com", port: 443, hostname: "node.example-tailnet.ts.net" };
 const tailnetEndpoints = JSON.stringify([endpoint]);
-const context = { requestUrl: "https://atlas.example/AtlasRouter-Dev", token: "test-token" };
+const context = { requestUrl: "https://atlas.example/AtlasRouter", token: "test-token" };
 const value = 'vmess, hk.example.com, 443, username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true, sni=hk.example.com, alpn="h2,http/1.1"';
 
 function fixture() {

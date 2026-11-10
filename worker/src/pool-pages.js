@@ -17,7 +17,7 @@ function icon(name) {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 }
 
-function page(title, panels, isAdmin, preview = null, { development = false, developmentAvailable = false } = {}) {
+function page(title, panels, isAdmin, preview = null, development = false) {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -33,8 +33,8 @@ function page(title, panels, isAdmin, preview = null, { development = false, dev
   <nav class="nav">${isAdmin ? `<a href="#account-panel">我的订阅</a><a href="#pool-panel">节点池管理</a>` : ""}<a class="logout" href="/cdn-cgi/access/logout" aria-label="退出登录">${icon("logout")}<span>退出登录</span></a></nav>
 </div></header>
 <main class="wrap">
-  <div class="page-head"><h1>${title}</h1><p>${isAdmin ? "管理个人订阅、节点池与用户分配。" : "选择客户端并复制专属订阅链接。"}</p>${developmentAvailable ? `<a class="environment-toggle" href="${development ? "/" : "/?environment=development"}" aria-label="${development ? "切换到生产环境" : "切换到开发环境"}">${development ? "返回生产" : "Dev"}</a>` : ""}</div>
-  ${development ? `<aside class="preview-notice" role="note"><strong>Dev · 开发环境</strong> · 当前订阅、节点和操作均使用测试数据。生成的链接由开发环境直接提供订阅。</aside>` : ""}
+  <div class="page-head"><h1>${title}</h1><p>${isAdmin ? "管理个人订阅、节点池与用户分配。" : "选择客户端并复制专属订阅链接。"}</p></div>
+  ${development ? `<aside class="preview-notice" role="note"><strong>Dev · 开发环境</strong> · 当前订阅、节点和管理操作均使用独立测试数据。</aside>` : ""}
   ${preview ? `<aside class="preview-notice" role="note"><strong>页面预览</strong> · ${preview.nodeSource === "database" ? "只读展示当前启用的真实节点，刷新页面获取最新数据。主备顺序仅供预览，不参与分配和统计，操作不保存。" : "模拟数据仅保留在当前页面内存中，刷新即重置，不保存账号、节点或操作记录。"}</aside>` : ""}
   ${panels.map(({ id, body }) => `<div id="${id}" class="panel">${body}</div>`).join("\n")}
 </main>${panels.map(({ id, script, previewData }) => `<script>(() => { const root = document.getElementById("${id}"); const previewData = ${JSON.stringify(previewData ?? null).replaceAll("<", "\\u003c")}; ${clientHelpers}${script} })();</script>`).join("\n")}</body>
@@ -75,7 +75,6 @@ const styles = `
     .page-head { margin-bottom: 24px; }
     .page-head h1 { font-size: 26px; line-height: 1.25; letter-spacing: -.02em; }
     .page-head p { margin-top: 6px; color: var(--muted); font-size: 15px; }
-    .environment-toggle { display: inline-block; margin-top: 12px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--brand); font-weight: 600; }
     .panel { scroll-margin-top: 84px; }
     .preview-notice { margin-bottom: 20px; padding: 12px 16px; border: 1px solid #fde68a; border-radius: 12px; background: var(--warn-soft); color: #92400e; font-size: 13px; line-height: 1.6; }
 
@@ -256,7 +255,6 @@ const clientHelpers = String.raw`
       throw new Error("页面预览不调用正式数据接口。");
     }
     const url = new URL(path, location.href);
-    if (new URL(location.href).searchParams.get("dev") === "1") url.searchParams.set("dev", "1");
     if (new URL(location.href).searchParams.get("environment") === "development") url.searchParams.set("environment", "development");
     const response = await fetch(url.pathname + url.search, {
       method, credentials: "same-origin", cache: "no-store",
@@ -286,13 +284,12 @@ export function renderAccountPage({ isAdmin = false, adminRoutes = null, preview
   development = false, developmentAvailable = false } = {}) {
   if (preview) isAdmin = false;
   const previewData = preview ? previewProfile ?? pagePreviewProfile() : null;
-  const panels = [accountPanel(previewData)];
-  if (isAdmin) panels.push(poolPanel(adminRoutes, development));
-  return page(preview ? "页面预览" : isAdmin ? "管理控制台" : "我的订阅", panels, isAdmin, previewData,
-    { development, developmentAvailable: !preview && developmentAvailable });
+  const panels = [accountPanel(previewData, { development, developmentAvailable: !preview && developmentAvailable })];
+  if (isAdmin) panels.push(poolPanel(adminRoutes));
+  return page(preview ? "页面预览" : isAdmin ? "管理控制台" : "我的订阅", panels, isAdmin, previewData, !preview && development);
 }
 
-function accountPanel(preview) {
+function accountPanel(preview, { development, developmentAvailable }) {
   const linkTitle = preview ? "示例订阅链接" : "专属订阅链接";
   return { id: "account-panel", previewData: preview, body: `
   <div class="account-grid">
@@ -308,6 +305,10 @@ function accountPanel(preview) {
             <span class="setting-text"><span>启用 DoH</span><span>加密 DNS 查询，降低窃听和篡改风险；可能增加解析延迟。</span></span>
             <input id="enable-doh" type="checkbox" role="switch">
           </label>
+          ${developmentAvailable ? `<label class="setting" for="enable-dev">
+            <span class="setting-text"><span>Dev</span><span>使用独立测试节点和开发版配置；切换后请更新客户端中的订阅链接。</span></span>
+            <input id="enable-dev" type="checkbox" role="switch"${development ? " checked" : ""}>
+          </label>` : ""}
           <div class="setting">
             <div class="setting-text"><span>Tencent OA Compatibility</span><span>腾讯公司内网用的 Surge Mac 模块：仅开启系统代理、关闭增强模式时使用，iOA 需设置为全局模式。安装后在 Surge 的模块列表中启用或停用，无需更换订阅链接。</span></div>
             <div class="actions">
@@ -342,9 +343,15 @@ function accountPanel(preview) {
     const rotate = root.querySelector("#rotate");
     const client = root.querySelector("#subscription-client");
     const doh = root.querySelector("#enable-doh");
+    const development = root.querySelector("#enable-dev");
     const installModule = root.querySelector("#install-tencent-oa");
     const copyModule = root.querySelector("#copy-tencent-oa");
     let baseSubscriptionUrl;
+    if (!previewData) {
+      const params = new URL(location.href).searchParams;
+      if (["surge", "clash"].includes(params.get("client"))) client.value = params.get("client");
+      doh.checked = params.get("doh") === "1";
+    }
     function updateSubscription() {
       root.querySelector("#client-help").textContent = client.value === "clash"
         ? "在使用 Mihomo（Clash Meta）内核的客户端中添加订阅。不兼容的 Surge 配置项会被跳过。"
@@ -359,6 +366,17 @@ function accountPanel(preview) {
     }
     client.onchange = updateSubscription;
     doh.onchange = updateSubscription;
+    if (development) development.onchange = () => {
+      const url = new URL(location.href);
+      url.searchParams.delete("dev");
+      url.searchParams.delete("environment");
+      url.searchParams.delete("client");
+      url.searchParams.delete("doh");
+      if (development.checked) url.searchParams.set("environment", "development");
+      if (client.value === "clash") url.searchParams.set("client", "clash");
+      if (doh.checked) url.searchParams.set("doh", "1");
+      location.href = url.toString();
+    };
     function moduleUrl() {
       const url = new URL(baseSubscriptionUrl);
       url.pathname += ${JSON.stringify(`/modules/${TENCENT_OA_MODULE}`)};
@@ -428,7 +446,7 @@ function accountPanel(preview) {
   ` };
 }
 
-function poolPanel(adminRoutes, development) {
+function poolPanel(adminRoutes) {
   return { id: "pool-panel", body: `
   <div class="section-head">
     <div><h2>节点池管理</h2><p>录入并保存节点后，系统按地区和 IP 类型为每位用户分配主节点与备份顺序。</p></div>
@@ -441,8 +459,6 @@ function poolPanel(adminRoutes, development) {
   <article class="card">
     <header class="card-head"><h3>录入节点</h3><p>每行粘贴一个 HTTPS 订阅链接（VMess 内容）、vmess:// 链接或完整 Surge 节点。自动转换并跳过已有连接配置，每次最多 20 个订阅链接。</p></header>
     <div class="card-body">
-      ${development ? `<div class="actions"><button id="reset-production" class="secondary" disabled>${icon("refresh")}重置为生产节点</button></div>
-      <p class="hint">仅点击时同步：用生产节点完整覆盖开发节点池和未保存的清单修改，并重新分配。保留开发用户和 Token；生产节点池为空时将清空开发节点池。</p>` : ""}
       <label class="field-label" for="import">节点链接或 Surge 节点清单</label>
       <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="每行一条：HTTPS 订阅链接、vmess:// 链接或 Surge 节点"></textarea>
       <p class="hint">按节点名称中的地区旗帜和 IDC / ISP / WARP 关键词分组。可用“节点名 = 链接”指定名称，例如：<code>🇺🇸 LosAngeles - ISP 1 = https://subscription.example.com/node</code></p>
@@ -480,7 +496,6 @@ function poolPanel(adminRoutes, development) {
     const importNotes = root.querySelector("#import-notes");
     const save = root.querySelector("#save");
     const append = root.querySelector("#append");
-    const resetProduction = root.querySelector("#reset-production");
     function emptyRow(columns, text) {
       const row = element("tr");
       const node = cell(row, text);
@@ -585,7 +600,6 @@ function poolPanel(adminRoutes, development) {
         editor.readOnly = false; importer.readOnly = false;
         root.querySelectorAll("button").forEach((button) => { button.disabled = false; });
         save.disabled = !state; append.disabled = !state;
-        if (resetProduction) resetProduction.disabled = !state;
       }
     }
     function load() { return run(async () => { render(await api(${JSON.stringify(adminRoutes.state)})); message("节点池已加载。"); }); }
@@ -609,16 +623,6 @@ function poolPanel(adminRoutes, development) {
       const nodes = JSON.parse(editor.value);
       render(await api(${JSON.stringify(adminRoutes.nodes)}, "PUT", { revision: editorRevision, nodes }));
       message("节点清单已保存，主节点与备份顺序已更新。");
-    });
-    if (resetProduction) resetProduction.onclick = () => run(async () => {
-      message("正在重置为生产节点…");
-      const result = await api(${JSON.stringify(adminRoutes.resetProduction)}, "POST", { revision: editorRevision });
-      render(result);
-      importNotes.replaceChildren();
-      message(result.nodes.length
-        ? "已重置为生产节点，共 " + result.nodes.length + " 条；已保存并重新分配。"
-        : "生产节点池为空，开发节点池已清空。");
-      document.dispatchEvent(new Event("atlasrouter:inventory"));
     });
     load();
   ` };

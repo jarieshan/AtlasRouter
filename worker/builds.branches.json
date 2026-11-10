@@ -1,9 +1,0 @@
-{
-  "branch_includes": ["master", "develop"],
-  "branch_excludes": [],
-  "root_directory": "worker",
-  "build_command": "npm ci && npm run build:branches",
-  "deploy_command": "npm run deploy:branches",
-  "path_includes": ["*"],
-  "path_excludes": []
-}
