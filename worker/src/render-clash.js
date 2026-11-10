@@ -1,10 +1,13 @@
 import { stringify } from "yaml";
-import { convertClashNode } from "./clash-nodes.js";
+import { convertClashNode, convertClashTailscale } from "./clash-nodes.js";
 import { convertClashRules, ruleSource } from "./clash-rules.js";
 import { HttpError } from "./errors.js";
 import { nativeMagicRuleSource } from "./magic-rules.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority, positiveInteger, SMART_PRIORITY_SCHEMES, splitSurgeList, surgeAssignment, surgeBoolean, surgeOptions, surgeSections } from "./surge-format.js";
+
+// Tailscale's default address pools; the control plane assigns each node an address inside them.
+const TAILNET_RANGES = ["100.64.0.0/10", "fd7a:115c:a1e0::/48"];
 
 export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const sections = surgeSections(applyRuleSetVisibility(profile));
@@ -16,22 +19,42 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
     catch { warn(`General entry ${index + 1}: invalid setting omitted`); }
   }
   const config = convertGeneral(general, warn);
-  const proxies = [];
+  const entries = [];
+  const tailnets = [];
   for (const [index, line] of (sections.get("proxy") ?? []).entries()) {
     try {
-      const node = convertClashNode(line, (message) => warn(`Proxy entry ${index + 1}: ${message}`));
-      if (["DIRECT", "REJECT"].includes(node.name) || proxies.some(({ name }) => name === node.name)) throw new Error();
-      proxies.push(node);
+      const note = (message) => warn(`Proxy entry ${index + 1}: ${message}`);
+      const tailnet = splitSurgeList(surgeAssignment(line)[1])[0]?.toLowerCase() === "tailscale" ? convertClashTailscale(line, sections, note) : null;
+      const node = tailnet?.node ?? convertClashNode(line, note);
+      if (["DIRECT", "REJECT"].includes(node.name) || entries.some((entry) => entry.node.name === node.name)) throw new Error();
+      entries.push({ index, node });
+      if (tailnet) tailnets.push({ index, ...tailnet });
     } catch { warn(`Proxy entry ${index + 1}: unsupported protocol, parameter or invalid value; node omitted`); }
   }
+  // Surge's underlying-proxy may also name a group; only a node that dials directly cannot form a loop.
+  const direct = new Set(entries.filter(({ node }) => node["dialer-proxy"] === undefined).map(({ node }) => node.name));
+  const proxies = [];
+  for (const { index, node } of entries) {
+    if (node["dialer-proxy"] === undefined || direct.has(node["dialer-proxy"])) proxies.push(node);
+    else warn(`Proxy entry ${index + 1}: underlying-proxy must be a converted node without its own underlying-proxy; node omitted`);
+  }
   if (!proxies.length) throw new HttpError(422, "No nodes can be converted to Clash");
+  for (const { index, interactive, autoRoute } of tailnets) {
+    warn(`Proxy entry ${index + 1}: tailscale requires Mihomo 1.19.25+ with Tailscale support; control-plane connections bypass rules${interactive ? "; interactive login prints its URL to the info log" : ""}`);
+    if (autoRoute) warn(`Proxy entry ${index + 1}: auto-add-magic-dns-rule approximated by ${TAILNET_RANGES.join(" and ")} ahead of all rules`);
+  }
   const groups = convertGroups(sections.get("proxy group") ?? [], proxies, general, warn);
   const policies = new Set(["DIRECT", "REJECT", ...proxies.map(({ name }) => name), ...groups.map(({ name }) => name)]);
-  const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn);
+  const udp = { udpless: udpIncapablePolicies(proxies, groups), udpFallback: udpFallbackPolicy(general, warn) };
+  const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn, udp);
+  // Surge adds a rule per discovered peer; Mihomo can only route the whole tailnet ranges, which must precede the LAN ranges containing them.
+  rules.unshift(...tailnets.filter(({ autoRoute }) => autoRoute).flatMap(({ node }) =>
+    TAILNET_RANGES.map((range) => `${range.includes(":") ? "IP-CIDR6" : "IP-CIDR"},${range},${node.name},no-resolve`)));
   const hostDns = await convertHostDns(sections.get("host") ?? [], providers, general, requestUrl, warn);
-  if (Object.keys(hostDns).length) config.dns["nameserver-policy"] = hostDns;
+  config.dns["nameserver-policy"] = { "use-application-dns.net": "rcode://name_error", ...hostDns };
+  const converted = new Set(tailnets.map(({ section }) => section));
   for (const name of sections.keys()) {
-    if (!["general", "host", "proxy", "proxy group", "rule"].includes(name)) {
+    if (!["general", "host", "proxy", "proxy group", "rule"].includes(name) && !converted.has(name)) {
       // Section names are syntax labels, never include section contents in diagnostics.
       warn(`Section ${/^[a-z -]{1,40}$/.test(name) ? name : "unknown"}: omitted`);
     }
@@ -46,8 +69,11 @@ export async function renderClashProfile(profile, context) {
 }
 
 function convertGeneral(general, warn) {
-  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false };
-  const dns = { enable: true, "enhanced-mode": "redir-host", ipv6: false };
+  // Surge's enhanced mode answers with fake IPs and keeps the mapping across restarts, so
+  // no-resolve IP rules never match domain traffic and app lookups never wait for DoH.
+  // Windows' connectivity probe needs a real answer; Surge answers Firefox's DoH canary itself.
+  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false, profile: { "store-fake-ip": true } };
+  const dns = { enable: true, "enhanced-mode": "fake-ip", "fake-ip-filter": ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"], ipv6: false };
   const consumed = new Set();
   const read = (key, convert) => {
     consumed.add(key);
@@ -90,7 +116,16 @@ function convertGeneral(general, warn) {
     dns.nameserver = encrypted.map((server) => `${server}#RULES`);
     dns["proxy-server-nameserver"] = [...plain];
   });
-  read("hijack-dns", (value) => { config.tun = { "dns-hijack": splitSurgeList(value).map((entry) => entry.replace(/^\*/, "any")) }; });
+  // Surge's virtual interface takes over the system resolver; hijack-dns only adds hardcoded targets.
+  config.tun = { "dns-hijack": ["any:53", "tcp://any:53"] };
+  read("hijack-dns", (value) => {
+    const extra = splitSurgeList(value).map((entry) => {
+      const [, host, port = "53"] = entry.match(/^(\*|[\w.-]+)(?::(\d{1,5}))?$/) ?? [];
+      if (!host) throw new Error();
+      return port === "53" ? [] : [`${host === "*" ? "any" : host}:${port}`];
+    });
+    config.tun["dns-hijack"].push(...extra.flat());
+  });
   read("geoip-maxmind-url", (value) => {
     if (new URL(value).protocol !== "https:") throw new Error();
     config["geodata-mode"] = false;
@@ -98,9 +133,29 @@ function convertGeneral(general, warn) {
   });
   consumed.add("test-timeout");
   consumed.add("proxy-test-url");
+  consumed.add("udp-policy-not-supported-behaviour");
   for (const key of general.keys()) if (!consumed.has(key)) warn(`General ${key}: unsupported setting omitted`);
   config.dns = dns;
   return config;
+}
+
+function udpFallbackPolicy(general, warn) {
+  const value = (general.get("udp-policy-not-supported-behaviour") ?? "REJECT").toUpperCase();
+  if (["DIRECT", "REJECT"].includes(value)) return value;
+  warn("General udp-policy-not-supported-behaviour: invalid value; Surge default REJECT used");
+  return "REJECT";
+}
+
+// Groups resolve to their current member at connection time, so any path to such a node counts.
+function udpIncapablePolicies(proxies, groups) {
+  const udpless = new Set(proxies.filter(({ udp }) => udp !== true).map(({ name }) => name));
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const { name, proxies: members } of groups) {
+      if (!udpless.has(name) && members.some((member) => udpless.has(member))) { udpless.add(name); changed = true; }
+    }
+  }
+  return udpless;
 }
 
 async function convertHostDns(lines, providers, general, requestUrl, warn) {

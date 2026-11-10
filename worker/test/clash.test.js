@@ -21,6 +21,7 @@ const directUrl = magicRuleUrl("China", "surge", context.requestUrl);
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
 const vmess = `vmess, vmess.example.com, 443, username=${uuid}, vmess-aead=true, tls=true`;
+const dohCanary = { "use-application-dns.net": "rcode://name_error" };
 
 function profile() {
   const state = { nodes: parsePoolNodes([
@@ -111,14 +112,18 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const surge = renderSurgeProfile({ ...input, options: { doh } });
     const output = await renderClashProfile(surge, context);
     const config = parse(output);
-    assert.doesNotMatch(JSON.stringify(config), /Tailnet|Tailscale|interactive-login/);
+    assert.deepEqual(config.proxies.at(-1), { name: "Tailnet", type: "tailscale", udp: true });
+    assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Tailscale"), { name: "Tailscale", type: "select", proxies: ["Tailnet"] });
+    assert.deepEqual(config.rules.slice(0, 4), ["IP-CIDR,100.64.0.0/10,Tailnet,no-resolve", "IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve",
+      "DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
+    assert.doesNotMatch(output, /auth-key|interactive-login|Section tailscale/);
     assert.equal(config["x-clash-block-quic"], "all-proxy");
     for (const hostname of ["atlasrouter.zslab.ai"]) {
       const index = config.rules.indexOf(`DOMAIN,${hostname},DIRECT`);
       assert.ok(index >= 0);
       assert.ok(index < config.rules.findIndex((rule) => rule.startsWith("RULE-SET,")));
     }
-    assert.deepEqual(config.proxies.map((node) => node.name), ["🇺🇸 US ISP 1", "🇺🇸 US ISP 2", "🇺🇸 US WARP", "🇭🇰 HK IDC"]);
+    assert.deepEqual(config.proxies.map((node) => node.name), ["🇺🇸 US ISP 1", "🇺🇸 US ISP 2", "🇺🇸 US WARP", "🇭🇰 HK IDC", "Tailnet"]);
     for (const group of input.groups) {
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).type, "fallback");
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).interval, 300);
@@ -127,7 +132,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).icon, undefined);
     }
     const icons = { "Proxy": "Proxy", "AIProxy": "AI", "iCloud": "iCloud", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media", "Coin": "Cryptocurrency" };
-    assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), Object.keys(icons));
+    assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), [...Object.keys(icons), "Tailscale"]);
     for (const [name, file] of Object.entries(icons)) assert.equal(config["proxy-groups"].find((group) => group.name === name)?.icon, `${iconBase}${file}.png`);
     for (const name of ["Proxy", "AIProxy", "X"]) {
       assert.deepEqual(config["proxy-groups"].find((group) => group.name === name).proxies, ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC", name === "Proxy" ? "Auto" : "Proxy", "DIRECT"]);
@@ -156,7 +161,15 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(config.rules.includes(youtubeRule));
     assert.ok(config.rules.indexOf(youtubeRule) < config.rules.indexOf("RULE-SET,GlobalMedia,GlobalMedia,no-resolve"));
     for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
-    assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    // The SS WARP node has no UDP relay; rules that can select it reject skipped UDP like Surge.
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
+    assert.equal(config.rules[config.rules.indexOf(youtubeRule) + 1], "AND,((NETWORK,UDP),(RULE-SET,YouTube,no-resolve)),REJECT");
+    for (const rule of ["RULE-SET,IBKR,DIRECT,no-resolve", "RULE-SET,China,DIRECT,no-resolve", "DOMAIN,dns.alidns.com,DIRECT"]) {
+      assert.doesNotMatch(config.rules[config.rules.indexOf(rule) + 1], /UDP/, rule);
+    }
+    const twins = config.rules.filter((rule) => rule.startsWith("AND,((NETWORK,UDP),") || rule === "NETWORK,UDP,REJECT");
+    assert.ok(twins.every((rule) => rule.endsWith(",REJECT")));
+    assert.match(output, new RegExp(`^# Rules: ${twins.length} rules may select a node without UDP relay; their UDP falls back to REJECT as in Surge$`, "m"));
     const resolvedLan = config.rules.indexOf("IP-CIDR,192.168.0.0/16,DIRECT");
     const directRule = config.rules.indexOf("RULE-SET,China,DIRECT,no-resolve");
     assert.ok(resolvedLan >= 0 && resolvedLan < directRule);
@@ -166,7 +179,11 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.dns.nameserver, doh ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
     // Node bootstrap must not depend on the proxy used by encrypted DNS.
     assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
+    assert.equal(config.dns["enhanced-mode"], "fake-ip");
+    assert.deepEqual(config.dns["fake-ip-filter"], ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"]);
+    assert.deepEqual(config.profile, { "store-fake-ip": true });
     assert.deepEqual(config.dns["nameserver-policy"], {
+      ...dohCanary,
       "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
       "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
       ...Object.fromEntries([customDirectSource.id, "IBKR", "China"].map((provider) => [`rule-set:${provider}`, doh
@@ -176,7 +193,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const auto = config["proxy-groups"].find((group) => group.name === "Auto");
     assert.equal(auto.type, "url-test");
     assert.equal(auto.icon, `${iconBase}Auto.png`);
-    assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
+    assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name).filter((name) => name !== "Tailnet"));
     assert.equal(auto.interval, 300);
     assert.equal(auto.tolerance, 0);
     assert.ok(!auto.hidden);
@@ -193,7 +210,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.match(output, /smart approximated by url-test/);
     assert.match(output, /ordered smart converted to fallback/);
     assert.doesNotMatch(output, /Host entry|Section host|encrypted-dns-follow-outbound-mode: unsupported/);
-    assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
+    assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
     assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
@@ -251,7 +268,7 @@ test("subscriptions without IDC nodes reject foreign DoH while retaining domesti
     assert.match(source, /^FINAL,Proxy,dns-failed$/m);
     const { config } = await convertSurgeToClash(source, context);
     assert.ok(!config["proxy-groups"].some(({ name }) => name === "DoH Proxy"));
-    assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
     for (const [hostname, policy] of [["cloudflare-dns.com", "REJECT"], ["dns.google", "REJECT"], ["dns.alidns.com", "DIRECT"], ["doh.pub", "DIRECT"]]) {
       const rule = `DOMAIN,${hostname},${policy}`;
       assert.ok(source.split("\n").includes(rule));
@@ -280,7 +297,7 @@ test("Clash rejects foreign DoH if all IDC nodes are unsupported and retains any
     }
     for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},${keepCompatible ? "DoH Proxy" : "REJECT"}`));
     for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
-    assert.equal(config.rules.at(-1), "MATCH,Proxy");
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
     assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
   }
 });
@@ -314,7 +331,7 @@ test("explicit rendering options preserve protocol behavior across visibility an
       if (!tencentOa) {
         const { config, warnings } = await convertSurgeToClash(source, { requestUrl, token });
         assert.equal(config["x-clash-block-quic"], "all-proxy");
-        assert.equal(config.rules.at(-1), "MATCH,Proxy");
+        assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
         assert.ok(config.proxies.filter(({ type }) => ["vmess", "trojan"].includes(type)).every(({ udp }) => udp === true));
         assert.equal(config["proxy-groups"].some((group) => group.hidden === true), !showAllGroups);
         for (const group of config["proxy-groups"]) delete group.hidden;
@@ -327,10 +344,47 @@ test("explicit rendering options preserve protocol behavior across visibility an
   }
 });
 
+test("TUN takes over all port 53 DNS and keeps hijack targets on other ports", async () => {
+  const convert = (general) => convertSurgeToClash(`[General]\n${general}[Proxy]\nnode = ${vmess}\n[Rule]\nFINAL,node\n`, context);
+  const mapped = await convert("hijack-dns = 8.8.8.8:53, 9.9.9.9, *:5353, 1.1.1.1:5300\n");
+  assert.deepEqual(mapped.config.tun, { "dns-hijack": ["any:53", "tcp://any:53", "any:5353", "1.1.1.1:5300"] });
+  assert.deepEqual(mapped.warnings, []);
+  assert.deepEqual((await convert("")).config.tun, { "dns-hijack": ["any:53", "tcp://any:53"] });
+  const invalid = await convert("hijack-dns = 1.1.1.1:5300, [::1]:53\n");
+  assert.deepEqual(invalid.config.tun, { "dns-hijack": ["any:53", "tcp://any:53"] });
+  assert.deepEqual(invalid.warnings, ["General hijack-dns: invalid value omitted"]);
+});
+
+test("UDP skipped for an outbound without UDP relay falls back like Surge instead of matching later rules", async () => {
+  const ss = "ss, ss.example.com, 8388, encrypt-method=aes-128-gcm, password=TEST_ONLY";
+  const convert = (general, rules) => convertSurgeToClash(`[General]\n${general}[Proxy]\ntcp-only = ${ss}\nudp-ss = ${ss}, udp-relay=true\nudp-vmess = ${vmess}\n[Proxy Group]\nMixed = select, udp-vmess, tcp-only\nNested = select, Mixed, DIRECT\nCapable = select, udp-ss, udp-vmess, DIRECT\n[Rule]\n${rules}`, context);
+  const rules = "DOMAIN,a.example,Nested\nIP-CIDR,192.0.2.0/24,tcp-only,no-resolve\nPROCESS-NAME,Helper (Renderer),Mixed\nDOMAIN,c.example,Capable\nDOMAIN-SUFFIX,d.example,DIRECT\nFINAL,Mixed\n";
+  const twins = (fallback) => [
+    "DOMAIN,a.example,Nested", `AND,((NETWORK,UDP),(DOMAIN,a.example)),${fallback}`,
+    "IP-CIDR,192.0.2.0/24,tcp-only,no-resolve", `AND,((NETWORK,UDP),(IP-CIDR,192.0.2.0/24,no-resolve)),${fallback}`,
+    "PROCESS-NAME,Helper (Renderer),Mixed", `PROCESS-NAME,Helper (Renderer),${fallback}`,
+    "DOMAIN,c.example,Capable", "DOMAIN-SUFFIX,d.example,DIRECT",
+    "MATCH,Mixed", `NETWORK,UDP,${fallback}`,
+  ];
+  const note = (fallback) => `Rules: 4 rules may select a node without UDP relay; their UDP falls back to ${fallback} as in Surge`;
+  const rejected = await convert("", rules);
+  assert.deepEqual(rejected.config.rules, twins("REJECT"));
+  assert.deepEqual(rejected.warnings, [note("REJECT")]);
+  const direct = await convert("udp-policy-not-supported-behaviour = DIRECT\n", rules);
+  assert.deepEqual(direct.config.rules, twins("DIRECT"));
+  assert.deepEqual(direct.warnings, [note("DIRECT")]);
+  const invalid = await convert("udp-policy-not-supported-behaviour = Proxy\n", rules);
+  assert.deepEqual(invalid.config.rules, twins("REJECT"));
+  assert.deepEqual(invalid.warnings, ["General udp-policy-not-supported-behaviour: invalid value; Surge default REJECT used", note("REJECT")]);
+  const capable = await convert("", "DOMAIN,c.example,Capable\nFINAL,udp-vmess\n");
+  assert.deepEqual(capable.config.rules, ["DOMAIN,c.example,Capable", "MATCH,udp-vmess"]);
+  assert.deepEqual(capable.warnings, []);
+});
+
 test("Host UDP DNS mappings preserve suffix depth and omit unsupported values without leaking them", async () => {
   const source = `[Host]\nexample.com = server:223.5.5.5, 119.29.29.29\n*.example.com = server:9.9.9.9\nexample.com = server:8.8.8.8\ninvalid.example = server:999.1.1.1\nsecret.example = script:NEVER_LOG_THIS\n[Proxy]\nnode = trojan, example.com, 443, password=TEST_ONLY\n[Rule]\nFINAL,node\n`;
   const { config, warnings } = await convertSurgeToClash(source, context);
-  assert.deepEqual({ ...config.dns["nameserver-policy"] }, { "example.com": ["223.5.5.5", "119.29.29.29"], ".example.com": ["9.9.9.9"] });
+  assert.deepEqual({ ...config.dns["nameserver-policy"] }, { ...dohCanary, "example.com": ["223.5.5.5", "119.29.29.29"], ".example.com": ["9.9.9.9"] });
   assert.equal(warnings.length, 2);
   assert.doesNotMatch(warnings.join("\n"), /secret\.example|NEVER_LOG_THIS|999\.1\.1\.1/);
 });
@@ -342,6 +396,7 @@ test("Host DoH mappings follow the outbound setting and only reuse declared doma
     const { config, warnings } = await convertSurgeToClash(`[General]\nencrypted-dns-follow-outbound-mode = ${follow}\n${source}`, context);
     const suffix = follow ? "#RULES" : "";
     assert.deepEqual({ ...config.dns["nameserver-policy"] }, {
+      ...dohCanary,
       [`rule-set:${directSource.id}`]: [`https://dns.alidns.com/dns-query${suffix}`, `https://doh.pub/dns-query${suffix}`],
     });
     assert.deepEqual(Object.keys(config["rule-providers"]), [directSource.id]);
@@ -349,13 +404,13 @@ test("Host DoH mappings follow the outbound setting and only reuse declared doma
     assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS|private\.example|unregistered|skip-cert-verify/);
   }
   const { config, warnings } = await convertSurgeToClash(source.replace(`DOMAIN-SET,${directUrl},DIRECT\n`, ""), context);
-  assert.equal(config.dns["nameserver-policy"], undefined);
+  assert.deepEqual({ ...config.dns["nameserver-policy"] }, dohCanary);
   assert.deepEqual(Object.keys(config["rule-providers"]), []);
   assert.equal(warnings.length, 6);
   const genericUrl = "https://rules.example.com/direct.list";
   const ruleSet = await ruleSource(["RULE-SET", genericUrl]);
   const mapped = await convertSurgeToClash(`[Host]\nRULE-SET:${genericUrl} = server:223.5.5.5\nRULE-SET:${directUrl} = server:119.29.29.29\n[Proxy]\nnode = ${vmess}\n[Rule]\nRULE-SET,${genericUrl},DIRECT,no-resolve\nRULE-SET,${directUrl},DIRECT,no-resolve\nFINAL,node\n`, context);
-  assert.deepEqual({ ...mapped.config.dns["nameserver-policy"] }, { [`rule-set:${ruleSet.id}`]: ["223.5.5.5"], "rule-set:China": ["119.29.29.29"] });
+  assert.deepEqual({ ...mapped.config.dns["nameserver-policy"] }, { ...dohCanary, [`rule-set:${ruleSet.id}`]: ["223.5.5.5"], "rule-set:China": ["119.29.29.29"] });
   assert.deepEqual(mapped.warnings, []);
 });
 
@@ -396,10 +451,7 @@ test("ordered smart weights match exact node names and each user's primary while
     assert.equal(group["policy-priority"], undefined);
     assert.equal(group.tolerance, undefined);
     assert.ok(warnings.some((warning) => warning.includes("weighted scoring unavailable")));
-    // The Surge-only Tailnet member and its empty display group are omitted.
-    assert.deepEqual(warnings.filter((warning) => /unavailable members|invalid group|cyclic|empty group/.test(warning)), [
-      "Proxy Group: unavailable members omitted", "Proxy Group: empty group omitted",
-    ]);
+    assert.deepEqual(warnings.filter((warning) => /unavailable members|invalid group|cyclic|empty group/.test(warning)), []);
   }
 });
 
@@ -572,6 +624,49 @@ test("LAN expansion includes local domains and special networks without changing
     assert.equal(rules.at(-1), "MATCH,DIRECT");
     assert.deepEqual(warnings, []);
   }
+});
+
+test("Tailscale policies become Mihomo tailscale proxies with their section and route the tailnet ahead of LAN", async () => {
+  const source = (settings, line = "Tailnet = tailscale, section-name=tailnet") => `[Proxy]\nnode = ${vmess}\n${line}\n[Proxy Group]\nTailscale = select, Tailnet\n[Rule]\nDOMAIN-SUFFIX,ts.net,Tailnet\nRULE-SET,LAN,DIRECT,no-resolve\nFINAL,node\n[Tailscale tailnet]\n${settings.join("\n")}\n`;
+  const interactive = await convertSurgeToClash(source(["interactive-login = true", "auto-add-magic-dns-rule = true", "exit-node = none"]), context);
+  assert.deepEqual(interactive.config.proxies[1], { name: "Tailnet", type: "tailscale", udp: true });
+  assert.deepEqual(interactive.config["proxy-groups"], [{ name: "Tailscale", type: "select", proxies: ["Tailnet"] }]);
+  assert.deepEqual(interactive.config.rules.slice(0, 3), ["IP-CIDR,100.64.0.0/10,Tailnet,no-resolve", "IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
+  assert.ok(interactive.config.rules.includes("IP-CIDR,100.64.0.0/10,DIRECT,no-resolve"));
+  assert.deepEqual(interactive.warnings, [
+    "Proxy entry 2: tailscale requires Mihomo 1.19.25+ with Tailscale support; control-plane connections bypass rules; interactive login prints its URL to the info log",
+    "Proxy entry 2: auto-add-magic-dns-rule approximated by 100.64.0.0/10 and fd7a:115c:a1e0::/48 ahead of all rules",
+  ]);
+  const keyed = await convertSurgeToClash(source(["auth-key = tskey-auth-TEST_ONLY", "hostname = atlas-mac", "auto-add-magic-dns-rule = false"]), context);
+  assert.deepEqual(keyed.config.proxies[1], { name: "Tailnet", type: "tailscale", udp: true, "auth-key": "tskey-auth-TEST_ONLY", hostname: "atlas-mac" });
+  assert.equal(keyed.config.rules[0], "DOMAIN-SUFFIX,ts.net,Tailnet");
+  assert.doesNotMatch(keyed.warnings.join("\n"), /TEST_ONLY|interactive login|approximated/);
+  const unsupported = [
+    source([]), source(["interactive-login = false"]), source(["interactive-login = true", "auth-key = tskey-auth-NEVER_LOG_THIS"]),
+    source(["interactive-login = true", "exit-node = auto"]), source(["interactive-login = true", "derp-only = true"]),
+    source(["interactive-login = true", "control-url = https://NEVER_LOG_THIS.example"]),
+    source(["interactive-login = true"], "Tailnet = tailscale, section-name=missing"), source(["interactive-login = true"], "Tailnet = tailscale"),
+    source(["interactive-login = true"], "Tailnet = tailscale, section-name=tailnet, underlying-proxy=node"),
+  ];
+  for (const profile of unsupported) {
+    const { config, warnings } = await convertSurgeToClash(profile, context);
+    assert.deepEqual(config.proxies.map(({ name }) => name), ["node"]);
+    assert.deepEqual(config["proxy-groups"], []);
+    assert.ok(!config.rules.some((rule) => rule.includes("Tailnet")));
+    assert.ok(warnings.includes("Proxy entry 2: unsupported protocol, parameter or invalid value; node omitted"));
+    assert.ok(warnings.includes("Section tailscale tailnet: omitted"));
+    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
+  }
+});
+
+test("underlying-proxy becomes dialer-proxy only through a converted node that dials directly", async () => {
+  const source = `[Proxy]\nhop = ${vmess}\nvia-hop = ${vmess}, underlying-proxy=hop\nvia-group = ${vmess}, underlying-proxy=Group\nvia-missing = ${vmess}, underlying-proxy=NEVER_LOG_THIS\nvia-chain = ${vmess}, underlying-proxy=via-hop\n[Proxy Group]\nGroup = select, hop, via-group\n[Rule]\nFINAL,Group\n`;
+  const { config, warnings } = await convertSurgeToClash(source, context);
+  assert.deepEqual(config.proxies.map((node) => [node.name, node["dialer-proxy"]]), [["hop", undefined], ["via-hop", "hop"]]);
+  assert.deepEqual(config["proxy-groups"], [{ name: "Group", type: "select", proxies: ["hop"] }]);
+  assert.deepEqual(warnings.filter((warning) => warning.includes("underlying-proxy")), [3, 4, 5].map((entry) =>
+    `Proxy entry ${entry}: underlying-proxy must be a converted node without its own underlying-proxy; node omitted`));
+  assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
 });
 
 test("policy-regex-filter only filters included proxies and invalid expressions are omitted safely", async () => {

@@ -52,16 +52,26 @@ function flags(parts) {
   return parts.length ? ",no-resolve" : "";
 }
 
-export async function convertClashRules(lines, policies, requestUrl, token, warn) {
+export async function convertClashRules(lines, policies, requestUrl, token, warn, { udpless = new Set(), udpFallback = "REJECT" } = {}) {
   const rules = [];
   const providers = Object.create(null);
+  let twins = 0;
+  // Mihomo skips a matched rule whose outbound cannot relay UDP and keeps matching, ending at
+  // DIRECT; Surge applies udp-policy-not-supported-behaviour instead. Only skipped UDP reaches the twin.
+  const push = (condition, policy, suffix = "") => {
+    rules.push(`${condition},${policy}${suffix}`);
+    if (!udpless.has(policy)) return;
+    twins += 1;
+    if (condition === "MATCH") rules.push(`NETWORK,UDP,${udpFallback}`);
+    else rules.push(/[()]/.test(condition) ? `${condition},${udpFallback}${suffix}` : `AND,((NETWORK,UDP),(${condition}${suffix})),${udpFallback}`);
+  };
   for (const [index, line] of lines.entries()) {
     try {
       const parts = splitSurgeList(line);
       if (parts[0] === "FINAL") {
         if (!policies.has(parts[1])) throw new Error();
         if (parts.length > 2) warn(`Rule entry ${index + 1}: FINAL options omitted`);
-        rules.push(`MATCH,${parts[1]}`);
+        push("MATCH", parts[1]);
         continue;
       }
       // Filtering unsupported IDC nodes must not let DoH fall through to another outbound.
@@ -74,13 +84,13 @@ export async function convertClashRules(lines, policies, requestUrl, token, warn
         if (parts[1] === "LAN" && parts[0] === "RULE-SET") {
           const suffix = flags(parts.slice(3));
           if (suffix === null) throw new Error();
-          rules.push(`DOMAIN-SUFFIX,local,${parts[2]}`);
+          push("DOMAIN-SUFFIX,local", parts[2]);
           // Explicit local networks do not depend on the downloaded GeoIP database.
           // Keep in sync with https://manual.nssurge.com/rules/ruleset.html#lan.
           for (const network of ["0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.168.0.0/16", "224.0.0.0/4"]) {
-            rules.push(`IP-CIDR,${network},${parts[2]}${suffix}`);
+            push(`IP-CIDR,${network}`, parts[2], suffix);
           }
-          for (const network of ["::1/128", "fc00::/7", "fe80::/10"]) rules.push(`IP-CIDR6,${network},${parts[2]}${suffix}`);
+          for (const network of ["::1/128", "fc00::/7", "fe80::/10"]) push(`IP-CIDR6,${network}`, parts[2], suffix);
           continue;
         }
         const source = await ruleSource(parts);
@@ -101,16 +111,17 @@ export async function convertClashRules(lines, policies, requestUrl, token, warn
         let name = native?.name ?? source.id;
         if (providers[name] && providers[name].url !== url.toString()) name = `${name}-${source.id.slice(5)}`;
         providers[name] = { type: "http", behavior: "classical", format: native?.format ?? "text", url: url.toString(), interval };
-        rules.push(`RULE-SET,${name},${parts[2]}${suffix}`);
+        push(`RULE-SET,${name}`, parts[2], suffix);
         continue;
       }
       const rule = simpleRule(parts);
       const suffix = flags(parts.slice(3));
       if (!rule || suffix === null) throw new Error();
-      rules.push(`${rule},${parts[2]}${suffix}`);
+      push(rule, parts[2], suffix);
     } catch { warn(`Rule entry ${index + 1}: unsupported rule or missing policy omitted`); }
   }
   if (!rules.some((rule) => rule.startsWith("MATCH,"))) throw new HttpError(422, "Clash conversion has no usable final policy");
+  if (twins) warn(`Rules: ${twins} rules may select a node without UDP relay; their UDP falls back to ${udpFallback} as in Surge`);
   return { rules, providers };
 }
 

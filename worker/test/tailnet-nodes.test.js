@@ -72,12 +72,25 @@ test("Tailnet testing is explicitly selectable and excluded from automatic and D
   }
 });
 
-test("Clash drops Tailnet-only nodes and groups while preserving the entire public configuration", async () => {
+test("Clash dials Tailnet variants through the Tailnet proxy while preserving the entire public configuration", async () => {
   const input = fixture();
   const baseline = await convertSurgeToClash(renderSurgeProfile(input), context);
   const derived = await convertSurgeToClash(renderSurgeProfile({ ...input, tailnetEndpoints }), context);
-  assert.deepEqual(derived.config, baseline.config);
-  assert.doesNotMatch(JSON.stringify(derived.config), /node\.example-tailnet\.ts\.net/);
+  const variants = derived.config.proxies.filter(({ name }) => name.startsWith("Tailnet Test - "));
+  assert.deepEqual(variants.map(({ name }) => name), createTailnetNodes(input.nodes, tailnetEndpoints).map(({ name }) => name));
+  for (const variant of variants) {
+    const original = baseline.config.proxies.find(({ name }) => `Tailnet Test - ${name}` === variant.name);
+    assert.deepEqual(variant, { ...original, name: variant.name, server: endpoint.hostname, servername: endpoint.hostname, "skip-cert-verify": false, "dialer-proxy": "Tailnet" });
+  }
+  assert.deepEqual(derived.config["proxy-groups"].find(({ name }) => name === "Tailnet Test"), { name: "Tailnet Test", type: "select", proxies: variants.map(({ name }) => name) });
+  assert.ok(!derived.config["proxy-groups"].find(({ name }) => name === "Auto").proxies.some((name) => name.startsWith("Tailnet")));
+  const withoutVariants = {
+    ...derived.config,
+    proxies: derived.config.proxies.filter((proxy) => !variants.includes(proxy)),
+    "proxy-groups": derived.config["proxy-groups"].filter(({ name }) => name !== "Tailnet Test")
+      .map((group) => ({ ...group, proxies: group.proxies.filter((name) => name !== "Tailnet Test") })),
+  };
+  assert.deepEqual(withoutVariants, baseline.config);
   assert.doesNotMatch(derived.warnings.join("\n"), /node\.example-tailnet\.ts\.net|11111111/);
 });
 

@@ -150,8 +150,11 @@ test("Tailnet secret adds authenticated test alternatives without changing store
   const clash = await mf.dispatchFetch(`${url}&client=clash`);
   assert.equal(clash.status, 200);
   const config = parseYaml(await clash.text());
-  assert.deepEqual(config.proxies.map((node) => node.server), ["hk.example.com"]);
-  assert.doesNotMatch(JSON.stringify(config), /Tailnet|node\.example-tailnet/);
+  assert.deepEqual(config.proxies.map((node) => [node.name, node.type, node.server, node["dialer-proxy"]]), [
+    ["🇭🇰 HK IDC", "vmess", "hk.example.com", undefined],
+    ["Tailnet Test - 🇭🇰 HK IDC", "vmess", "node.example-tailnet.ts.net", "Tailnet"],
+    ["Tailnet", "tailscale", undefined, undefined],
+  ]);
 });
 
 test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {
@@ -588,12 +591,14 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(response.headers.get("content-type"), /application\/yaml/);
         const config = parseYaml(text);
         assert.equal(config["x-clash-block-quic"], "all-proxy");
-        assert.equal(config.proxies.length, 4);
+        assert.equal(config.proxies.filter(({ type }) => type !== "tailscale").length, 4);
         for (const group of profile.groups) assert.deepEqual(config["proxy-groups"].find(({ name }) => name === group.group).proxies, group.nodes.map(({ name }) => name));
         assert.equal(config.dns.nameserver.every((server) => server.startsWith("https://")), doh === "1");
         assert.deepEqual(config.dns.nameserver, doh === "1" ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
         assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
+        assert.equal(config.dns["enhanced-mode"], "fake-ip");
         assert.deepEqual(config.dns["nameserver-policy"], {
+          "use-application-dns.net": "rcode://name_error",
           "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
           "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
           ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "IBKR", "China"].map((id) => [`rule-set:${id}`, doh === "1"
@@ -606,7 +611,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         const auto = config["proxy-groups"].find(({ name }) => name === "Auto");
         assert.equal(auto.type, "url-test");
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
-        assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
+        assert.deepEqual(auto.proxies, config.proxies.filter(({ type }) => type !== "tailscale").map(({ name }) => name));
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Proxy").proxies, ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "Auto", "DIRECT"]);
         const dohProxy = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
         assert.equal(dohProxy.type, "url-test");
@@ -615,7 +620,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(dohProxy.proxies, ["🇭🇰 Example - IDC 1"]);
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
         for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
-        assert.deepEqual(config.tun?.["dns-hijack"], ["8.8.8.8:53", "8.8.4.4:53"]);
+        assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
         assert.equal(config.rules.at(-1), "MATCH,Proxy");
         for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
         for (const name of ["AppleProxy", "AppleDirect"]) assert.ok(!config["proxy-groups"].some((group) => group.name === name), name);
@@ -806,7 +811,7 @@ test("removing an assigned node reassigns users and removes it from stored inven
       assert.ok(!body.includes(removed.name));
       if (client === "clash") {
         const config = parseYaml(body);
-        assert.equal(config.proxies.length, 3);
+        assert.equal(config.proxies.filter(({ type }) => type !== "tailscale").length, 3);
         assert.deepEqual(config["proxy-groups"].find((group) => group.name === removed.group).proxies, isp.nodes.map((node) => node.name));
       } else {
         assert.deepEqual(orderedSmartMembers(body, isp.group), isp.nodes.map((node) => node.name));

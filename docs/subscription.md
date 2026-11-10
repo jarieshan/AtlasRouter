@@ -53,7 +53,7 @@ dns.alidns.com = server:223.5.5.5, 119.29.29.29
 doh.pub = server:223.5.5.5, 119.29.29.29
 ```
 
-Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；两份直连名单复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项；China 名单使用 Worker 中转的 MagicRule Mihomo 产物，CustomDirect 使用 jsDelivr 地址，均不携带订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
+Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；三份直连名单复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项；IBKR 和 China 名单使用 Worker 中转的 MagicRule Mihomo 产物，CustomDirect 使用 jsDelivr 地址，均不携带订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
 
 DNS 劫持固定为以下两个目标，不随 DoH 开关或 Tencent OA 模块变化；DoH 开关只控制加密 DNS 上游：
 
@@ -61,7 +61,7 @@ DNS 劫持固定为以下两个目标，不随 DoH 开关或 Tencent OA 模块�
 hijack-dns = 8.8.8.8:53, 8.8.4.4:53
 ```
 
-该字段只处理经过 Surge 虚拟网卡、发往上述地址的 53 端口 DNS 查询，不拦截其他 DNS 地址或应用自行发起的 DoH/DoT；仅使用系统代理、关闭增强模式时，不会因此接管系统 DNS。参见 [Surge DNS 劫持说明](https://manual.nssurge.com/dns/advanced.html#hijack-dns)。Clash 输出沿用转换规则，生成 `tun.dns-hijack: [8.8.8.8:53, 8.8.4.4:53]`，是否启用 TUN 由客户端决定。
+该字段只处理经过 Surge 虚拟网卡、发往上述地址的 53 端口 DNS 查询，不拦截其他 DNS 地址或应用自行发起的 DoH/DoT；仅使用系统代理、关闭增强模式时，不会因此接管系统 DNS。参见 [Surge DNS 劫持说明](https://manual.nssurge.com/dns/advanced.html#hijack-dns)。Surge 增强模式本身把系统 DNS 指向自己的应答器，上述两个目标只是额外截获写死这些地址的应用。Mihomo TUN 只能截获进入虚拟网卡的 DNS 数据包，因此 Clash 输出 `tun.dns-hijack: [any:53, tcp://any:53]`，所有进入 TUN 的 53 端口查询（含发往路由器或运营商 DNS 的系统查询）都由 Mihomo 应答；Surge 中非 53 端口的劫持目标原样追加。是否启用 TUN、系统 DNS 查询是否经过 TUN 由客户端和平台决定。
 
 ### 腾讯公司内网兼容
 
@@ -100,9 +100,13 @@ master 按地区/IP 类型生成顺序 `fallback` 组，成员依照每位用户
 
 develop 默认提供 `Tailnet = tailscale, section-name=tailnet` 和 `[Tailscale tailnet]`，要求 Surge Mac 6.8.0+ / iOS 5.21.0+。另有可见策略组 `Tailscale = select, Tailnet`，方便在策略组列表找到 Tailnet；它不加入普通上网策略组。使用 Dev 订阅时，在策略组列表找到 Tailscale，展开查看 Tailnet，再打开 Tailnet 的策略编辑器完成交互登录。`interactive-login = true` 只引用当前设备的登录状态，不会自动打开浏览器，也不会继承服务器或其他设备的认证；登录状态按 `tailnet` 段名保存在本机。参见 [Surge Tailscale 官方说明](https://manual.nssurge.com/policies/tailscale.html)。
 
-该策略启用 `auto-add-magic-dns-rule = true`，自动路由控制面下发的可见节点 IPv4/IPv6 地址及 MagicDNS 后缀，无需在仓库硬编码服务器 Tailscale IP、tailnet 域名或登录凭据；未设置子网路由。`exit-node = none`，并从 `Auto` 中排除，避免普通上网流量误选 Tailnet。默认配置及 Tencent OA 模块都不再将 `100.64.0.0/10` 放进 `skip-proxy`，让这些请求有机会交给 Surge；这不等于把整个网段都路由到 Tailnet。Clash 转换时省略原生 Tailscale 策略、配置段和因此为空的 Tailscale 策略组，并保留有效的 Auto 组。
+该策略启用 `auto-add-magic-dns-rule = true`，自动路由控制面下发的可见节点 IPv4/IPv6 地址及 MagicDNS 后缀，无需在仓库硬编码服务器 Tailscale IP、tailnet 域名或登录凭据；未设置子网路由。`exit-node = none`，并从 `Auto` 中排除，避免普通上网流量误选 Tailnet。默认配置及 Tencent OA 模块都不再将 `100.64.0.0/10` 放进 `skip-proxy`，让这些请求有机会交给 Surge；这不等于把整个网段都路由到 Tailnet。
 
 Mac 终端 SSH 不使用系统 HTTP 代理，需开启 Surge 增强模式，或为 SSH 单独配置经过 Surge 的 SOCKS 连接，再用服务器的 Tailscale IPv4 或完整 MagicDNS 域名连接。关闭服务器公网管理端口前，应先从 Mac 验证 SSH 登录成功。
+
+Clash 将 Tailnet 和 `[Tailscale tailnet]` 转换为 Mihomo 的 `type: tailscale` 节点，保留 `Tailscale` 策略组和上述 tailnet 域名规则，`Auto` 同样排除 Tailnet。这需要 Mihomo 1.19.25+ 且编译时包含 Tailscale 的内核（ProjectClash 的 macOS 和 iOS 版本均包含）；更早或不含 Tailscale 的内核无法识别该节点，会拒绝整份配置。订阅不含登录凭据：首次访问 tailnet 或对 Tailnet 测速时，内核在 info 级别日志输出 `To start this tsnet server, restart with TS_AUTHKEY set, or go to: <授权链接>`，在浏览器打开该链接完成授权即可。生成配置的 `log-level` 为 `warning`，但 ProjectClash 日志页默认按 info 显示实时日志。登录状态保存在客户端本地，ProjectClash 按配置和节点名区分，重新导入配置或 Tailnet 改名后需重新登录；设备在 tailnet 中默认以内核进程名注册，可在 Tailscale 管理后台改名。
+
+Mihomo 不能像 `auto-add-magic-dns-rule` 那样按控制面下发的节点逐个添加规则，转换时在所有规则之前加入 `IP-CIDR,100.64.0.0/10,Tailnet,no-resolve` 和 `IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve`，使 Tailscale IP 先于 LAN 直连规则匹配。代价是不属于 tailnet 的 `100.64.0.0/10` 地址也会进入 Tailnet 并连接失败，而 Surge 中这些地址按 LAN 规则直连。Tailscale 控制面、DERP 和点对点连接由内核直接发出，不经过规则，上面的 `controlplane.tailscale.com`、`login.tailscale.com` 规则只影响浏览器等其他流量。Tailnet 未设置出口节点，客户端按 `proxy-test-url` 对它测速会显示失败，不影响访问 tailnet。`Tailnet Test` 节点的 `underlying-proxy=Tailnet` 转换为 `dialer-proxy: Tailnet`。
 
 develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨地区汇集，不包含 ISP、WARP、`DIRECT`、`REJECT` 或其他策略组。Surge 使用不带权重的 `smart`，Clash 使用 `url-test`（间隔 300 秒、容差 0）。没有 IDC 节点时不输出空组，将原本指向该组的国外 DoH 规则改为 `REJECT`，国内 DNS 和其余订阅照常生成，避免 [Surge 空组自动替换为直连](https://manual.nssurge.com/policy-groups/overview.html)。Clash 过滤掉全部不兼容 IDC 节点时同样保留这些拒绝规则；只过滤部分节点时继续使用剩余 IDC。
 
@@ -165,9 +169,10 @@ AppleIntelligence 列表放在 AI 规则末尾；其余 Apple 规则位于 AI �
 Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析为结构化对象并用 YAML 序列化器输出 Clash。没有另一份需要同步维护的 Clash 分流模板。已支持的配置值、节点和规则变动会自动进入两种订阅。
 
 - 支持 VMess AEAD（TCP / WebSocket）、Trojan、常用 Shadowsocks、HTTP / HTTPS、SOCKS5 / SOCKS5-TLS。保留可映射的认证、TLS 校验、证书指纹、ALPN、WebSocket、UDP 和 TCP Fast Open 参数；未知连接参数或不支持的协议会移除整个节点，并清理无效成员、空组和相关规则。`sni=off` 无等价映射时移除节点，不能把 `off` 当成服务器名称。
-- VMess、Trojan 按 [Surge 的协议默认能力](https://manual.nssurge.com/policies/udp.html)输出 `udp: true`；转换器将显式 `udp-relay=false` 保留为关闭，但不能依赖该开关在 Surge 的 VMess / Trojan 上禁用 UDP；Surge 官方将它列为其他协议的可选能力。Shadowsocks、SOCKS5 / SOCKS5-TLS 仍需显式启用。缺少 UDP 支持会使 [Mihomo 跳过指向该代理的 UDP 规则](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)，即使 Claude 的域名和 IP 已在 AI 规则中，也可能最终直连。
+- VMess、Trojan 按 [Surge 的协议默认能力](https://manual.nssurge.com/policies/udp.html)输出 `udp: true`；转换器将显式 `udp-relay=false` 保留为关闭，但不能依赖该开关在 Surge 的 VMess / Trojan 上禁用 UDP；Surge 官方将它列为其他协议的可选能力。Shadowsocks、SOCKS5 / SOCKS5-TLS 仍需显式启用。缺少 UDP 支持时，[Mihomo 跳过指向该代理的 UDP 规则](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)继续匹配，没有规则可用时直连；Surge 按 [`udp-policy-not-supported-behaviour`](https://manual.nssurge.com/policies/udp.html) 处理，默认 REJECT。因此规则的策略可能选中不支持 UDP 的节点时（含经策略组间接选中），转换器在该规则后追加只匹配 UDP 的 `AND,((NETWORK,UDP),(<原条件>)),REJECT`，`MATCH` 后追加 `NETWORK,UDP,REJECT`。只有当前选中节点不支持 UDP、原规则被跳过时才会命中，TCP 和支持 UDP 的选择不受影响；条件含括号时改用同条件的普通规则，效果相同。Surge 显式设为 `DIRECT` 时改用 DIRECT。全部节点支持 UDP 时不追加；YAML 注释记录追加数量。
 - 保留节点与策略组的排列、用户主备顺序、`select` / `fallback` / `url-test`。生产地区组使用原生 `fallback`；不带权重的 `smart`（如 `Auto`）近似为仅含代理节点的 `url-test`，不复现真实连接评分。master 转换器不支持 `policy-priority`，相关组会省略并产生不含节点信息的警告。`FINAL` 转为 `MATCH`，省略 Surge 专有的 `dns-failed`；缺少可用兜底策略时不生成配置。
-- 映射普通 / 加密 DNS、系统 hosts、IPv6、GeoIP 数据库、全局代理测试地址和测试超时。DNS 劫持配置放入 `tun.dns-hijack`，TUN 是否启用由客户端决定。
+- 映射普通 / 加密 DNS、系统 hosts、IPv6、GeoIP 数据库、全局代理测试地址和测试超时。`tun.dns-hijack` 劫持全部 53 端口 DNS，对应 Surge 接管系统 DNS，并追加 `hijack-dns` 中非 53 端口的目标；TUN 是否启用由客户端决定。
+- DNS 使用 `fake-ip`，对应 [Surge 增强模式的 DNS 应答](https://manual.nssurge.com/dns/advanced.html)：应用立即得到假 IP，不等待上游 DNS；连接时还原为域名再匹配规则，因此带 `no-resolve` 的 IP 规则只匹配直接以 IP 访问的请求。`profile.store-fake-ip` 让映射在重启后保留。HTTPS / SVCB 查询得到空应答，客户端改查 A 记录，效果对应 Surge 默认的 `allow-dns-svcb = false`。`use-application-dns.net` 经 `nameserver-policy` 返回 NXDOMAIN，与 Surge 相同，使 Firefox 停用自带 DoH；`fake-ip-filter` 让 Windows 联网检测域名（`msftconnecttest.com`、`msftncsi.com`）取得真实地址。
 - 两种 DNS 模式都显式设置 `dns.proxy-server-nameserver`；DoH 跟随出站规则时，节点域名仍使用普通 DNS 引导，只有加密上游追加 `#RULES`。`[Host]` 中精确域名、`*.` 子域名，以及已在分流规则中声明的 `DOMAIN-SET` / `RULE-SET`，支持将 IPv4 DNS 或 HTTPS DoH 映射为 `dns.nameserver-policy`；域名集和规则集复用对应的规则提供器，Mihomo 只用其中的域名类规则。Surge 的 `*.zslab.ai` 转为 Mihomo 的 `.zslab.ai`，覆盖所有层级子域名且不匹配根域名。其他 Host 写法暂不支持。iOS [Clash 的远程配置识别逻辑](https://github.com/ProjectClash/Clash-Client/blob/main/apple/ClashClientKit/Sources/ClashClientKit/ConfigurationImport.swift)依赖显式的节点解析服务器，缺失时可能把完整订阅当成节点来源并另选规则方案。此前已套用客户端默认方案、只显示 `AUTO` / `PROXY` 的配置，需要重新导入完整订阅并选中使用，确认出现 `AIProxy`、`Telegram`、`YouTube` 等业务组。
 - `block-quic` 的 `all-proxy`、`all`、`always-allow` 映射为同名 ProjectClash 扩展 `x-clash-block-quic`，`per-policy` 映射为 `all-proxy`。develop 模板使用 `block-quic = per-policy`（master 为 `all-proxy`）：Surge 中 DIRECT 放行 QUIC，代理默认阻止 QUIC；Surge iOS 6.0.0+ / Mac 6.11.0+ 对支持 UDP 转发的代理改用[自适应模式](https://manual.nssurge.com/policies/parameters.html)，先阻止，客户端不回退 TCP 时再放行。两分支的 Clash 都输出 `x-clash-block-quic: all-proxy`：识别为 QUIC 且最终走代理时阻止，直连 QUIC 放行；策略组手动选为 `DIRECT` 也放行，其他 UDP 仍按规则处理。该判断由 [ProjectClash 内核](https://github.com/ProjectClash/Clash/blob/4b7d5f53cff448f01cd5012b5e3f7eddc7d43e33/tunnel/clash_block_quic.go)在解析最终出口后执行，不添加全局 UDP 443 拦截规则，也不关闭节点 UDP。更新订阅并重连后加载；客户端需使用支持该扩展的版本。 `atlasrouter.zslab.ai` 保留优先的精确域名 `DIRECT` 规则，让订阅及管理入口不依赖代理可用性，也不受 `all-proxy` 的 QUIC 拦截影响；不扩大为整个 `zslab.ai` 直连。
 - `skip-proxy`、Surge 模块、脚本、MitM 等不兼容设置被省略，不擅自转换成语义不同的直连或拦截规则。其他未知设置、规则类型也跳过。YAML 注释记录跳过的字段或条目序号，不记录凭据及配置值。
@@ -197,10 +202,10 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 
 - Surge 组级 `timeout` 是测速结果的延迟筛选阈值，Mihomo 同名字段是健康检查请求的超时。转换只使用全局 `test-timeout`，省略延迟筛选并写入警告。节点级 `test-url` / `test-timeout` 覆盖也会警告；DIRECT 的独立测速参数及两端测速调度方式尚未对齐。当前 Surge 已不使用组级旧 `url`，转换遵循 `proxy-test-url`，旧值冲突时警告。
 - QUIC 拦截映射依赖 ProjectClash 扩展，通用 Mihomo 或不支持该字段的旧客户端可能忽略它；输出会注明这一兼容性要求。`per-policy` 的自适应行为无法在 ProjectClash 复现，转换为 `all-proxy` 并写入警告，不会变成关闭拦截；只用 QUIC、不回退 TCP 的应用在新版 Surge 中可经代理使用，在 Clash 中仍被阻止。转换后的节点不带逐节点 `block-quic`（带未知参数的节点会被移除），因此按 Surge 默认值近似。两端对 QUIC 版本的识别范围仍由各自内核决定。
-- 节点不支持 UDP 时，Mihomo 会继续匹配后续规则；这与 Surge 的 `udp-policy-not-supported-behaviour` 不等价。修复 VMess / Trojan 的默认开关并不保证服务端 UDP 实际可用。
+- 不支持 UDP 的节点按上文追加规则，对齐 Surge 的 `udp-policy-not-supported-behaviour`；转换只能依据节点声明的 UDP 能力，VMess / Trojan 默认开启也不保证服务端 UDP 实际可用。
 - 健康检查调度不能等价：Surge Smart 固定每 5 分钟重测，Clash 未显式设置 `lazy`，按 Mihomo 默认 `true`，未选中的组不测试。Surge 原生 fallback / url-test 的 `interval` 是结果有效期，并非固定轮询时钟。Mihomo 的 `max-failed-times` 默认 5 是触发强制健康检查的失败阈值，不是“健康检查连续失败 5 次才换节点”，当前没有配置可保证单次测速失败后保持原 IP。
 - MagicRule 使用各客户端各自的完整产物，规则名与引用顺序一致不代表条目逐条相同；其他远程规则中的不支持条目会被省略。客户端图标、隐藏属性和保存的手动选择也取决于客户端版本及本地状态。
-- DNS 当前使用 `redir-host`，不是 Surge VIF 的 fake-IP 机制；`SYSTEM`、`FINAL,dns-failed`、`skip-proxy`、模块、脚本和 MitM 等仍按上述限制处理。
+- 规则匹配中本地解析失败时，Mihomo 跳过 IP 条件继续向下匹配，通常落到 `MATCH`；Surge 的 `FINAL,dns-failed` 直接改走 `FINAL`，因此解析失败后仍可能命中不同的域名规则。`SYSTEM`、`skip-proxy`、模块、脚本和 MitM 等仍按上述限制处理。
 
 Mihomo 检测默认值见 [代理组公共参数](https://wiki.metacubex.one/en/config/proxy-groups/)。测速语义参见 [Surge 公共组参数](https://manual.nssurge.com/policy-groups/parameters.html)；QUIC 与 UDP 回退语义参见 [Surge General](https://manual.nssurge.com/profile/general.html)及 [Mihomo 规则优先级](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)。
 
