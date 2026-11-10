@@ -144,7 +144,7 @@ WeChat 使用本仓库维护的 [`surge/rule-sets/WeChat.list`](../surge/rule-se
 
 模板为 MagicRule 规则设置 `update-interval=21600`，客户端每 6 小时检查一次，转换为 Clash 时对应规则提供器的 `interval: 21600`；本仓库规则集沿用默认的 24 小时。中转响应带内容 SHA-256 的 ETag 和 `cache-control: no-cache`，客户端用 `If-None-Match` 检查，内容未变时得到 304，不重新下载。Surge 自 iOS 5.14.0 / Mac 5.8.1 起支持；Mihomo 与 ProjectClash 的 `etag-support` 默认开启。Worker 读取的清单和产物在 Cloudflare 边缘最多缓存一小时，上游更新最多约一小时后出现在中转结果中，客户端在下次更新规则时取得。某条规则在 MagicRule 改名或下线时，从官方索引取新的清单地址更新 `surge/magicrule.json` 并重新部署。
 
-GitHub Actions 的 [`MagicRule check`](../.github/workflows/magicrule.yml) 每 6 小时（UTC 每天 00:17 起）分别检查 master 和 develop 登记的全部清单：清单须仍列在官方索引中，并能按 Worker 的规则取得有效列表；任一失败时任务失败，GitHub 按通知设置提醒。修改登记、模板或中转代码时也会运行。定时任务只从默认分支 master 读取工作流，合入 master 后才生效；公开仓库 60 天无活动时 GitHub 会暂停定时任务。本地可在 `worker/` 运行 `npm run check:magic-rules`。
+生产 Worker 的 Cron Trigger（`*/5 * * * *`）每 5 分钟按登记顺序检查一个列表，当前登记的 52 个列表约 4 小时 20 分钟轮完一遍；每次只下载一份清单和产物，以符合 Workers 免费计划每次 10 ms CPU 的限制。检查使用与中转相同的校验，通过的内容同时更新 D1 中的最后有效副本。同一列表连续 2 次检查失败时，通过 [Bark](https://bark.day.app/) 推送一次提醒，恢复后再推送一次；推送失败时，下一次运行会重试。检查状态记在 D1 `magic_rule_checks` 表，设置见 [环境与存储](env.md)。Cron Trigger 只在生产环境运行，因此只检查 master 的登记，develop Preview 不运行定时任务。定时检查不读取官方索引（每份约 860 KB，超出免费计划的 CPU 限制）；修改登记时在 `worker/` 运行 `npm run check:magic-rules`，它会对照索引检查全部清单，并列出应改用的清单地址。
 
 国内直连名单使用 MagicRule `China` 列表（2026-10-30 更新时约 6,300 条域名后缀和 3,900 条 IP 段，含整段 `.cn`），与其他 MagicRule 规则一样登记在 `surge/magicrule.json`。模板的 `[Rule]` 和 `[Host]` 都引用 `{{RULESET_China}}`：前者排在 LAN 解析规则之后、`GEOIP,CN` 之前直连，后者为其中的域名指定国内 DNS。Clash 使用 China 的 Mihomo 原生产物，并以同一规则提供器生成 `nameserver-policy`。名单含 `DOMAIN-SUFFIX,ms`，所有 `.ms` 域名（如 `aka.ms`）直连；还含 `microsoft`、`-cn` 等宽泛的 `DOMAIN-KEYWORD`，含这些字样的域名一律直连，排在其前的规则集已收录的除外。淘宝、百度、支付宝、阿里云在名单中只有关键字规则。
 

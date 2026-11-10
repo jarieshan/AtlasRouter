@@ -7,6 +7,8 @@ import test from "node:test";
 import { parse as parseYaml } from "yaml";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { applyMigrations, migrations } from "../test-helpers/migrations.js";
+import { CHECK_INTERVAL } from "../src/magic-rule-check.js";
+import { magicRuleSources } from "../src/magic-rules.js";
 import { allocateNodes, parsePoolNodes, userGroups } from "../src/node-pool.js";
 import { readSubscriptionState } from "../src/subscription-db.js";
 import { splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
@@ -631,6 +633,37 @@ test("MagicRule relay needs no token, answers 304 and serves the copy kept in D1
   assert.equal(missing.headers.get("cache-control"), "no-store");
   assert.equal((await request(mf, route, { method: "HEAD" })).status, 405);
   assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/Copilot.yaml`)).status, 404);
+});
+
+test("the scheduled handler checks one MagicRule list per run in workerd and reports repeated failures through Bark", async (t) => {
+  const sources = magicRuleSources();
+  const index = sources.findIndex((source) => source.name === "China" && source.client === "mihomo");
+  const requested = [];
+  const mf = new Miniflare(convertV4MiniflareOptions({
+    name: "atlas-router-tests", modules: true, scriptPath: ".wrangler/test-dist/index.js",
+    compatibilityDate: "2026-05-12", d1Databases: ["DB"], bindings: { BARK_DEVICE_KEY: "test-device-key" },
+    outboundService: async (upstream) => {
+      requested.push({ method: upstream.method, url: upstream.url, body: upstream.method === "POST" ? await upstream.json() : null });
+      return upstream.url === "https://api.day.app/push" ? Response.json({ code: 200, message: "success" })
+        : new Response("<!doctype html><html></html>", { headers: { "content-type": "text/html" } });
+    },
+  }));
+  t.after(() => mf.dispose());
+  await initializeDatabase(mf);
+  const worker = await mf.getWorker();
+  const run = (round) => worker.scheduled({ cron: "*/5 * * * *", scheduledTime: new Date((index + round * sources.length) * CHECK_INTERVAL) });
+  assert.equal((await run(0)).outcome, "ok");
+  assert.deepEqual(requested, [{ method: "GET", url: sources[index].manifest, body: null }]);
+  assert.equal((await run(1)).outcome, "ok");
+  assert.equal(requested.length, 3);
+  const push = requested[2];
+  assert.equal(push.method, "POST");
+  assert.equal(push.url, "https://api.day.app/push");
+  assert.equal(push.body.device_key, "test-device-key");
+  assert.match(push.body.body, /^China（Mihomo）连续 2 次检查失败。/);
+  const db = await mf.getD1Database("DB");
+  const state = await db.prepare("SELECT failures, notified FROM magic_rule_checks WHERE name = 'China' AND client = 'mihomo'").first();
+  assert.deepEqual({ ...state }, { failures: 2, notified: 1 });
 });
 
 test("Surge and Clash options share a token and allocation, enable DoH and reject invalid options", async (t) => {

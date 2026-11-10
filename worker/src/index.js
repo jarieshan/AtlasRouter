@@ -1,4 +1,5 @@
 import { HttpError } from "./errors.js";
+import { checkMagicRules } from "./magic-rule-check.js";
 import { handlePoolRequest } from "./pool-routes.js";
 
 const SECURITY_HEADERS = {
@@ -11,6 +12,9 @@ const SECURITY_HEADERS = {
 export default {
   async fetch(request, env) {
     return handleRequest(request, env);
+  },
+  async scheduled(controller, env) {
+    await checkMagicRules(env, controller.scheduledTime);
   },
 };
 

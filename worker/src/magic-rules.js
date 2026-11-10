@@ -19,6 +19,11 @@ export function findMagicRuleSource(filename) {
   return { name, client, extension, manifest };
 }
 
+export function magicRuleSources() {
+  return Object.keys(ASSETS.magicRules).flatMap((name) => Object.entries(CLIENTS)
+    .map(([client, { extension }]) => findMagicRuleSource(`magicrule/${client}/${name}.${extension}`))).filter(Boolean);
+}
+
 // No token: [Host] keys reference these URLs, and the Clash converter splits Host lines at the first "=".
 export function magicRuleUrl(name, client, requestUrl) {
   const filename = `magicrule/${client}/${name}.${CLIENTS[client]?.extension}`;
@@ -101,16 +106,7 @@ export async function serveMagicRuleSet(request, env, source, fetcher = fetch) {
     if (!stored) throw failure;
     ({ sha256: hash, body } = stored);
   } else {
-    hash = await sha256(body);
-    try {
-      const stored = await env.DB.prepare("SELECT sha256 FROM magic_rule_sets WHERE name = ? AND client = ?")
-        .bind(source.name, source.client).first();
-      if (stored?.sha256 !== hash) {
-        await env.DB.prepare(`INSERT INTO magic_rule_sets (name, client, sha256, body, updated_at) VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT (name, client) DO UPDATE SET sha256 = excluded.sha256, body = excluded.body, updated_at = excluded.updated_at`)
-          .bind(source.name, source.client, hash, body, new Date().toISOString()).run();
-      }
-    } catch { /* A storage failure must not withhold a list that passed validation. */ }
+    hash = await storeMagicRuleSet(env, source, body);
   }
   const headers = {
     "content-type": source.client === "mihomo" ? "application/yaml; charset=utf-8" : "text/plain; charset=utf-8",
@@ -120,6 +116,20 @@ export async function serveMagicRuleSet(request, env, source, fetcher = fetch) {
   const matches = (request.headers.get("if-none-match") ?? "").split(",")
     .some((tag) => ["*", headers.etag].includes(tag.trim().replace(/^W\//, "")));
   return new Response(matches ? null : body, { status: matches ? 304 : 200, headers });
+}
+
+export async function storeMagicRuleSet(env, source, body) {
+  const hash = await sha256(body);
+  try {
+    const stored = await env.DB.prepare("SELECT sha256 FROM magic_rule_sets WHERE name = ? AND client = ?")
+      .bind(source.name, source.client).first();
+    if (stored?.sha256 !== hash) {
+      await env.DB.prepare(`INSERT INTO magic_rule_sets (name, client, sha256, body, updated_at) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (name, client) DO UPDATE SET sha256 = excluded.sha256, body = excluded.body, updated_at = excluded.updated_at`)
+        .bind(source.name, source.client, hash, body, new Date().toISOString()).run();
+    }
+  } catch { /* A storage failure must not withhold a list that passed validation. */ }
+  return hash;
 }
 
 async function sha256(text) {
