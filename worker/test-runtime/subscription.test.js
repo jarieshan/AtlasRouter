@@ -593,7 +593,9 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(config.dns.nameserver.every((server) => server.startsWith("https://")), doh === "1");
         assert.deepEqual(config.dns.nameserver, doh === "1" ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
         assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
+        assert.equal(config.dns["enhanced-mode"], "fake-ip");
         assert.deepEqual(config.dns["nameserver-policy"], {
+          "use-application-dns.net": "rcode://name_error",
           "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
           "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
           ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "IBKR", "China"].map((id) => [`rule-set:${id}`, doh === "1"

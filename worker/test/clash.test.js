@@ -21,6 +21,7 @@ const directUrl = magicRuleUrl("China", "surge", context.requestUrl);
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
 const vmess = `vmess, vmess.example.com, 443, username=${uuid}, vmess-aead=true, tls=true`;
+const dohCanary = { "use-application-dns.net": "rcode://name_error" };
 
 function profile() {
   const state = { nodes: parsePoolNodes([
@@ -166,7 +167,11 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.dns.nameserver, doh ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
     // Node bootstrap must not depend on the proxy used by encrypted DNS.
     assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
+    assert.equal(config.dns["enhanced-mode"], "fake-ip");
+    assert.deepEqual(config.dns["fake-ip-filter"], ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"]);
+    assert.deepEqual(config.profile, { "store-fake-ip": true });
     assert.deepEqual(config.dns["nameserver-policy"], {
+      ...dohCanary,
       "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
       "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
       ...Object.fromEntries([customDirectSource.id, "IBKR", "China"].map((provider) => [`rule-set:${provider}`, doh
@@ -330,7 +335,7 @@ test("explicit rendering options preserve protocol behavior across visibility an
 test("Host UDP DNS mappings preserve suffix depth and omit unsupported values without leaking them", async () => {
   const source = `[Host]\nexample.com = server:223.5.5.5, 119.29.29.29\n*.example.com = server:9.9.9.9\nexample.com = server:8.8.8.8\ninvalid.example = server:999.1.1.1\nsecret.example = script:NEVER_LOG_THIS\n[Proxy]\nnode = trojan, example.com, 443, password=TEST_ONLY\n[Rule]\nFINAL,node\n`;
   const { config, warnings } = await convertSurgeToClash(source, context);
-  assert.deepEqual({ ...config.dns["nameserver-policy"] }, { "example.com": ["223.5.5.5", "119.29.29.29"], ".example.com": ["9.9.9.9"] });
+  assert.deepEqual({ ...config.dns["nameserver-policy"] }, { ...dohCanary, "example.com": ["223.5.5.5", "119.29.29.29"], ".example.com": ["9.9.9.9"] });
   assert.equal(warnings.length, 2);
   assert.doesNotMatch(warnings.join("\n"), /secret\.example|NEVER_LOG_THIS|999\.1\.1\.1/);
 });
@@ -342,6 +347,7 @@ test("Host DoH mappings follow the outbound setting and only reuse declared doma
     const { config, warnings } = await convertSurgeToClash(`[General]\nencrypted-dns-follow-outbound-mode = ${follow}\n${source}`, context);
     const suffix = follow ? "#RULES" : "";
     assert.deepEqual({ ...config.dns["nameserver-policy"] }, {
+      ...dohCanary,
       [`rule-set:${directSource.id}`]: [`https://dns.alidns.com/dns-query${suffix}`, `https://doh.pub/dns-query${suffix}`],
     });
     assert.deepEqual(Object.keys(config["rule-providers"]), [directSource.id]);
@@ -349,13 +355,13 @@ test("Host DoH mappings follow the outbound setting and only reuse declared doma
     assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS|private\.example|unregistered|skip-cert-verify/);
   }
   const { config, warnings } = await convertSurgeToClash(source.replace(`DOMAIN-SET,${directUrl},DIRECT\n`, ""), context);
-  assert.equal(config.dns["nameserver-policy"], undefined);
+  assert.deepEqual({ ...config.dns["nameserver-policy"] }, dohCanary);
   assert.deepEqual(Object.keys(config["rule-providers"]), []);
   assert.equal(warnings.length, 6);
   const genericUrl = "https://rules.example.com/direct.list";
   const ruleSet = await ruleSource(["RULE-SET", genericUrl]);
   const mapped = await convertSurgeToClash(`[Host]\nRULE-SET:${genericUrl} = server:223.5.5.5\nRULE-SET:${directUrl} = server:119.29.29.29\n[Proxy]\nnode = ${vmess}\n[Rule]\nRULE-SET,${genericUrl},DIRECT,no-resolve\nRULE-SET,${directUrl},DIRECT,no-resolve\nFINAL,node\n`, context);
-  assert.deepEqual({ ...mapped.config.dns["nameserver-policy"] }, { [`rule-set:${ruleSet.id}`]: ["223.5.5.5"], "rule-set:China": ["119.29.29.29"] });
+  assert.deepEqual({ ...mapped.config.dns["nameserver-policy"] }, { ...dohCanary, [`rule-set:${ruleSet.id}`]: ["223.5.5.5"], "rule-set:China": ["119.29.29.29"] });
   assert.deepEqual(mapped.warnings, []);
 });
 

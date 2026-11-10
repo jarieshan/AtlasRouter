@@ -29,7 +29,7 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const policies = new Set(["DIRECT", "REJECT", ...proxies.map(({ name }) => name), ...groups.map(({ name }) => name)]);
   const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn);
   const hostDns = await convertHostDns(sections.get("host") ?? [], providers, general, requestUrl, warn);
-  if (Object.keys(hostDns).length) config.dns["nameserver-policy"] = hostDns;
+  config.dns["nameserver-policy"] = { "use-application-dns.net": "rcode://name_error", ...hostDns };
   for (const name of sections.keys()) {
     if (!["general", "host", "proxy", "proxy group", "rule"].includes(name)) {
       // Section names are syntax labels, never include section contents in diagnostics.
@@ -46,8 +46,11 @@ export async function renderClashProfile(profile, context) {
 }
 
 function convertGeneral(general, warn) {
-  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false };
-  const dns = { enable: true, "enhanced-mode": "redir-host", ipv6: false };
+  // Surge's enhanced mode answers with fake IPs and keeps the mapping across restarts, so
+  // no-resolve IP rules never match domain traffic and app lookups never wait for DoH.
+  // Windows' connectivity probe needs a real answer; Surge answers Firefox's DoH canary itself.
+  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false, profile: { "store-fake-ip": true } };
+  const dns = { enable: true, "enhanced-mode": "fake-ip", "fake-ip-filter": ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"], ipv6: false };
   const consumed = new Set();
   const read = (key, convert) => {
     consumed.add(key);
