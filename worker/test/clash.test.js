@@ -17,7 +17,7 @@ const customDirectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@devel
 const customRejectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
 const coinUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
 const customAIUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
-const directUrl = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
+const directUrl = magicRuleUrl("China", "surge", context.requestUrl);
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
 const vmess = `vmess, vmess.example.com, 443, username=${uuid}, vmess-aead=true, tls=true`;
@@ -47,7 +47,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   assert.deepEqual(plain.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.match(encrypted, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
   assert.match(encrypted, /^encrypted-dns-follow-outbound-mode = true$/m);
-  for (const url of [customDirectUrl, magicRuleUrl("IBKR", "surge"), directUrl]) {
+  for (const url of [customDirectUrl, magicRuleUrl("IBKR", "surge", context.requestUrl), directUrl]) {
     assert.ok(plain.split("\n").includes(`RULE-SET:${url} = server:223.5.5.5, 119.29.29.29`));
     assert.ok(encrypted.split("\n").includes(`RULE-SET:${url} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query`));
   }
@@ -206,7 +206,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     ]);
     const repository = new Map([customRejectSource, customDirectSource, wechatSource, customAISource, coinSource].map((source) => [source.id, source.url]));
     for (const [name, provider] of Object.entries(config["rule-providers"])) {
-      assert.equal(provider.url, repository.get(name) ?? magicRuleUrl(name, "mihomo"));
+      assert.equal(provider.url, repository.get(name) ?? magicRuleUrl(name, "mihomo", context.requestUrl));
       assert.ok(!provider.url.includes(context.token));
       assert.equal(provider.behavior, "classical");
       assert.equal(provider.format, repository.has(name) ? "text" : "yaml");
@@ -670,13 +670,16 @@ test("repository rule sets are fetched directly without a token; lookalike sourc
   }
 });
 
-test("native MagicRule providers retain flags and intervals and only map registered Surge artifacts", async () => {
-  const surge = magicRuleUrl("OpenAI", "surge");
+test("native MagicRule providers retain flags and intervals and only map the relay's registered Surge lists", async () => {
+  const surge = magicRuleUrl("OpenAI", "surge", context.requestUrl);
   const fallbackSources = [
-    ["RULE-SET", surge.replace("magicrule.pages.dev", "other.example")],
-    ["RULE-SET", surge.replace("OpenAI_rules_", "Unregistered_rules_")],
+    ["RULE-SET", surge.replace("atlas.example", "other.example")],
+    ["RULE-SET", surge.replace("/AtlasRouter/", "/AtlasRouter-Dev/")],
+    ["RULE-SET", surge.replace("OpenAI", "Unregistered")],
     ["RULE-SET", `${surge}?private=TEST_ONLY`],
-    ["RULE-SET", magicRuleUrl("OpenAI", "mihomo")],
+    ["RULE-SET", `${surge}?dev=1`],
+    ["RULE-SET", magicRuleUrl("OpenAI", "mihomo", context.requestUrl)],
+    ["RULE-SET", "https://magicrule.pages.dev/data/_shared/artifacts/OpenAI_rules_0123456789abcdef.list"],
     ["DOMAIN-SET", surge],
   ];
   const { providers, rules } = await convertClashRules([
@@ -686,11 +689,11 @@ test("native MagicRule providers retain flags and intervals and only map registe
     "FINAL,DIRECT",
   ], new Set(["DIRECT", "REJECT"]), context.requestUrl, context.token, assert.fail);
   assert.equal(providers.OpenAI.interval, 600);
-  assert.equal(providers.OpenAI.url, magicRuleUrl("OpenAI", "mihomo"));
+  assert.equal(providers.OpenAI.url, magicRuleUrl("OpenAI", "mihomo", context.requestUrl));
   assert.equal(providers.OpenAI.format, "yaml");
   assert.ok(rules.includes("RULE-SET,OpenAI,DIRECT,no-resolve"));
   assert.ok(rules.includes("RULE-SET,OpenAI,REJECT"));
-  assert.equal(Object.keys(providers).length, 6);
+  assert.equal(Object.keys(providers).length, 1 + fallbackSources.length);
   for (const parts of fallbackSources) {
     const source = await ruleSource(parts);
     assert.equal(providers[source.id].url, `${context.requestUrl}/rules/${source.id}.txt?token=${context.token}`);

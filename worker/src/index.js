@@ -26,6 +26,6 @@ export async function handleRequest(request, env) {
     });
   }
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) response.headers.set(name, value);
-  response.headers.set("cache-control", "no-store");
+  if (!response.headers.has("cache-control")) response.headers.set("cache-control", "no-store");
   return response;
 }

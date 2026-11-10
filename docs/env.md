@@ -50,7 +50,7 @@ Cloudflare 生产 Deploy command 使用 `npm run deploy`。旧 `build:branches`�
 
 ## D1 关系表
 
-数据库结构见 [0002_relational.sql](../worker/migrations/0002_relational.sql)。运行时不保存 JSON 快照：
+数据库结构见 [0002_relational.sql](../worker/migrations/0002_relational.sql) 和 [0003_magic_rule_sets.sql](../worker/migrations/0003_magic_rule_sets.sql)。运行时不保存 JSON 快照：
 
 | 表 | 用途与主要字段 |
 | --- | --- |
@@ -58,6 +58,7 @@ Cloudflare 生产 Deploy command 使用 `npm run deploy`。旧 `build:branches`�
 | `nodes` | 节点 ID、唯一名称、地区、IP 类型、组名、Surge 配置值、启用状态、历史分配次数、首次分配时间、录入顺序 |
 | `assignments` | 用户 ID、组名、主节点 ID、同一主节点内的分配顺序；`(user_id, group_name)` 为主键 |
 | `store_versions` | 节点池的写入版本、事务标识和管理员清单版本 |
+| `magic_rule_sets` | MagicRule 规则名、客户端、内容 SHA-256、最后一次通过校验的公开规则内容和写入时间；`(name, client)` 为主键，不含用户数据 |
 
 外键保证归属引用有效用户及同组节点，唯一约束保证每人每组最多一个主节点；多个用户可引用同一节点。当前分配人数由 `assignments` 统计，历史次数保存在 `nodes.assignment_count`。固定录入顺序与 `owner_order` 共同决定主备顺序，不保存重复的备用节点列表。
 

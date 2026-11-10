@@ -28,9 +28,9 @@ const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@dev
 const COIN_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
 const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
 const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, CUSTOM_DIRECT_URL, WECHAT_URL, CUSTOM_AI_URL, COIN_URL];
-const magicRuleArtifact = (url, name, key, extension) =>
-  new RegExp(`^https://(?:magicrule|rule-26r)\\.pages\\.dev/data/_shared/artifacts/${name}_${key}_[0-9a-f]{16}\\.${extension}$`).test(url);
-const DIRECT_URL = "https://magicrule.pages.dev/data/_shared/artifacts/China_rules_25adbc0394103807.list";
+const magicRuleRelay = (url, name, client, base = `${ORIGIN}${POOL_SUBSCRIPTION_PATH}`, query = "") =>
+  new RegExp(`^${`${base}/rules/magicrule/${client}/`.replace(/\./g, "\\.")}${name}\\.${client === "surge" ? "list" : "yaml"}${query.replace(/\?/g, "\\?")}$`).test(url);
+const DIRECT_URL = `${ORIGIN}${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/China.list`;
 const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const TEAM = "https://test.cloudflareaccess.com";
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -284,7 +284,7 @@ test("native preview consumes links from the production UI with separate D1 data
   assert.equal(clash["proxy-groups"].find(({ name }) => name === "DoH Proxy").icon, `${ICON_BASE}Server.png`);
   const providerUrls = Object.values(clash["rule-providers"]).map(({ url }) => url);
   assert.deepEqual(providerUrls.filter((url) => REPOSITORY_RULE_SET_URLS.includes(url)), REPOSITORY_RULE_SET_URLS);
-  assert.ok(providerUrls.filter((url) => !REPOSITORY_RULE_SET_URLS.includes(url)).every((url) => magicRuleArtifact(url, "[A-Za-z]+", "classical", "yaml")));
+  assert.ok(providerUrls.filter((url) => !REPOSITORY_RULE_SET_URLS.includes(url)).every((url) => magicRuleRelay(url, "[A-Za-z]+", "mihomo", `${devOrigin}/AtlasRouter-Dev`)));
   assert.equal((await preview.fetch(`${devOrigin}/`)).status, 404);
   assert.equal((await preview.fetch(`${devOrigin}/missing`)).status, 404);
   assert.equal((await preview.fetch(`${devOrigin}/AtlasRouter-Dev`)).status, 401);
@@ -371,7 +371,7 @@ test("one Worker preserves dev across real subscription, module, rule and accoun
   const clash = parseYaml(await (await request(mf, `${development.subscriptionUrl}&client=clash`)).text());
   const providers = Object.values(clash["rule-providers"]);
   assert.ok(providers.some((provider) => provider.format === "yaml"));
-  assert.ok(providers.filter(({ url }) => !REPOSITORY_RULE_SET_URLS.includes(url)).every(({ url }) => magicRuleArtifact(url, "[A-Za-z]+", "classical", "yaml")));
+  assert.ok(providers.filter(({ url }) => !REPOSITORY_RULE_SET_URLS.includes(url)).every(({ url }) => magicRuleRelay(url, "[A-Za-z]+", "mihomo", undefined, "?dev=1")));
   assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?dev=1`)).status, 401);
   assert.equal((await request(mf, "/missing?dev=1")).status, 404);
   assert.deepEqual(await readSubscriptionState({ DB: productionDb }), before);
@@ -592,6 +592,47 @@ test("only current subscription and module URLs accept tokens", async (t) => {
   }
 });
 
+test("MagicRule relay needs no token, answers 304 and serves the copy kept in D1 while the upstream returns HTML", async (t) => {
+  const manifestUrl = JSON.parse(await readFile("../surge/magicrule.json", "utf8")).China.mihomo;
+  const artifactUrl = `${new URL(manifestUrl).origin}/data/_shared/artifacts/China_classical_test.yaml`;
+  const body = `payload:\n${Array.from({ length: 10000 }, (_, index) => `  - 'DOMAIN-SUFFIX,site-${index}.example.cn'`).join("\n")}\n`;
+  let healthy = true;
+  const requested = [];
+  const mf = new Miniflare(convertV4MiniflareOptions({
+    name: "atlas-router-tests", modules: true, scriptPath: ".wrangler/test-dist/index.js",
+    compatibilityDate: "2026-05-12", d1Databases: ["DB"],
+    outboundService: async (upstream) => {
+      requested.push(upstream.url);
+      if (!healthy) return new Response("<!doctype html><html></html>", { headers: { "content-type": "text/html" } });
+      if (upstream.url === manifestUrl) return Response.json({ client: "Mihomo", rule: "China", artifacts: [{ role: "full", ext: "yaml", url: artifactUrl }] });
+      return upstream.url === artifactUrl ? new Response(body) : new Response(null, { status: 404 });
+    },
+  }));
+  t.after(() => mf.dispose());
+  await initializeDatabase(mf);
+  const route = `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/China.yaml`;
+  const fresh = await request(mf, route);
+  assert.equal(fresh.status, 200);
+  assert.equal(fresh.headers.get("content-type"), "application/yaml; charset=utf-8");
+  assert.equal(fresh.headers.get("cache-control"), "no-cache");
+  assert.equal(await fresh.text(), body);
+  assert.deepEqual(requested, [manifestUrl, artifactUrl]);
+  const etag = fresh.headers.get("etag");
+  const stored = await (await mf.getD1Database("DB")).prepare("SELECT sha256, length(body) AS size FROM magic_rule_sets WHERE name = 'China' AND client = 'mihomo'").first();
+  assert.deepEqual({ ...stored }, { sha256: etag.slice(1, -1), size: body.length });
+  assert.equal((await request(mf, route, { headers: { "if-none-match": etag } })).status, 304);
+  healthy = false;
+  const fallback = await request(mf, route);
+  assert.equal(fallback.status, 200);
+  assert.equal(fallback.headers.get("etag"), etag);
+  assert.equal(await fallback.text(), body);
+  const missing = await request(mf, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/China.list`);
+  assert.equal(missing.status, 502);
+  assert.equal(missing.headers.get("cache-control"), "no-store");
+  assert.equal((await request(mf, route, { method: "HEAD" })).status, 405);
+  assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/Copilot.yaml`)).status, 404);
+});
+
 test("Surge and Clash options share a token and allocation, enable DoH and reject invalid options", async (t) => {
   const mf = await createRuntime(t);
   await save(mf, [...nodes(), ...nodes(1, "IDC", "🇭🇰")]);
@@ -619,7 +660,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
             : ["223.5.5.5", "119.29.29.29"]])),
         });
         assert.equal(config["rule-providers"][CUSTOM_DIRECT_RULE_ID].url, CUSTOM_DIRECT_URL);
-        assert.ok(magicRuleArtifact(config["rule-providers"].China.url, "China", "classical", "yaml"));
+        assert.ok(magicRuleRelay(config["rule-providers"].China.url, "China", "mihomo"));
         assert.equal(config["rule-providers"].China.format, "yaml");
         const auto = config["proxy-groups"].find(({ name }) => name === "Auto");
         assert.equal(auto.type, "url-test");
@@ -649,13 +690,13 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(wechatProvider.format, "text");
         assert.equal(wechatProvider.url, WECHAT_URL);
         for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
-        assert.ok(magicRuleArtifact(config["rule-providers"].iCloud.url, "iCloud", "classical", "yaml"));
+        assert.ok(magicRuleRelay(config["rule-providers"].iCloud.url, "iCloud", "mihomo"));
         const youtube = config["proxy-groups"].find((group) => group.name === "YouTube");
         assert.deepEqual(youtube.proxies, ["🇭🇰HK-IDC", "🇺🇸USA-ISP"]);
         assert.ok(!youtube.hidden);
         assert.equal(youtube.icon, `${ICON_BASE}YouTube.png`);
         assert.ok(config.rules.includes("RULE-SET,YouTube,YouTube,no-resolve"));
-        assert.ok(magicRuleArtifact(config["rule-providers"].YouTube.url, "YouTube", "classical", "yaml"));
+        assert.ok(magicRuleRelay(config["rule-providers"].YouTube.url, "YouTube", "mihomo"));
         assert.ok(Object.values(config["rule-providers"]).every(({ url }) => !url.includes(new URL(profile.subscriptionUrl).searchParams.get("token"))));
       } else {
         assert.match(response.headers.get("content-type"), /text\/plain/);
@@ -673,7 +714,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         for (const url of [CUSTOM_DIRECT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
         assert.ok(text.split("\n").some((line) => {
           const [, url, servers] = line.match(/^RULE-SET:(\S+) = server:(.+)$/) ?? [];
-          return url && magicRuleArtifact(url, "IBKR", "rules", "list") && servers === directDns;
+          return url && magicRuleRelay(url, "IBKR", "surge") && servers === directDns;
         }));
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(text.includes(`DOMAIN,${hostname},DoH Proxy\n`));
         for (const hostname of ["dns.alidns.com", "doh.pub"]) {
@@ -695,10 +736,10 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
         const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve$/gm)];
         for (const [, value] of sources) {
-          if (!REPOSITORY_RULE_SET_URLS.includes(value)) assert.ok(magicRuleArtifact(value, "[A-Za-z]+", "rules", "list"), value);
+          if (!REPOSITORY_RULE_SET_URLS.includes(value)) assert.ok(magicRuleRelay(value, "[A-Za-z]+", "surge"), value);
         }
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
-        assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/artifacts\/([A-Za-z]+)_/)[1], policy]), [
+        assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/\/magicrule\/surge\/([A-Za-z]+)\.list$/)[1], policy]), [
           [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], ["IBKR", "DIRECT"], ["LongBridge", "Proxy"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
           ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
           ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
