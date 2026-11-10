@@ -734,7 +734,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.doesNotMatch(text, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
         assert.doesNotMatch(text, /^AppleDirect = /m);
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
-        const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve$/gm)];
+        const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve(?:,update-interval=21600)?$/gm)];
         for (const [, value] of sources) {
           if (!REPOSITORY_RULE_SET_URLS.includes(value)) assert.ok(magicRuleRelay(value, "[A-Za-z]+", "surge"), value);
         }

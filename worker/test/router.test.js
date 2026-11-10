@@ -378,11 +378,12 @@ test("MagicRule lists are relayed without the subscription token, with ETags and
   const surge = await (await request(`${subscription.pathname}${subscription.search}`, {}, env)).text();
   const relay = magicRuleUrl("OpenAI", "surge", subscription.href);
   assert.equal(relay, "https://atlas.example/AtlasRouter/rules/magicrule/surge/OpenAI.list");
-  assert.ok(surge.split("\n").includes(`RULE-SET,${relay},AIProxy,no-resolve`));
+  assert.ok(surge.split("\n").includes(`RULE-SET,${relay},AIProxy,no-resolve,update-interval=21600`));
   assert.doesNotMatch(surge, /pages\.dev/);
   assert.doesNotMatch(surge.split("[Rule]\n")[1], new RegExp(token));
   const config = parseYaml(await (await request(`${subscription.pathname}${subscription.search}&client=clash`, {}, env)).text());
   assert.equal(config["rule-providers"].OpenAI.url, magicRuleUrl("OpenAI", "mihomo", subscription.href));
+  assert.equal(config["rule-providers"].OpenAI.interval, 21600);
   assert.ok(Object.values(config["rule-providers"]).every(({ url }) => !url.includes(token)));
 
   const source = findMagicRuleSource("magicrule/surge/OpenAI.list");

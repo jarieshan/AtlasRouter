@@ -17,6 +17,9 @@ test("MagicRule registry covers template placeholders with manifests on either M
   assert.deepEqual([...names].sort(), Object.keys(ASSETS.magicRules).sort());
   assert.equal(names.length, 26);
   assert.doesNotMatch(ASSETS.template, /blackmatrix7|ios_rule_script/);
+  const rules = ASSETS.template.split("\n").filter((line) => line.startsWith("RULE-SET,{{RULESET_"));
+  assert.equal(rules.length, 26);
+  for (const line of rules) assert.match(line, /^RULE-SET,{{RULESET_[A-Za-z0-9]+}},[^,]+,no-resolve,update-interval=21600$/);
   for (const name of names) {
     for (const [client, clientName, extension] of [["surge", "Surge", "list"], ["mihomo", "Mihomo", "yaml"]]) {
       const registered = findMagicRuleSource(`magicrule/${client}/${name}.${extension}`);

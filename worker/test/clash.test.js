@@ -87,7 +87,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
     const rules = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter((line) => line && !line.startsWith("#"));
-    assert.deepEqual(rules.slice(-4), ["RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve`, "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
+    assert.deepEqual(rules.slice(-4), ["RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`, "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);
@@ -210,7 +210,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.ok(!provider.url.includes(context.token));
       assert.equal(provider.behavior, "classical");
       assert.equal(provider.format, repository.has(name) ? "text" : "yaml");
-      assert.equal(provider.interval, 86400);
+      assert.equal(provider.interval, repository.has(name) ? 86400 : 21600);
     }
     assert.match(output, /General skip-proxy: unsupported setting omitted/);
     assert.doesNotMatch(output, /#!MANAGED-CONFIG|\.sgmodule|{{|💎 Select/);

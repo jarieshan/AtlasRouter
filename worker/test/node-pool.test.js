@@ -265,7 +265,7 @@ test("orders selection options by IP type while preserving regional definitions 
     const expectedWarpFirst = ["WARP", "IDC", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.ok(config.split("\n").includes(`YouTube = select, ${expectedWarpFirst.join(", ")}, icon-url=${ICON_BASE}YouTube.png`));
     assert.ok(config.split("\n").includes(`GlobalMedia = select, ${expectedWarpFirst.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Media.png`));
-    const youtubeRule = `RULE-SET,${magicRuleUrl("YouTube", "surge", "https://atlas.example/AtlasRouter")},YouTube,no-resolve\n`;
+    const youtubeRule = `RULE-SET,${magicRuleUrl("YouTube", "surge", "https://atlas.example/AtlasRouter")},YouTube,no-resolve,update-interval=21600\n`;
     assert.ok(config.includes(youtubeRule));
     assert.ok(config.indexOf(youtubeRule) < config.indexOf(`${magicRuleUrl("GlobalMedia", "surge", "https://atlas.example/AtlasRouter")},`));
     assert.doesNotMatch(config, /\/Google\.list|token=test-token,/);
