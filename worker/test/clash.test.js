@@ -112,14 +112,18 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const surge = renderSurgeProfile({ ...input, options: { doh } });
     const output = await renderClashProfile(surge, context);
     const config = parse(output);
-    assert.doesNotMatch(JSON.stringify(config), /Tailnet|Tailscale|interactive-login/);
+    assert.deepEqual(config.proxies.at(-1), { name: "Tailnet", type: "tailscale", udp: true });
+    assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Tailscale"), { name: "Tailscale", type: "select", proxies: ["Tailnet"] });
+    assert.deepEqual(config.rules.slice(0, 4), ["IP-CIDR,100.64.0.0/10,Tailnet,no-resolve", "IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve",
+      "DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
+    assert.doesNotMatch(output, /auth-key|interactive-login|Section tailscale/);
     assert.equal(config["x-clash-block-quic"], "all-proxy");
     for (const hostname of ["atlasrouter.zslab.ai"]) {
       const index = config.rules.indexOf(`DOMAIN,${hostname},DIRECT`);
       assert.ok(index >= 0);
       assert.ok(index < config.rules.findIndex((rule) => rule.startsWith("RULE-SET,")));
     }
-    assert.deepEqual(config.proxies.map((node) => node.name), ["🇺🇸 US ISP 1", "🇺🇸 US ISP 2", "🇺🇸 US WARP", "🇭🇰 HK IDC"]);
+    assert.deepEqual(config.proxies.map((node) => node.name), ["🇺🇸 US ISP 1", "🇺🇸 US ISP 2", "🇺🇸 US WARP", "🇭🇰 HK IDC", "Tailnet"]);
     for (const group of input.groups) {
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).type, "fallback");
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).interval, 300);
@@ -128,7 +132,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).icon, undefined);
     }
     const icons = { "Proxy": "Proxy", "AIProxy": "AI", "iCloud": "iCloud", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media", "Coin": "Cryptocurrency" };
-    assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), Object.keys(icons));
+    assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), [...Object.keys(icons), "Tailscale"]);
     for (const [name, file] of Object.entries(icons)) assert.equal(config["proxy-groups"].find((group) => group.name === name)?.icon, `${iconBase}${file}.png`);
     for (const name of ["Proxy", "AIProxy", "X"]) {
       assert.deepEqual(config["proxy-groups"].find((group) => group.name === name).proxies, ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC", name === "Proxy" ? "Auto" : "Proxy", "DIRECT"]);
@@ -189,7 +193,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const auto = config["proxy-groups"].find((group) => group.name === "Auto");
     assert.equal(auto.type, "url-test");
     assert.equal(auto.icon, `${iconBase}Auto.png`);
-    assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
+    assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name).filter((name) => name !== "Tailnet"));
     assert.equal(auto.interval, 300);
     assert.equal(auto.tolerance, 0);
     assert.ok(!auto.hidden);
@@ -447,10 +451,7 @@ test("ordered smart weights match exact node names and each user's primary while
     assert.equal(group["policy-priority"], undefined);
     assert.equal(group.tolerance, undefined);
     assert.ok(warnings.some((warning) => warning.includes("weighted scoring unavailable")));
-    // The Surge-only Tailnet member and its empty display group are omitted.
-    assert.deepEqual(warnings.filter((warning) => /unavailable members|invalid group|cyclic|empty group/.test(warning)), [
-      "Proxy Group: unavailable members omitted", "Proxy Group: empty group omitted",
-    ]);
+    assert.deepEqual(warnings.filter((warning) => /unavailable members|invalid group|cyclic|empty group/.test(warning)), []);
   }
 });
 
@@ -622,6 +623,39 @@ test("LAN expansion includes local domains and special networks without changing
     assert.ok(rules.includes(`IP-CIDR6,fe80::/10,DIRECT${suffix}`));
     assert.equal(rules.at(-1), "MATCH,DIRECT");
     assert.deepEqual(warnings, []);
+  }
+});
+
+test("Tailscale policies become Mihomo tailscale proxies with their section and route the tailnet ahead of LAN", async () => {
+  const source = (settings, line = "Tailnet = tailscale, section-name=tailnet") => `[Proxy]\nnode = ${vmess}\n${line}\n[Proxy Group]\nTailscale = select, Tailnet\n[Rule]\nDOMAIN-SUFFIX,ts.net,Tailnet\nRULE-SET,LAN,DIRECT,no-resolve\nFINAL,node\n[Tailscale tailnet]\n${settings.join("\n")}\n`;
+  const interactive = await convertSurgeToClash(source(["interactive-login = true", "auto-add-magic-dns-rule = true", "exit-node = none"]), context);
+  assert.deepEqual(interactive.config.proxies[1], { name: "Tailnet", type: "tailscale", udp: true });
+  assert.deepEqual(interactive.config["proxy-groups"], [{ name: "Tailscale", type: "select", proxies: ["Tailnet"] }]);
+  assert.deepEqual(interactive.config.rules.slice(0, 3), ["IP-CIDR,100.64.0.0/10,Tailnet,no-resolve", "IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
+  assert.ok(interactive.config.rules.includes("IP-CIDR,100.64.0.0/10,DIRECT,no-resolve"));
+  assert.deepEqual(interactive.warnings, [
+    "Proxy entry 2: tailscale requires Mihomo 1.19.25+ with Tailscale support; control-plane connections bypass rules; interactive login prints its URL to the info log",
+    "Proxy entry 2: auto-add-magic-dns-rule approximated by 100.64.0.0/10 and fd7a:115c:a1e0::/48 ahead of all rules",
+  ]);
+  const keyed = await convertSurgeToClash(source(["auth-key = tskey-auth-TEST_ONLY", "hostname = atlas-mac", "auto-add-magic-dns-rule = false"]), context);
+  assert.deepEqual(keyed.config.proxies[1], { name: "Tailnet", type: "tailscale", udp: true, "auth-key": "tskey-auth-TEST_ONLY", hostname: "atlas-mac" });
+  assert.equal(keyed.config.rules[0], "DOMAIN-SUFFIX,ts.net,Tailnet");
+  assert.doesNotMatch(keyed.warnings.join("\n"), /TEST_ONLY|interactive login|approximated/);
+  const unsupported = [
+    source([]), source(["interactive-login = false"]), source(["interactive-login = true", "auth-key = tskey-auth-NEVER_LOG_THIS"]),
+    source(["interactive-login = true", "exit-node = auto"]), source(["interactive-login = true", "derp-only = true"]),
+    source(["interactive-login = true", "control-url = https://NEVER_LOG_THIS.example"]),
+    source(["interactive-login = true"], "Tailnet = tailscale, section-name=missing"), source(["interactive-login = true"], "Tailnet = tailscale"),
+    source(["interactive-login = true"], "Tailnet = tailscale, section-name=tailnet, underlying-proxy=node"),
+  ];
+  for (const profile of unsupported) {
+    const { config, warnings } = await convertSurgeToClash(profile, context);
+    assert.deepEqual(config.proxies.map(({ name }) => name), ["node"]);
+    assert.deepEqual(config["proxy-groups"], []);
+    assert.ok(!config.rules.some((rule) => rule.includes("Tailnet")));
+    assert.ok(warnings.includes("Proxy entry 2: unsupported protocol, parameter or invalid value; node omitted"));
+    assert.ok(warnings.includes("Section tailscale tailnet: omitted"));
+    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
   }
 });
 

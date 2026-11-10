@@ -150,8 +150,11 @@ test("Tailnet secret adds authenticated test alternatives without changing store
   const clash = await mf.dispatchFetch(`${url}&client=clash`);
   assert.equal(clash.status, 200);
   const config = parseYaml(await clash.text());
-  assert.deepEqual(config.proxies.map((node) => node.server), ["hk.example.com"]);
-  assert.doesNotMatch(JSON.stringify(config), /Tailnet|node\.example-tailnet/);
+  assert.deepEqual(config.proxies.map((node) => [node.name, node.type, node.server]), [
+    ["🇭🇰 HK IDC", "vmess", "hk.example.com"],
+    ["Tailnet", "tailscale", undefined],
+  ]);
+  assert.doesNotMatch(JSON.stringify(config), /node\.example-tailnet/);
 });
 
 test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {
@@ -588,7 +591,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(response.headers.get("content-type"), /application\/yaml/);
         const config = parseYaml(text);
         assert.equal(config["x-clash-block-quic"], "all-proxy");
-        assert.equal(config.proxies.length, 4);
+        assert.equal(config.proxies.filter(({ type }) => type !== "tailscale").length, 4);
         for (const group of profile.groups) assert.deepEqual(config["proxy-groups"].find(({ name }) => name === group.group).proxies, group.nodes.map(({ name }) => name));
         assert.equal(config.dns.nameserver.every((server) => server.startsWith("https://")), doh === "1");
         assert.deepEqual(config.dns.nameserver, doh === "1" ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
@@ -608,7 +611,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         const auto = config["proxy-groups"].find(({ name }) => name === "Auto");
         assert.equal(auto.type, "url-test");
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
-        assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
+        assert.deepEqual(auto.proxies, config.proxies.filter(({ type }) => type !== "tailscale").map(({ name }) => name));
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Proxy").proxies, ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "Auto", "DIRECT"]);
         const dohProxy = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
         assert.equal(dohProxy.type, "url-test");
@@ -808,7 +811,7 @@ test("removing an assigned node reassigns users and removes it from stored inven
       assert.ok(!body.includes(removed.name));
       if (client === "clash") {
         const config = parseYaml(body);
-        assert.equal(config.proxies.length, 3);
+        assert.equal(config.proxies.filter(({ type }) => type !== "tailscale").length, 3);
         assert.deepEqual(config["proxy-groups"].find((group) => group.name === removed.group).proxies, isp.nodes.map((node) => node.name));
       } else {
         assert.deepEqual(orderedSmartMembers(body, isp.group), isp.nodes.map((node) => node.name));

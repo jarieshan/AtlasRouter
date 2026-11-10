@@ -72,7 +72,7 @@ test("Tailnet testing is explicitly selectable and excluded from automatic and D
   }
 });
 
-test("Clash drops Tailnet-only nodes and groups while preserving the entire public configuration", async () => {
+test("Clash drops Tailnet variants and their group while preserving the entire public configuration", async () => {
   const input = fixture();
   const baseline = await convertSurgeToClash(renderSurgeProfile(input), context);
   const derived = await convertSurgeToClash(renderSurgeProfile({ ...input, tailnetEndpoints }), context);
