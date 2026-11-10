@@ -115,7 +115,7 @@ develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨
 | [恒生银行](https://www.hangseng.com/) | `hangseng.com` |
 | [香港政府](https://www.gov.hk/) | `gov.hk` |
 
-列表另含 `cdn.kineticbloom.org`。`hsbc.com`、`hsbcnet.com`、`sc.com`、`standardchartered.com` 等为银行共用域名，其下的其他地区服务也会直连。这里控制的是规则模式下的分流，不修改 `skip-proxy`，也不启用 MitM。
+列表另含 `cdn.kineticbloom.org`，以及两个国内域名：字节跳动国内接口 `snssdk.com`（MagicRule GlobalMedia 也收录它，且排在国内直连名单之前）和安居客图片 `ajkimg.com`（开启 DoH 时境外上游会把它解析到海外 CDN 节点）。`hsbc.com`、`hsbcnet.com`、`sc.com`、`standardchartered.com` 等为银行共用域名，其下的其他地区服务也会直连。这里控制的是规则模式下的分流，不修改 `skip-proxy`，也不启用 MitM。
 
 需要拒绝的域名维护在 [`surge/rule-sets/CustomReject.list`](../surge/rule-sets/CustomReject.list)（目前为 `msmp.abchina.com.cn`），同样经 jsDelivr 引用，排在 CustomDirect 之前，因此先于国内直连名单中的 `.cn` 等规则生效；它不参与 `[Host]` 映射。`rules.list` 现在只保留订阅入口和 DoH 上游的规则。
 
