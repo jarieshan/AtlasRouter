@@ -255,6 +255,7 @@ test("orders selection options by IP type while preserving regional definitions 
       assert.equal(new Set(members).size, members.length);
     }
     assert.ok(config.split("\n").includes(`OverseasFinance = select, ${expectedOptions.join(", ")}, DIRECT, icon-url=${ICON_BASE}Cryptocurrency.png`));
+    assert.ok(config.split("\n").includes(`ISP First = select, ${expectedOptions.join(", ")}, icon-url=${ICON_BASE}Global.png`));
     const icloud = config.split("\n").find((line) => line.startsWith("iCloud = select, "));
     const expectedIcloud = ["IDC", "WARP", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.ok(config.split("\n").includes(`FINAL = select, Auto, Proxy, ${expectedIcloud.join(", ")}, DIRECT, icon-url=${ICON_BASE}Proxy.png`));

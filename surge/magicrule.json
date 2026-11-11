@@ -95,6 +95,22 @@
     "surge": "https://magicrule.pages.dev/data/rules/Surge/c85f9c240d90c5205bad91c6/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/1a6ba4dd16046f0804a68c62/manifest.json"
   },
+  "Facebook": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/2c1f0c78d93f003c8d550413/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/8d5e665c52a43cc894f6f163/manifest.json"
+  },
+  "Threads": {
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/ded1da8530b05859fc3fa042/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/e67c9418084898dcd0fab506/manifest.json"
+  },
+  "Reddit": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/9635ff8bb250ddecfddc2cc1/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/bdbf5caf98249989dcb96f13/manifest.json"
+  },
+  "Line": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/73dd70801f02b110a9a16776/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/9997523a70391b43b56022e6/manifest.json"
+  },
   "Cloudflare": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/534fa8682ff5a4171e21af88/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/20a7f0833e30cce2260cc511/manifest.json"

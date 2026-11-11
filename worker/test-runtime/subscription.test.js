@@ -722,6 +722,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`iCloud = select, DIRECT, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}iCloud.png`));
         assert.ok(text.split("\n").includes(`WeChat = select, DIRECT, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}WeChat.png`));
         assert.ok(text.split("\n").includes(`YouTube = select, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}YouTube.png`));
+        assert.ok(text.split("\n").includes(`ISP First = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, icon-url=${ICON_BASE}Global.png`));
         assert.doesNotMatch(text, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
         assert.doesNotMatch(text, /^AppleDirect = /m);
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
@@ -736,6 +737,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
           ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
           [COIN_URL, "OverseasFinance"], ...["Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise"].map((name) => [name, "OverseasFinance"]),
+          ...["Facebook", "Threads", "Reddit", "Line"].map((name) => [name, "ISP First"]),
           ...MEDIA_RULE_NAMES.map((name) => [name, "GlobalMedia"]),
           ["China", "DIRECT"],
         ]);
