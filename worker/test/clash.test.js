@@ -144,7 +144,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.deepEqual(config["proxy-groups"].find((group) => group.name === name).proxies, ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC", name === "Proxy" ? "Auto" : "Proxy", "DIRECT"]);
     }
     assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "FINAL"), {
-      name: "FINAL", type: "select", proxies: ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC", "DIRECT"], icon: `${iconBase}Proxy.png`,
+      name: "FINAL", type: "select", proxies: ["Auto", "Proxy", "🇭🇰HK-IDC", "🇺🇸USA-WARP", "🇺🇸USA-ISP", "DIRECT"], icon: `${iconBase}Proxy.png`,
     });
     assert.deepEqual(config["proxy-groups"].find((group) => group.name === "GlobalMedia").proxies, ["🇺🇸USA-WARP", "🇭🇰HK-IDC", "🇺🇸USA-ISP", "Proxy", "DIRECT"]);
     for (const name of ["AppleProxy", "AppleDirect"]) assert.ok(!config["proxy-groups"].some((group) => group.name === name), name);

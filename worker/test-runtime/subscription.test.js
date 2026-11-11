@@ -655,7 +655,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(config["tcp-concurrent"], true);
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Proxy").proxies, ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "Auto", "DIRECT"]);
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "FINAL"), {
-          name: "FINAL", type: "select", proxies: ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "DIRECT"], icon: `${ICON_BASE}Proxy.png`,
+          name: "FINAL", type: "select", proxies: ["Auto", "Proxy", "🇭🇰HK-IDC", "🇺🇸USA-ISP", "DIRECT"], icon: `${ICON_BASE}Proxy.png`,
         });
         const dohProxy = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
         assert.equal(dohProxy.type, "url-test");
@@ -697,7 +697,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(text, /^Tailscale = select, Tailnet$/m);
         assert.match(text, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
-        assert.ok(text.split("\n").includes(`FINAL = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
+        assert.ok(text.split("\n").includes(`FINAL = select, Auto, Proxy, 🇭🇰HK-IDC, 🇺🇸USA-ISP, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
         assert.ok(text.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png, hidden=true`));
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);

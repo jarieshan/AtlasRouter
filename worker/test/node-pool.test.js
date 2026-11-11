@@ -255,9 +255,9 @@ test("orders selection options by IP type while preserving regional definitions 
       assert.equal(new Set(members).size, members.length);
     }
     assert.ok(config.split("\n").includes(`Coin = select, ${expectedOptions.join(", ")}, DIRECT, icon-url=${ICON_BASE}Cryptocurrency.png`));
-    assert.ok(config.split("\n").includes(`FINAL = select, ${expectedOptions.join(", ")}, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
     const icloud = config.split("\n").find((line) => line.startsWith("iCloud = select, "));
     const expectedIcloud = ["IDC", "WARP", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
+    assert.ok(config.split("\n").includes(`FINAL = select, Auto, Proxy, ${expectedIcloud.join(", ")}, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
     assert.equal(icloud, `iCloud = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}iCloud.png`);
     assert.ok(config.split("\n").includes(`WeChat = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}WeChat.png`));
     assert.ok(config.split("\n").includes("RULE-SET,https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list,WeChat,no-resolve"));
