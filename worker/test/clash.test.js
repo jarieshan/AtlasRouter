@@ -203,7 +203,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(auto.icon, `${iconBase}Auto.png`);
     assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name).filter((name) => name !== "Tailnet"));
     assert.equal(auto.interval, 300);
-    assert.equal(auto.tolerance, 0);
+    assert.equal(auto.tolerance, 50);
     assert.ok(!auto.hidden);
     const dohProxy = config["proxy-groups"].find((group) => group.name === "DoH Proxy");
     assert.equal(dohProxy.type, "url-test");
@@ -211,7 +211,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(dohProxy.hidden, true);
     assert.deepEqual(dohProxy.proxies, ["🇭🇰 HK IDC"]);
     assert.equal(dohProxy.interval, 300);
-    assert.equal(dohProxy.tolerance, 0);
+    assert.equal(dohProxy.tolerance, 50);
     for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
     for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
     assert.ok(config.rules.every((rule) => !rule.startsWith("PROTOCOL,")));
@@ -451,7 +451,7 @@ test("smart conversion includes only proxy nodes and retains automatic selection
   const source = `[General]\nproxy-test-url = http://www.gstatic.com/generate_204\n[Proxy]\nnode = trojan, example.com, 443, password=TEST_ONLY\n[Proxy Group]\nbackup = fallback, node\nauto = smart, backup, DIRECT, REJECT, include-all-proxies=true\nProxy = select, auto, backup\n[Rule]\nDOMAIN,dns.google,auto\nFINAL,Proxy\n`;
   const { config, warnings } = await convertSurgeToClash(source, context);
   const auto = config["proxy-groups"].find(({ name }) => name === "auto");
-  assert.deepEqual(auto, { name: "auto", type: "url-test", proxies: ["node"], url: "http://www.gstatic.com/generate_204", interval: 300, timeout: 5000, tolerance: 0 });
+  assert.deepEqual(auto, { name: "auto", type: "url-test", proxies: ["node"], url: "http://www.gstatic.com/generate_204", interval: 300, timeout: 5000, tolerance: 50 });
   assert.deepEqual(config.rules, ["DOMAIN,dns.google,auto", "MATCH,Proxy"]);
   assert.ok(warnings.some((warning) => warning.includes("smart approximated")));
 });

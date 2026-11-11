@@ -230,7 +230,8 @@ function convertGroups(lines, proxies, general, warn) {
         if (options.has("timeout")) warn(`Proxy Group entry ${index + 1}: timeout latency filter omitted; test-timeout used`);
         if (options.has("url") && options.get("url") !== group.url) warn(`Proxy Group entry ${index + 1}: legacy url ignored; proxy-test-url used`);
         if (group.type === "url-test") {
-          const tolerance = smart ? "0" : options.get("tolerance") ?? "100";
+          // Smart keeps a working node instead of switching whenever another tests a few ms faster.
+          const tolerance = smart ? "50" : options.get("tolerance") ?? "100";
           if (!/^\d+$/.test(tolerance) || !Number.isSafeInteger(Number(tolerance))) throw new Error();
           group.tolerance = Number(tolerance);
         }
