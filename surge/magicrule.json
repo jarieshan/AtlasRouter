@@ -11,6 +11,22 @@
     "surge": "https://rule-26r.pages.dev/data/rules/Surge/80adcc0f4668f884d689cd62/manifest.json",
     "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/4619b2247a648e4e2b0315b9/manifest.json"
   },
+  "PayPal": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/2359897e8571f99958cbc9ba/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/47d821bda088a86cd4250ab8/manifest.json"
+  },
+  "eBay": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/4a37efca43d758195fb7f52e/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/37a77a1a24007cb489a46f9f/manifest.json"
+  },
+  "Stripe": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/8706c64ac6cc4a7644eca3d6/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/9dadc75252de9958b4a87620/manifest.json"
+  },
+  "Wise": {
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/d81972d4f7299397f18b3158/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/3196e98a06de7ac752ac910c/manifest.json"
+  },
   "IBKR": {
     "surge": "https://rule-26r.pages.dev/data/rules/Surge/f4eb5063a59d218925a2d98d/manifest.json",
     "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/9e4647594c581247aae3a91c/manifest.json"
@@ -59,6 +75,10 @@
     "surge": "https://rule-26r.pages.dev/data/rules/Surge/974ea1320492a005c3d4ebd6/manifest.json",
     "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/0d9f9f54dd16a4eaf0f48c57/manifest.json"
   },
+  "Perplexity": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/efd11e26b02c5246eb892ef3/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/9fe73f9456054f9680cdd31a/manifest.json"
+  },
   "Telegram": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/7dd68efe605596f2a48e96d1/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/032dffc4064edc7b7007bfd1/manifest.json"
@@ -74,6 +94,22 @@
   "YouTube": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/c85f9c240d90c5205bad91c6/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/1a6ba4dd16046f0804a68c62/manifest.json"
+  },
+  "Facebook": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/2c1f0c78d93f003c8d550413/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/8d5e665c52a43cc894f6f163/manifest.json"
+  },
+  "Threads": {
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/ded1da8530b05859fc3fa042/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/e67c9418084898dcd0fab506/manifest.json"
+  },
+  "Reddit": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/9635ff8bb250ddecfddc2cc1/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/bdbf5caf98249989dcb96f13/manifest.json"
+  },
+  "Line": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/73dd70801f02b110a9a16776/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/9997523a70391b43b56022e6/manifest.json"
   },
   "Cloudflare": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/534fa8682ff5a4171e21af88/manifest.json",
@@ -102,5 +138,17 @@
   "China": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/11af2559235209b8783239b3/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/3cf8a9f4c33c2ff30d0b23ea/manifest.json"
+  },
+  "Alphabet": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/18df3b4bd47b0edfabdb143c/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/50704530861cfa8c10ef5c71/manifest.json"
+  },
+  "GitHub": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/65f7111de131dc0e6341090f/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/938adbcd28e778c220e09d1d/manifest.json"
+  },
+  "Wikimedia": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/0696d8ac6cb7028bfe9c5b69/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/05c21152f331fa3480ea70c2/manifest.json"
   }
 }
