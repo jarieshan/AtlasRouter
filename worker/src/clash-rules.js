@@ -74,10 +74,11 @@ export async function convertClashRules(lines, policies, requestUrl, token, warn
         push("MATCH", parts[1]);
         continue;
       }
-      // Filtering unsupported IDC nodes must not let DoH fall through to another outbound.
-      if (parts[2] === "DoH Proxy" && !policies.has(parts[2])) {
+      // Filtering unsupported nodes must not bypass the required DoH or US ISP outbound.
+      if (["DoH Proxy", "🇺🇸USA-ISP"].includes(parts[2]) && !policies.has(parts[2])) {
+        const label = parts[2] === "DoH Proxy" ? "DoH" : "US ISP";
         parts[2] = "REJECT";
-        warn(`Rule entry ${index + 1}: no compatible DoH proxy; using REJECT`);
+        warn(`Rule entry ${index + 1}: no compatible ${label} proxy; using REJECT`);
       }
       if (!policies.has(parts[2])) throw new Error();
       if (["RULE-SET", "DOMAIN-SET"].includes(parts[0])) {

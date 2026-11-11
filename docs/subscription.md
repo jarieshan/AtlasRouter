@@ -132,6 +132,8 @@ develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨
 
 需要拒绝的域名维护在 [`surge/rule-sets/CustomReject.list`](../surge/rule-sets/CustomReject.list)（目前为 `msmp.abchina.com.cn`），同样经 jsDelivr 引用，排在 CustomDirect 之前，因此先于国内直连名单中的 `.cn` 等规则生效；它不参与 `[Host]` 映射。`rules.list` 现在只保留订阅入口和 DoH 上游的规则。
 
+RedPocket 使用本仓库的 [`RedPocket.list`](../surge/rule-sets/RedPocket.list)，位于 CustomReject 之后、CustomDirect 和其他通用名单之前，直接指向当前订阅的 `🇺🇸USA-ISP` 组，不受 `FINAL` 手动选择影响；没有美国 ISP 组时使用 `REJECT`，Clash 过滤掉全部不兼容的美国 ISP 节点时同样拒绝。规则按 2026-11-11 的[官网](https://www.redpocket.com/)、[账户入口](https://goredpocket.com/)、[帮助中心](https://help.redpocket.com/)和[官方 eSIM 设置文档](https://www.redpocket.com/configure)采集，覆盖网站与账户、两处页面静态资源，以及 GSMA/GSMT/CDMA 的三个 SM-DP+ 端点；共享 CDN 与 eSIM 服务只匹配具体主机，不匹配整个平台。Surge 和 Clash 均通过 jsDelivr 直接读取规则集。此范围来自公开页面，未采集登录后的 App 请求，也不表示 Wi-Fi Calling 的运营商隧道已被覆盖。
+
 券商使用 MagicRule 的独立规则，紧随 CustomDirect：IBKR（盈透证券，含 `ibkr.com`、`interactivebrokers.com`、`ibllc.com` 等各地区域名）走 `DIRECT`，`[Host]` 也为其指定国内 DNS；LongBridge（长桥证券，含 `lbkrs.com`、`lbctrl.com`、`longbridgeapp.com`、`longbridge.global`、`longbridge.cn` 等）进入 `Proxy`。两者都必须排在国内直连名单之前：后者含整段 `.cn`，其 IP 段也覆盖长桥 App 的国内服务器。
 
 券商规则之后、WeChat 之前是 MagicRule 的 `Direct` 列表。它是 MagicRule 的直连白名单，收录 PT 站、路由器与 NAS 管理域名、私有网段的反向解析域名、学术数据库和 Windows 更新等，另含 36 条 `PROCESS-NAME`（BT 下载工具、其他代理客户端、`cloudflared`、`tailscaled`、远程桌面等，仅在支持进程规则的客户端上生效）。它排在 AI、Apple 等规则集之前，因此这些进程的流量一律直连，例如 `cloudflared` 连接 Cloudflare 时不再按 Cloudflare 列表进入 AIProxy。

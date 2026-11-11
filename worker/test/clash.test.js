@@ -15,6 +15,7 @@ const context = { requestUrl: "https://atlas.example/AtlasRouter", token: `ar_${
 const wechatUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list";
 const customDirectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
 const customRejectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
+const redPocketUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/RedPocket.list";
 const coinUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
 const customAIUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
 const directUrl = magicRuleUrl("China", "surge", context.requestUrl);
@@ -89,6 +90,9 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
     const rules = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter((line) => line && !line.startsWith("#"));
+    const redPocketRule = `RULE-SET,${redPocketUrl},🇺🇸USA-ISP,no-resolve`;
+    assert.ok(rules.includes(redPocketRule));
+    assert.ok(rules.indexOf(redPocketRule) < rules.indexOf(`RULE-SET,${customDirectUrl},DIRECT,no-resolve`));
     assert.deepEqual(rules.slice(-4), ["RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`, "GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
@@ -102,10 +106,11 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
   const wechatSource = await ruleSource(["RULE-SET", wechatUrl]);
   const customDirectSource = await ruleSource(["RULE-SET", customDirectUrl]);
   const customRejectSource = await ruleSource(["RULE-SET", customRejectUrl]);
+  const redPocketSource = await ruleSource(["RULE-SET", redPocketUrl]);
   const coinSource = await ruleSource(["RULE-SET", coinUrl]);
   const customAISource = await ruleSource(["RULE-SET", customAIUrl]);
   const directSource = await ruleSource(["RULE-SET", directUrl]);
-  for (const source of [wechatSource, customDirectSource, customRejectSource, coinSource, customAISource]) {
+  for (const source of [wechatSource, customDirectSource, customRejectSource, redPocketSource, coinSource, customAISource]) {
     assert.deepEqual(await findClashRuleSource(`${source.id}.txt`), source);
   }
   assert.equal(await findClashRuleSource(`${directSource.id}.txt`), null);
@@ -181,6 +186,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(resolvedLan >= 0 && resolvedLan < directRule);
     assert.ok(directRule < config.rules.indexOf("GEOIP,CN,DIRECT"));
     assert.ok(config.rules.includes(`RULE-SET,${customRejectSource.id},REJECT,no-resolve`));
+    assert.ok(config.rules.includes(`RULE-SET,${redPocketSource.id},🇺🇸USA-ISP,no-resolve`));
     assert.equal(config["proxy-groups"][0].timeout, 5000);
     assert.deepEqual(config.dns.nameserver, doh ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
     // Node bootstrap must not depend on the proxy used by encrypted DNS.
@@ -231,7 +237,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", ...mediaRules, "China"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, redPocketSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", ...mediaRules, "China"]);
     for (const id of ["Cloudflare", "Grok", "Cursor", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|Apple),/.test(rule)), [
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
@@ -239,7 +245,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       "RULE-SET,iCloud,iCloud,no-resolve",
       "RULE-SET,Apple,DIRECT,no-resolve",
     ]);
-    const repository = new Map([customRejectSource, customDirectSource, wechatSource, customAISource, coinSource].map((source) => [source.id, source.url]));
+    const repository = new Map([customRejectSource, redPocketSource, customDirectSource, wechatSource, customAISource, coinSource].map((source) => [source.id, source.url]));
     for (const [name, provider] of Object.entries(config["rule-providers"])) {
       assert.equal(provider.url, repository.get(name) ?? magicRuleUrl(name, "mihomo", context.requestUrl));
       assert.ok(!provider.url.includes(context.token));
@@ -249,6 +255,43 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     }
     assert.match(output, /General skip-proxy: unsupported setting omitted/);
     assert.doesNotMatch(output, /#!MANAGED-CONFIG|\.sgmodule|{{|💎 Select/);
+  }
+});
+
+test("RedPocket rejects instead of selecting another region or IP type when US ISP is disabled", async () => {
+  const state = { nodes: parsePoolNodes([
+    { id: "hk", line: `🇭🇰 HK ISP = ${vmess}` },
+    { id: "idc", line: `🇺🇸 US IDC = ${vmess}` },
+    { id: "warp", line: `🇺🇸 US WARP = ${vmess}` },
+    { id: "disabled", line: `🇺🇸 US ISP = ${vmess}`, enabled: false },
+  ]), users: [{ id: "user", enabled: true }] };
+  allocateNodes(state, "2026-01-01T00:00:00Z");
+  const groups = userGroups(state, "user");
+  const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes) });
+  assert.ok(source.split("\n").includes(`RULE-SET,${redPocketUrl},REJECT,no-resolve`));
+  assert.doesNotMatch(source, /^🇺🇸USA-ISP =/m);
+  const { config } = await convertSurgeToClash(source, context);
+  const { id } = await ruleSource(["RULE-SET", redPocketUrl]);
+  assert.ok(config.rules.includes(`RULE-SET,${id},REJECT,no-resolve`));
+  assert.equal(config["rule-providers"][id].url, redPocketUrl);
+});
+
+test("RedPocket retains compatible US ISP nodes and rejects when Clash removes all of them", async () => {
+  const source = renderSurgeProfile(profile());
+  const { id } = await ruleSource(["RULE-SET", redPocketUrl]);
+  for (const keepCompatible of [false, true]) {
+    const changed = source.replace(/^(🇺🇸 US ISP ([12]) = .+)$/gm, (line, _, index) =>
+      keepCompatible && index === "1" ? line : `${line}, unsupported-option=NEVER_LOG_THIS`);
+    const { config, warnings } = await convertSurgeToClash(changed, context);
+    const group = config["proxy-groups"].find(({ name }) => name === "🇺🇸USA-ISP");
+    if (keepCompatible) assert.deepEqual(group.proxies, ["🇺🇸 US ISP 1"]);
+    else {
+      assert.equal(group, undefined);
+      assert.ok(warnings.some((warning) => warning.includes("no compatible US ISP proxy; using REJECT")));
+    }
+    assert.ok(config.rules.includes(`RULE-SET,${id},${keepCompatible ? "🇺🇸USA-ISP" : "REJECT"},no-resolve`));
+    assert.equal(config["rule-providers"][id].url, redPocketUrl);
+    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
   }
 });
 

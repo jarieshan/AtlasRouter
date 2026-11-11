@@ -24,6 +24,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
     PROXY_LINES: renderProxyLines([...subscriptionNodes].sort(compareNodes).concat(alternatives)),
     RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT", tailnetOnly),
+    US_ISP_POLICY: groups.find(({ nodes }) => nodes[0]?.region === "US" && nodes[0]?.ipType === "ISP")?.group ?? "REJECT",
     DIRECT_DNS_SERVERS: (options.doh
       ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
       : ["223.5.5.5", "119.29.29.29"]).join(", "),

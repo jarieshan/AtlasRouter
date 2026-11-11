@@ -25,9 +25,11 @@ const WECHAT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${WECHAT_UR
 const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
 const CUSTOM_DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${CUSTOM_DIRECT_URL}`).digest("hex").slice(0, 32)}`;
 const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
+const RED_POCKET_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/RedPocket.list";
+const RED_POCKET_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${RED_POCKET_URL}`).digest("hex").slice(0, 32)}`;
 const COIN_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
 const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
-const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, CUSTOM_DIRECT_URL, WECHAT_URL, CUSTOM_AI_URL, COIN_URL];
+const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, RED_POCKET_URL, CUSTOM_DIRECT_URL, WECHAT_URL, CUSTOM_AI_URL, COIN_URL];
 const magicRuleRelay = (url, name, client, base = `${ORIGIN}${POOL_SUBSCRIPTION_PATH}`, query = "") =>
   new RegExp(`^${`${base}/rules/magicrule/${client}/`.replace(/\./g, "\\.")}${name}\\.${client === "surge" ? "list" : "yaml"}${query.replace(/\?/g, "\\?")}$`).test(url);
 const MEDIA_RULE_NAMES = ["Netflix", "Disney", "Spotify", "TIDAL", "TikTok"];
@@ -638,6 +640,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
             : ["223.5.5.5", "119.29.29.29"]])),
         });
         assert.equal(config["rule-providers"][CUSTOM_DIRECT_RULE_ID].url, CUSTOM_DIRECT_URL);
+        assert.equal(config["rule-providers"][RED_POCKET_RULE_ID].url, RED_POCKET_URL);
+        assert.ok(config.rules.includes(`RULE-SET,${RED_POCKET_RULE_ID},🇺🇸USA-ISP,no-resolve`));
         assert.ok(magicRuleRelay(config["rule-providers"].China.url, "China", "mihomo"));
         assert.equal(config["rule-providers"].China.format, "yaml");
         const auto = config["proxy-groups"].find(({ name }) => name === "Auto");
@@ -727,7 +731,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         }
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
         assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/\/magicrule\/surge\/([A-Za-z]+)\.list$/)[1], policy]), [
-          [CUSTOM_REJECT_URL, "REJECT"], [CUSTOM_DIRECT_URL, "DIRECT"], ["IBKR", "DIRECT"], ["LongBridge", "Proxy"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
+          [CUSTOM_REJECT_URL, "REJECT"], [RED_POCKET_URL, "🇺🇸USA-ISP"], [CUSTOM_DIRECT_URL, "DIRECT"], ["IBKR", "DIRECT"], ["LongBridge", "Proxy"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
           ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
           ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],

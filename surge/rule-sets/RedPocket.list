@@ -1,0 +1,20 @@
+# NAME: RedPocket
+# Collected 2026-11-11 from RedPocket's public pages and setup documentation.
+# Website/account: https://www.redpocket.com/ and https://goredpocket.com/
+# Help-center assets: https://help.redpocket.com/
+# eSIM download hosts: https://www.redpocket.com/configure
+# Shared CDN/eSIM services use exact hosts; do not expand them to provider-wide suffixes.
+
+# Website, account, activation, help center and first-party APIs.
+DOMAIN-SUFFIX,redpocket.com
+DOMAIN-SUFFIX,goredpocket.com
+DOMAIN,my.redpocketmobile.com
+
+# Static assets referenced by the website and help center.
+DOMAIN,dnc8pt3q0ulny.cloudfront.net
+DOMAIN,7052064.fs1.hubspotusercontent-na1.net
+
+# Official SM-DP+ hosts for GSMA, GSMT and CDMA, respectively.
+DOMAIN,rsp-4002.idemia.io
+DOMAIN,cust-005-v4-prod-atl2.gdsb.net
+DOMAIN,rpt.vzw.otgeuicc.com
