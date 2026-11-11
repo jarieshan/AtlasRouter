@@ -18,6 +18,7 @@ const customRejectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@devel
 const coinUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
 const customAIUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
 const directUrl = magicRuleUrl("China", "surge", context.requestUrl);
+const mediaRules = ["Netflix", "Disney", "Spotify", "TIDAL", "TikTok"];
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
 const vmess = `vmess, vmess.example.com, 443, username=${uuid}, vmess-aead=true, tls=true`;
@@ -159,7 +160,9 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(!youtube.hidden);
     const youtubeRule = "RULE-SET,YouTube,YouTube,no-resolve";
     assert.ok(config.rules.includes(youtubeRule));
-    assert.ok(config.rules.indexOf(youtubeRule) < config.rules.indexOf("RULE-SET,GlobalMedia,GlobalMedia,no-resolve"));
+    assert.ok(config.rules.indexOf(youtubeRule) < config.rules.indexOf("RULE-SET,Netflix,GlobalMedia,no-resolve"));
+    assert.deepEqual(config.rules.filter((rule) => rule.endsWith(",GlobalMedia,no-resolve")),
+      ["AppleTV", ...mediaRules].map((name) => `RULE-SET,${name},GlobalMedia,no-resolve`));
     for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
     // The SS WARP node has no UDP relay; rules that can select it reject skipped UDP like Surge.
     assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
@@ -224,7 +227,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "Netflix", "Disney", "Hulu", "IMDB", "GlobalMedia", "China"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", ...mediaRules, "China"]);
     for (const id of ["Cloudflare", "Grok", "Cursor", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|Apple),/.test(rule)), [
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",

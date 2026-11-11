@@ -30,6 +30,7 @@ const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop
 const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, CUSTOM_DIRECT_URL, WECHAT_URL, CUSTOM_AI_URL, COIN_URL];
 const magicRuleRelay = (url, name, client, base = `${ORIGIN}${POOL_SUBSCRIPTION_PATH}`, query = "") =>
   new RegExp(`^${`${base}/rules/magicrule/${client}/`.replace(/\./g, "\\.")}${name}\\.${client === "surge" ? "list" : "yaml"}${query.replace(/\?/g, "\\?")}$`).test(url);
+const MEDIA_RULE_NAMES = ["Netflix", "Disney", "Spotify", "TIDAL", "TikTok"];
 const DIRECT_URL = `${ORIGIN}${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/China.list`;
 const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const TEAM = "https://test.cloudflareaccess.com";
@@ -492,7 +493,7 @@ test("only current subscription and module URLs accept tokens", async (t) => {
     assert.equal((await request(mf, `${route}?token=${token}&token=${token}`)).status, 401);
     assert.equal((await request(mf, `${route}?token=${token}`, { method: "POST" })).status, 405);
   }
-  for (const route of ["/atlasrouter", "/atlasrouter/modules/skip-proxy-lists.sgmodule", "/atlas-router", "/AtlasRouter/subscription", "/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/subscription/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/rules/magicrule/surge/WeChat.list", "/AtlasRouter/rules/magicrule/mihomo/WeChat.yaml"]) {
+  for (const route of ["/atlasrouter", "/atlasrouter/modules/skip-proxy-lists.sgmodule", "/atlas-router", "/AtlasRouter/subscription", "/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/subscription/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/rules/magicrule/surge/WeChat.list", "/AtlasRouter/rules/magicrule/mihomo/WeChat.yaml", "/AtlasRouter/rules/magicrule/surge/GlobalMedia.list", "/AtlasRouter/rules/magicrule/mihomo/GlobalMedia.yaml"]) {
     assert.equal((await request(mf, `${route}?token=${token}`, { subject: "admin" })).status, 404);
   }
   const wechatPath = `${POOL_SUBSCRIPTION_PATH}/rules/${WECHAT_RULE_ID}.txt`;
@@ -591,6 +592,9 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(response.headers.get("content-type"), /application\/yaml/);
         const config = parseYaml(text);
         assert.equal(config["x-clash-block-quic"], "all-proxy");
+        assert.equal(config["rule-providers"].GlobalMedia, undefined);
+        assert.deepEqual(config.rules.filter((rule) => rule.endsWith(",GlobalMedia,no-resolve")),
+          ["AppleTV", ...MEDIA_RULE_NAMES].map((name) => `RULE-SET,${name},GlobalMedia,no-resolve`));
         assert.equal(config.proxies.filter(({ type }) => type !== "tailscale").length, 4);
         for (const group of profile.groups) assert.deepEqual(config["proxy-groups"].find(({ name }) => name === group.group).proxies, group.nodes.map(({ name }) => name));
         assert.equal(config.dns.nameserver.every((server) => server.startsWith("https://")), doh === "1");
@@ -695,7 +699,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
           ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
           [COIN_URL, "Coin"], ["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"],
-          ["Netflix", "GlobalMedia"], ["Disney", "GlobalMedia"], ["Hulu", "GlobalMedia"], ["IMDB", "GlobalMedia"], ["GlobalMedia", "GlobalMedia"],
+          ...MEDIA_RULE_NAMES.map((name) => [name, "GlobalMedia"]),
           ["China", "DIRECT"],
         ]);
       }

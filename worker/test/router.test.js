@@ -259,6 +259,7 @@ test("legacy pages, APIs, subscriptions and unknown paths return 404 without rea
     `${POOL_SUBSCRIPTION_PATH}/modules/missing`, `${POOL_SUBSCRIPTION_PATH}/modules/%E0%A4%A`,
     `${POOL_SUBSCRIPTION_PATH}/rules/TencentOA-Domain.list`, `${POOL_SUBSCRIPTION_PATH}/rules/TencentOA-IP.list`,
     `${POOL_SUBSCRIPTION_PATH}/hosts/TencentOA-Host.conf`,
+    `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/GlobalMedia.list`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/GlobalMedia.yaml`,
     `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/Copilot.list`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/Copilot.yaml`,
     `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/OpenAI.yaml`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/OpenAI.list`,
     `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/WeChat.list`,

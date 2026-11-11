@@ -122,7 +122,7 @@ develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨
 | [恒生银行](https://www.hangseng.com/) | `hangseng.com` |
 | [香港政府](https://www.gov.hk/) | `gov.hk` |
 
-列表另含 `cdn.kineticbloom.org`，以及两个国内域名：字节跳动国内接口 `snssdk.com`（MagicRule GlobalMedia 也收录它，且排在国内直连名单之前）和安居客图片 `ajkimg.com`（开启 DoH 时境外上游会把它解析到海外 CDN 节点）。`hsbc.com`、`hsbcnet.com`、`sc.com`、`standardchartered.com` 等为银行共用域名，其下的其他地区服务也会直连。这里控制的是规则模式下的分流，不修改 `skip-proxy`，也不启用 MitM。
+列表另含 `cdn.kineticbloom.org`，以及两个国内域名：字节跳动国内接口 `snssdk.com`和安居客图片 `ajkimg.com`（开启 DoH 时境外上游会把它解析到海外 CDN 节点）。`hsbc.com`、`hsbcnet.com`、`sc.com`、`standardchartered.com` 等为银行共用域名，其下的其他地区服务也会直连。这里控制的是规则模式下的分流，不修改 `skip-proxy`，也不启用 MitM。
 
 需要拒绝的域名维护在 [`surge/rule-sets/CustomReject.list`](../surge/rule-sets/CustomReject.list)（目前为 `msmp.abchina.com.cn`），同样经 jsDelivr 引用，排在 CustomDirect 之前，因此先于国内直连名单中的 `.cn` 等规则生效；它不参与 `[Host]` 映射。`rules.list` 现在只保留订阅入口和 DoH 上游的规则。
 
@@ -136,9 +136,9 @@ master 的地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中�
 
 `WeChat`、`Telegram` 和 `X` 是可见的独立策略组，分别接收 WeChat、Telegram 和 Twitter 规则集的流量。WeChat 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连。Telegram 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组，缺少某类节点时跳过。X、AIProxy 按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组。GlobalMedia（含 Apple TV+）按 WARP → IDC → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 WARP 组；部分流媒体可能限制 WARP 或机房出口，此时可手动切换到 ISP 组。上述地区/IP 类型选项先按 IP 类型、再按美国 → 香港 → 新加坡 → 日本 → 其他地区排序；其他地区按两位地区代码的字母升序排列。`Proxy` 自身不包含自引用，选项采用 ISP → WARP → IDC → `Auto` → `DIRECT` 顺序。所有可选策略组均不提供 `REJECT` 选项。`💎 Select` 已移除。
 
-`YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组；没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 GlobalMedia 之前。这是手动选择项顺序；地区/IP 类型组内，Surge / Clash 使用同顺序的 `fallback`。
+`YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组；没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 Netflix 等影音规则之前。这是手动选择项顺序；地区/IP 类型组内，Surge / Clash 使用同顺序的 `fallback`。
 
-`Coin` 是可见的独立策略组，接收 Binance、OKX、Coinbase、Bybit 和 Bitget 的流量，选项按 ISP → WARP → IDC → `DIRECT` 排列，默认选择首个可用的 ISP 组。Binance、OKX、Bybit 使用 MagicRule 的独立规则；MagicRule 没有 Coinbase、Bitget 的独立规则，这两家的域名维护在本仓库的 [`surge/rule-sets/Coin.list`](../surge/rule-sets/Coin.list)，经 jsDelivr 引用。这些规则排在 Telegram、X、Discord、YouTube 之后、GlobalMedia 之前。`[Host]` 不为这些域名单独指定 DNS，按默认 DNS 设置解析。
+`Coin` 是可见的独立策略组，接收 Binance、OKX、Coinbase、Bybit 和 Bitget 的流量，选项按 ISP → WARP → IDC → `DIRECT` 排列，默认选择首个可用的 ISP 组。Binance、OKX、Bybit 使用 MagicRule 的独立规则；MagicRule 没有 Coinbase、Bitget 的独立规则，这两家的域名维护在本仓库的 [`surge/rule-sets/Coin.list`](../surge/rule-sets/Coin.list)，经 jsDelivr 引用。这些规则排在 Telegram、X、Discord、YouTube 之后、Netflix 等影音规则之前。`[Host]` 不为这些域名单独指定 DNS，按默认 DNS 设置解析。
 
 业务策略组使用纯文字名称，图标来自 [Koolson/Qure Color](https://github.com/Koolson/Qure/tree/master/IconSet/Color)，通过 jsDelivr 公共链接加载。WeChat、Telegram、X、YouTube、Apple、iCloud 使用对应服务 Logo；Auto 使用 `Auto.png` 自动选择图标；DoH Proxy 使用 `Server.png` 服务器图标；Proxy、AIProxy、GlobalMedia、Coin 分别使用通用代理、AI、影音、加密货币图标。首次从带 emoji 的旧组名更新后，客户端已保存的手动选择可能需要重新设置。Surge 使用 [`icon-url`](https://manual.nssurge.com/policy-groups/parameters.html)（Mac 6.5.0+），转换为 Clash 时映射为 [`icon`](https://wiki.metacubex.one/en/config/proxy-groups/#icon)，显示效果取决于客户端面板支持。正式订阅的策略组可见性按模板设置。
 
@@ -156,9 +156,25 @@ WeChat 使用本仓库维护的 [`surge/rule-sets/WeChat.list`](../surge/rule-se
 
 不引用 MagicRule 的 Google 规则集：其当前 Surge / Mihomo 产物含 `hk`、`tw`、`sg`、`co` 等 28 个国家/地区顶级域的整段 `DOMAIN-SUFFIX`，会先于国内直连名单和 `GEOIP,CN` 把这些顶级域下的全部域名送往 `Proxy`。Google 自有域名改由后续的国内直连名单、`GEOIP,CN` 和 `FINAL,Proxy,dns-failed` 判断，通常仍经代理访问，首次访问会多一次本地 DNS 查询；YouTube、Gemini 等仍由各自规则集处理。
 
-AI 规则紧随本仓库的 WeChat 规则集：Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor、本仓库的 [`CustomAI.list`](../surge/rule-sets/CustomAI.list) 和 AppleIntelligence 均进入 `AIProxy`。它们必须排在 Apple、Twitter 和 GlobalMedia 之前，因为覆盖整个 `apple.com` 的 Apple 列表以及 Twitter、GlobalMedia 列表也收录了 Apple Intelligence、`grok.com`、`cursor.com` 以及 `openai`、`anthropic`、`claude` 关键字等 AI 域名。Grok 列表含 `grok.com`、`grok.x.com`、`grokipedia.com` 和 `x.ai`（含 xAI API）；Cursor 列表含 `cursor.com`、`cursor.sh`、`cursorapi.com`、`cursor-cdn.com` 和 `cursorvm.com`，覆盖 Grok Bot 官方网络说明列出的全部域名。MagicRule 没有 Meta AI、Muse 和 Grok Bot 的独立规则，CustomAI 收录 `meta.ai`（含 Meta Model API 的 `api.meta.ai`）、`muse.ai`、`metaaiusercontent.com`、`metaaivm.com`、`llama.com` 等 Meta AI 域名，以及 Grok 的 `grokusercontent.com` 和 `grokbot.com`；Meta 网页共用的 Facebook CDN（`fbcdn.net`、`fbsbx.com`）不进入 AIProxy。Cloudflare 列表除 Cloudflare 自身服务外，还含 `pages.dev`、`workers.dev`、`r2.dev` 等托管域名（包括 MagicRule 站点）和 Cloudflare IP 段；IP 规则只匹配直接以 IP 访问的请求。不引用 MagicRule 的 Bing 和 Copilot 规则集。Copilot 列表名为 Microsoft Copilot，实际收录 Cursor、GitHub Copilot、Groq、Meta AI、Grok 等多种 AI 工具；其中 Grok、Cursor、Meta AI 已由上述规则接管，其余按后续规则分流：`api.githubcopilot.com`、`api.groq.com`、`copilot.microsoft.com` 等由 GlobalMedia 列表接收，国内 AI 服务和 `api.msn.com` 等由国内直连名单直连，`bing.com`、`ampcode.com` 等其余域名交给 `GEOIP,CN` 和 `FINAL,Proxy` 判断。
+AI 规则紧随本仓库的 WeChat 规则集：Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor、本仓库的 [`CustomAI.list`](../surge/rule-sets/CustomAI.list) 和 AppleIntelligence 均进入 `AIProxy`。它们必须排在 Apple 和 Twitter 之前，因为覆盖整个 `apple.com` 的 Apple 列表以及 Twitter 列表也收录了 Apple Intelligence、`grok.com` 等 AI 域名。Grok 列表含 `grok.com`、`grok.x.com`、`grokipedia.com` 和 `x.ai`（含 xAI API）；Cursor 列表含 `cursor.com`、`cursor.sh`、`cursorapi.com`、`cursor-cdn.com` 和 `cursorvm.com`，覆盖 Grok Bot 官方网络说明列出的全部域名。MagicRule 没有 Meta AI、Muse 和 Grok Bot 的独立规则，CustomAI 收录 `meta.ai`（含 Meta Model API 的 `api.meta.ai`）、`muse.ai`、`metaaiusercontent.com`、`metaaivm.com`、`llama.com` 等 Meta AI 域名，以及 Grok 的 `grokusercontent.com` 和 `grokbot.com`；Meta 网页共用的 Facebook CDN（`fbcdn.net`、`fbsbx.com`）不进入 AIProxy。Cloudflare 列表除 Cloudflare 自身服务外，还含 `pages.dev`、`workers.dev`、`r2.dev` 等托管域名（包括 MagicRule 站点）和 Cloudflare IP 段；IP 规则只匹配直接以 IP 访问的请求。不引用 MagicRule 的 Bing 和 Copilot 规则集。Copilot 列表名为 Microsoft Copilot，实际收录 Cursor、GitHub Copilot、Groq、Meta AI、Grok 等多种 AI 工具；其中 Grok、Cursor、Meta AI 已由上述规则接管，其余域名（如 `api.githubcopilot.com`、`api.groq.com`、`copilot.microsoft.com`、`bing.com`、`ampcode.com`）交由后续的国内直连名单、`GEOIP,CN` 和 `FINAL,Proxy` 判断，不再由 GlobalMedia 聚合列表接管。
 
-AppleIntelligence 列表放在 AI 规则末尾；其余 Apple 规则位于 AI 规则之后、Telegram 之前，按 AppleTV → iCloud → Apple 完整规则的顺序匹配。MagicRule 的 AppleTV 列表（`tv.apple.com` 及 Apple TV+ 的播放接口）进入 `GlobalMedia`，AppleIntelligence 列表（私密云计算中继及 `siri.apple.com`）进入 `AIProxy`；两者都必须先于覆盖整个 `apple.com` 的直连列表。iCloud 列表（可手动切换，默认直连）完全包含在 Apple 完整规则中，因此同样排在它之前；其余 Apple 服务由 Apple 完整规则直接走 `DIRECT`，包括 App Store、软件更新和 Apple Music。MagicRule 的 AppleDirect 列表也完全包含在 Apple 完整规则中，已不再引用，只有 `DIRECT` 一个选项的 AppleDirect 策略组随之移除。MagicRule 的 AppleProxy 是“整个 Apple 走代理”的宽列表，与 Apple 直连互斥，同样不再引用，AppleProxy 策略组已移除。Surge 内置的 SYSTEM 规则仍最先直连 `*.ls.apple.com` 等系统服务。原 Claude 规则由新站的 Anthropic 接替；GlobalMedia 使用完整产物，包含域名规则。所有外部规则引用附带 `no-resolve`，避免 IP/ASN 规则主动提前解析 DNS，末尾 `GEOIP,CN,DIRECT` 保留原行为。国内直连名单前另有一条不带 `no-resolve` 的 `RULE-SET,LAN,DIRECT`，解析到私有或保留地址的域名（如自建 NAS、内网服务）因此直连，不再落入 `FINAL,Proxy`。到达这里的域名都会在本地解析一次：国内直连名单中的域名本就直连，连接时同样要解析，不增加查询；Surge 每个请求最多解析一次，随后国内直连名单的 IP 段和 `GEOIP,CN` 都用这次的结果判断。本地解析失败时，`FINAL` 的 `dns-failed` 让请求改走 Proxy，由代理端远程解析。规则区前部的 `RULE-SET,LAN,DIRECT,no-resolve` 保留，只匹配 `.local` 和直接以 IP 访问的请求。Clash 同样把这条规则展开为不带 `no-resolve` 的本地网段规则。
+AppleIntelligence 列表放在 AI 规则末尾；其余 Apple 规则位于 AI 规则之后、Telegram 之前，按 AppleTV → iCloud → Apple 完整规则的顺序匹配。MagicRule 的 AppleTV 列表（`tv.apple.com` 及 Apple TV+ 的播放接口）进入 `GlobalMedia`，AppleIntelligence 列表（私密云计算中继及 `siri.apple.com`）进入 `AIProxy`；两者都必须先于覆盖整个 `apple.com` 的直连列表。iCloud 列表（可手动切换，默认直连）完全包含在 Apple 完整规则中，因此同样排在它之前；其余 Apple 服务由 Apple 完整规则直接走 `DIRECT`，包括 App Store、软件更新和 Apple Music。MagicRule 的 AppleDirect 列表也完全包含在 Apple 完整规则中，已不再引用，只有 `DIRECT` 一个选项的 AppleDirect 策略组随之移除。MagicRule 的 AppleProxy 是“整个 Apple 走代理”的宽列表，与 Apple 直连互斥，同样不再引用，AppleProxy 策略组已移除。Surge 内置的 SYSTEM 规则仍最先直连 `*.ls.apple.com` 等系统服务。原 Claude 规则由新站的 Anthropic 接替；影音规则使用各服务的独立完整产物。所有外部规则引用附带 `no-resolve`，避免 IP/ASN 规则主动提前解析 DNS，末尾 `GEOIP,CN,DIRECT` 保留原行为。国内直连名单前另有一条不带 `no-resolve` 的 `RULE-SET,LAN,DIRECT`，解析到私有或保留地址的域名（如自建 NAS、内网服务）因此直连，不再落入 `FINAL,Proxy`。到达这里的域名都会在本地解析一次：国内直连名单中的域名本就直连，连接时同样要解析，不增加查询；Surge 每个请求最多解析一次，随后国内直连名单的 IP 段和 `GEOIP,CN` 都用这次的结果判断。本地解析失败时，`FINAL` 的 `dns-failed` 让请求改走 Proxy，由代理端远程解析。规则区前部的 `RULE-SET,LAN,DIRECT,no-resolve` 保留，只匹配 `.local` 和直接以 IP 访问的请求。Clash 同样把这条规则展开为不带 `no-resolve` 的本地网段规则。
+
+### 影音、音乐和直播规则（develop）
+
+`GlobalMedia` 策略组只接收以下 6 份 MagicRule 独立服务规则；YouTube 保持独立策略组。清单地址分别取自官方 [Surge 索引](https://magicrule.pages.dev/data/index/Surge.json)和 [Mihomo 索引](https://magicrule.pages.dev/data/index/Mihomo.json)，登记在 `surge/magicrule.json`，使用各客户端的完整产物。
+
+| 分类 | MagicRule 规则名 |
+| --- | --- |
+| 影视 | AppleTV、Netflix、Disney |
+| 音乐 | Spotify、TIDAL |
+| 视频 | TikTok |
+
+不再引用或中转名为 `GlobalMedia` 的聚合规则集。该列表曾混入 `DOMAIN-KEYWORD,claude` 等 AI 关键词，会把 `fuck-claude.vercel.app` 这类无关域名送入影音组；现在它不再因这条关键词匹配到 GlobalMedia，而是继续按其他规则和最终兜底判断，通常走 `Proxy`。AI 仍由现有 AI 规则处理；没有新增整个 `vercel.app` 的后缀规则或单站例外。
+
+Hulu、IMDB 及其他未保留的影音服务不再单独登记，继续匹配通用规则。平台清单可能包含同品牌其他业务，规则内容由上游维护。
+
+AppleTV 仍在 Apple 完整规则之前，其余 5 项位于 Coin 之后、LAN / China / GEOIP / FINAL 之前，全部引用仍带 `no-resolve`，每 6 小时更新。develop 现共登记 26 种规则、52 份客户端产物；私有开发 Worker 不运行 Cron。
 
 运行时使用 D1 的 `users`、`nodes`、`assignments`、`store_versions`，不读取历史手动订阅表。
 
@@ -206,6 +222,8 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 
 - Surge 组级 `timeout` 是测速结果的延迟筛选阈值，Mihomo 同名字段是健康检查请求的超时。转换只使用全局 `test-timeout`，省略延迟筛选并写入警告。节点级 `test-url` / `test-timeout` 覆盖也会警告；DIRECT 的独立测速参数及两端测速调度方式尚未对齐。当前 Surge 已不使用组级旧 `url`，转换遵循 `proxy-test-url`，旧值冲突时警告。
 - QUIC 拦截映射依赖 ProjectClash 扩展，通用 Mihomo 或不支持该字段的旧客户端可能忽略它；输出会注明这一兼容性要求。`per-policy` 的自适应行为无法在 ProjectClash 复现，转换为 `all-proxy` 并写入警告，不会变成关闭拦截；只用 QUIC、不回退 TCP 的应用在新版 Surge 中可经代理使用，在 Clash 中仍被阻止。转换后的节点不带逐节点 `block-quic`（带未知参数的节点会被移除），因此按 Surge 默认值近似。两端对 QUIC 版本的识别范围仍由各自内核决定。
+- Surge 的 `adaptive` 只属于[节点参数](https://manual.nssurge.com/policies/parameters.html)，不是合法的 [General 值](https://manual.nssurge.com/profile/general.html)。develop 当前的全局 `per-policy` 加节点默认 `auto`，在 Surge iOS 6.0.0+ / Mac 6.11.0+ 已对支持 UDP 的代理启用自适应；不支持 UDP 的代理仍阻止 QUIC，DIRECT 放行。无需给所有节点追加 `block-quic=adaptive`；当前 Clash 转换器会将带该未支持参数的节点移除。
+- ProjectClash 的[配置解析器](https://github.com/ProjectClash/Clash/blob/main/config/clash_modules_parse.go)不接受 `x-clash-block-quic: adaptive`。若需要放行只用 QUIC 的应用，可在 Clash 客户端的最终配置中覆盖为 `x-clash-block-quic: always-allow`；这会关闭该扩展的 QUIC 拦截，不提供先阻止、再按 TCP 回退情况放行的自适应行为，且仍需节点与服务端支持 UDP。客户端覆盖应在订阅更新后继续生效；仓库默认仍为 `all-proxy`。
 - 不支持 UDP 的节点按上文追加规则，对齐 Surge 的 `udp-policy-not-supported-behaviour`；转换只能依据节点声明的 UDP 能力，VMess / Trojan 默认开启也不保证服务端 UDP 实际可用。
 - 健康检查调度不能等价：Surge Smart 固定每 5 分钟重测，Clash 未显式设置 `lazy`，按 Mihomo 默认 `true`，未选中的组不测试。Surge 原生 fallback / url-test 的 `interval` 是结果有效期，并非固定轮询时钟。Mihomo 的 `max-failed-times` 默认 5 是触发强制健康检查的失败阈值，不是“健康检查连续失败 5 次才换节点”，当前没有配置可保证单次测速失败后保持原 IP。
 - MagicRule 使用各客户端各自的完整产物，规则名与引用顺序一致不代表条目逐条相同；其他远程规则中的不支持条目会被省略。客户端图标、隐藏属性和保存的手动选择也取决于客户端版本及本地状态。

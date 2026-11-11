@@ -87,17 +87,17 @@
     "surge": "https://magicrule.pages.dev/data/rules/Surge/1ea6258bb62b99df154f6003/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/203f2074430b82b0c69bc3cd/manifest.json"
   },
-  "Hulu": {
-    "surge": "https://magicrule.pages.dev/data/rules/Surge/8429cffac7b8adccd2901c60/manifest.json",
-    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/be42d24a4345f02c30adae5d/manifest.json"
+  "Spotify": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/147692aaca5d66d82b129d85/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/0b160e58b4803fe14bf0f97d/manifest.json"
   },
-  "IMDB": {
-    "surge": "https://magicrule.pages.dev/data/rules/Surge/ebd72e81a1972573f4ef912b/manifest.json",
-    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/508c489da8de679cc204cffd/manifest.json"
+  "TIDAL": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/fda1eae12e29251f50428d0c/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/69d3d52da6466b03db620101/manifest.json"
   },
-  "GlobalMedia": {
-    "surge": "https://magicrule.pages.dev/data/rules/Surge/d4ebc6d5779db345a0689d53/manifest.json",
-    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/c65052025f410efdebf1ad6e/manifest.json"
+  "TikTok": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/b7b8d36289e8f59ab1a8a697/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/b29b4df065b26db18f06039c/manifest.json"
   },
   "China": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/11af2559235209b8783239b3/manifest.json",

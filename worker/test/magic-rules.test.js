@@ -30,10 +30,10 @@ test("MagicRule registry covers template placeholders with manifests on either M
   }
   for (const name of ["OKX", "IBKR", "LongBridge"]) assert.match(findMagicRuleSource(`magicrule/surge/${name}.list`).manifest, /^https:\/\/rule-26r\.pages\.dev\//);
   assert.equal(magicRuleUrl("OpenAI", "surge", "https://atlas.example/AtlasRouter?dev=1&token=private"), "https://atlas.example/AtlasRouter-Dev/rules/magicrule/surge/OpenAI.list");
-  for (const path of ["magicrule/surge/WeChat.list", "magicrule/surge/Copilot.list", "magicrule/mihomo/OpenAI.list", "magicrule/surge/OpenAI.yaml", "magicrule/surge/__proto__.list", "magicrule/surge/toString.list", "magicrule/other/OpenAI.list", "magicrule/surge/../OpenAI.list", "magicrule/surge/OpenAI.list/x", "https://example.com/OpenAI.list"]) {
+  for (const path of ["magicrule/surge/GlobalMedia.list", "magicrule/mihomo/GlobalMedia.yaml", "magicrule/surge/WeChat.list", "magicrule/surge/Copilot.list", "magicrule/mihomo/OpenAI.list", "magicrule/surge/OpenAI.yaml", "magicrule/surge/__proto__.list", "magicrule/surge/toString.list", "magicrule/other/OpenAI.list", "magicrule/surge/../OpenAI.list", "magicrule/surge/OpenAI.list/x", "https://example.com/OpenAI.list"]) {
     assert.equal(findMagicRuleSource(path), null, path);
   }
-  for (const [name, client] of [["Google", "surge"], ["Bing", "surge"], ["Copilot", "surge"], ["WeChat", "surge"], ["__proto__", "surge"], ["OpenAI", "other"], ["OpenAI", "toString"]]) {
+  for (const [name, client] of [["GlobalMedia", "surge"], ["GlobalMedia", "mihomo"], ["Google", "surge"], ["Bing", "surge"], ["Copilot", "surge"], ["WeChat", "surge"], ["__proto__", "surge"], ["OpenAI", "other"], ["OpenAI", "toString"]]) {
     assert.throws(() => magicRuleUrl(name, client, REQUEST_URL));
   }
 });

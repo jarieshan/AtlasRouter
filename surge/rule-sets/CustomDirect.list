@@ -25,7 +25,7 @@ DOMAIN-SUFFIX,gov.hk
 
 DOMAIN-SUFFIX,cdn.kineticbloom.org
 
-# ByteDance's domestic API; MagicRule GlobalMedia also lists it ahead of the China list.
+# ByteDance's domestic API.
 DOMAIN-SUFFIX,snssdk.com
 # Anjuke images; foreign DoH resolves them to overseas CDN nodes.
 DOMAIN-SUFFIX,ajkimg.com

@@ -267,8 +267,8 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.ok(config.split("\n").includes(`GlobalMedia = select, ${expectedWarpFirst.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Media.png`));
     const youtubeRule = `RULE-SET,${magicRuleUrl("YouTube", "surge", "https://atlas.example/AtlasRouter")},YouTube,no-resolve,update-interval=21600\n`;
     assert.ok(config.includes(youtubeRule));
-    assert.ok(config.indexOf(youtubeRule) < config.indexOf(`${magicRuleUrl("GlobalMedia", "surge", "https://atlas.example/AtlasRouter")},`));
-    assert.doesNotMatch(config, /\/Google\.list|token=test-token,/);
+    assert.ok(config.indexOf(youtubeRule) < config.indexOf(`${magicRuleUrl("Netflix", "surge", "https://atlas.example/AtlasRouter")},`));
+    assert.doesNotMatch(config, /\/(?:Google|GlobalMedia)\.list|token=test-token,/);
     assert.doesNotMatch(config, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
     assert.doesNotMatch(config, /^Apple(?:Proxy|Direct) = /m);
     const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/magicrule\/surge\/(?:AppleTV|AppleIntelligence|iCloud|Apple)\.list,/.test(line));
