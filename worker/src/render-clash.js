@@ -8,6 +8,14 @@ import { orderedSmartPriority, positiveInteger, SMART_PRIORITY_SCHEMES, splitSur
 
 // Tailscale's default address pools; the control plane assigns each node an address inside them.
 const TAILNET_RANGES = ["100.64.0.0/10", "fd7a:115c:a1e0::/48"];
+// Surge bundles its ASN database; Mihomo downloads one for IP-ASN rules, from GitHub unless set.
+const ASN_DATABASE_URL = "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb";
+// Rules never read GeoIP.dat or GeoSite.dat, yet ProjectClash's scheduled sync downloads every GEO file
+// and retries the whole set after any failure, so serve both as small files from the same CDN.
+const UNUSED_GEODATA_URLS = {
+  geoip: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat",
+  geosite: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite-lite.dat",
+};
 
 export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const sections = surgeSections(applyRuleSetVisibility(profile));
@@ -72,7 +80,8 @@ function convertGeneral(general, warn) {
   // Surge's enhanced mode answers with fake IPs and keeps the mapping across restarts, so
   // no-resolve IP rules never match domain traffic and app lookups never wait for DoH.
   // Windows' connectivity probe needs a real answer; Surge answers Firefox's DoH canary itself.
-  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false, profile: { "store-fake-ip": true } };
+  // Latency tests leave out the handshake so TLS and plain nodes compare fairly, as ProjectClash enforces.
+  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false, "unified-delay": true, profile: { "store-fake-ip": true } };
   const dns = { enable: true, "enhanced-mode": "fake-ip", "fake-ip-filter": ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"], ipv6: false };
   const consumed = new Set();
   const read = (key, convert) => {
@@ -131,6 +140,12 @@ function convertGeneral(general, warn) {
     config["geodata-mode"] = false;
     config["geox-url"] = { mmdb: value };
   });
+  let geoAutoUpdate = true;
+  read("disable-geoip-db-auto-update", (value) => { geoAutoUpdate = !surgeBoolean(value); });
+  // Surge refreshes GeoIP unless disabled; Mihomo never does by default and checks daily once enabled.
+  // ProjectClash downloads every GEO file in full on each refresh, so follow the weekly GeoIP releases.
+  if (geoAutoUpdate) Object.assign(config, { "geo-auto-update": true, "geo-update-interval": 168 });
+  config["geox-url"] = { ...UNUSED_GEODATA_URLS, ...config["geox-url"], asn: ASN_DATABASE_URL };
   consumed.add("test-timeout");
   consumed.add("proxy-test-url");
   consumed.add("udp-policy-not-supported-behaviour");
@@ -217,11 +232,14 @@ function convertGroups(lines, proxies, general, warn) {
         group.url = general.get("proxy-test-url") ?? "http://bing.com/";
         group.interval = smart ? 300 : positiveInteger(options.get("interval") ?? "600");
         group.timeout = positiveInteger(general.get("test-timeout") ?? "5") * 1000;
+        // Mihomo counts any HTTP response as healthy, including captive portal and error pages.
+        if (URL.canParse(group.url) && new URL(group.url).pathname === "/generate_204") group["expected-status"] = 204;
         // Surge's group timeout filters measured latency, unlike Mihomo's test deadline.
         if (options.has("timeout")) warn(`Proxy Group entry ${index + 1}: timeout latency filter omitted; test-timeout used`);
         if (options.has("url") && options.get("url") !== group.url) warn(`Proxy Group entry ${index + 1}: legacy url ignored; proxy-test-url used`);
         if (group.type === "url-test") {
-          const tolerance = smart ? "0" : options.get("tolerance") ?? "100";
+          // Smart keeps a working node instead of switching whenever another tests a few ms faster.
+          const tolerance = smart ? "50" : options.get("tolerance") ?? "100";
           if (!/^\d+$/.test(tolerance) || !Number.isSafeInteger(Number(tolerance))) throw new Error();
           group.tolerance = Number(tolerance);
         }

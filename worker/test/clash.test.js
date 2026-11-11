@@ -48,7 +48,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   assert.deepEqual(plain.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.match(encrypted, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
   assert.match(encrypted, /^encrypted-dns-follow-outbound-mode = true$/m);
-  for (const url of [customDirectUrl, magicRuleUrl("IBKR", "surge", context.requestUrl), directUrl]) {
+  for (const url of [customDirectUrl, ...["IBKR", "Direct", "Apple"].map((name) => magicRuleUrl(name, "surge", context.requestUrl)), directUrl]) {
     assert.ok(plain.split("\n").includes(`RULE-SET:${url} = server:223.5.5.5, 119.29.29.29`));
     assert.ok(encrypted.split("\n").includes(`RULE-SET:${url} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query`));
   }
@@ -182,11 +182,22 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(config.dns["enhanced-mode"], "fake-ip");
     assert.deepEqual(config.dns["fake-ip-filter"], ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"]);
     assert.deepEqual(config.profile, { "store-fake-ip": true });
+    assert.equal(config["unified-delay"], true);
+    assert.equal(config["geo-auto-update"], true);
+    assert.equal(config["geo-update-interval"], 168);
+    assert.deepEqual(config["geox-url"], {
+      geoip: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat",
+      geosite: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite-lite.dat",
+      mmdb: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb",
+      asn: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb",
+    });
+    for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) assert.equal(group["expected-status"], 204, group.name);
+    // Apple and MagicRule Direct are DIRECT too; foreign DoH would hand them overseas CDN addresses.
     assert.deepEqual(config.dns["nameserver-policy"], {
       ...dohCanary,
       "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
       "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-      ...Object.fromEntries([customDirectSource.id, "IBKR", "China"].map((provider) => [`rule-set:${provider}`, doh
+      ...Object.fromEntries([customDirectSource.id, "IBKR", "Direct", "Apple", "China"].map((provider) => [`rule-set:${provider}`, doh
         ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
         : ["223.5.5.5", "119.29.29.29"]])),
     });
@@ -195,7 +206,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(auto.icon, `${iconBase}Auto.png`);
     assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name).filter((name) => name !== "Tailnet"));
     assert.equal(auto.interval, 300);
-    assert.equal(auto.tolerance, 0);
+    assert.equal(auto.tolerance, 50);
     assert.ok(!auto.hidden);
     const dohProxy = config["proxy-groups"].find((group) => group.name === "DoH Proxy");
     assert.equal(dohProxy.type, "url-test");
@@ -203,7 +214,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(dohProxy.hidden, true);
     assert.deepEqual(dohProxy.proxies, ["🇭🇰 HK IDC"]);
     assert.equal(dohProxy.interval, 300);
-    assert.equal(dohProxy.tolerance, 0);
+    assert.equal(dohProxy.tolerance, 50);
     for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
     for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
     assert.ok(config.rules.every((rule) => !rule.startsWith("PROTOCOL,")));
@@ -355,6 +366,36 @@ test("TUN takes over all port 53 DNS and keeps hijack targets on other ports", a
   assert.deepEqual(invalid.warnings, ["General hijack-dns: invalid value omitted"]);
 });
 
+test("GEO data refreshes weekly unless Surge disables GeoIP updates and every GEO file comes from jsDelivr", async () => {
+  const convert = (general) => convertSurgeToClash(`[General]\n${general}[Proxy]\nnode = ${vmess}\n[Rule]\nFINAL,node\n`, context);
+  const mmdb = "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb";
+  const asn = "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb";
+  // ProjectClash downloads these even though no rule reads them.
+  const unused = {
+    geoip: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat",
+    geosite: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite-lite.dat",
+  };
+  const defaults = await convert("");
+  assert.equal(defaults.config["geo-auto-update"], true);
+  assert.equal(defaults.config["geo-update-interval"], 168);
+  assert.deepEqual(defaults.config["geox-url"], { ...unused, asn });
+  assert.equal(defaults.config["geodata-mode"], undefined);
+  assert.deepEqual(defaults.warnings, []);
+  const mapped = await convert(`geoip-maxmind-url = ${mmdb}\ndisable-geoip-db-auto-update = false\n`);
+  assert.deepEqual(mapped.config["geox-url"], { ...unused, mmdb, asn });
+  assert.equal(mapped.config["geodata-mode"], false);
+  assert.equal(mapped.config["geo-auto-update"], true);
+  assert.deepEqual(mapped.warnings, []);
+  const disabled = await convert("disable-geoip-db-auto-update = true\n");
+  assert.equal(disabled.config["geo-auto-update"], undefined);
+  assert.equal(disabled.config["geo-update-interval"], undefined);
+  assert.deepEqual(disabled.config["geox-url"], { ...unused, asn });
+  assert.deepEqual(disabled.warnings, []);
+  const invalid = await convert("disable-geoip-db-auto-update = NEVER_LOG_THIS\n");
+  assert.equal(invalid.config["geo-auto-update"], true);
+  assert.deepEqual(invalid.warnings, ["General disable-geoip-db-auto-update: invalid value omitted"]);
+});
+
 test("UDP skipped for an outbound without UDP relay falls back like Surge instead of matching later rules", async () => {
   const ss = "ss, ss.example.com, 8388, encrypt-method=aes-128-gcm, password=TEST_ONLY";
   const convert = (general, rules) => convertSurgeToClash(`[General]\n${general}[Proxy]\ntcp-only = ${ss}\nudp-ss = ${ss}, udp-relay=true\nudp-vmess = ${vmess}\n[Proxy Group]\nMixed = select, udp-vmess, tcp-only\nNested = select, Mixed, DIRECT\nCapable = select, udp-ss, udp-vmess, DIRECT\n[Rule]\n${rules}`, context);
@@ -418,7 +459,7 @@ test("smart conversion includes only proxy nodes and retains automatic selection
   const source = `[General]\nproxy-test-url = http://www.gstatic.com/generate_204\n[Proxy]\nnode = trojan, example.com, 443, password=TEST_ONLY\n[Proxy Group]\nbackup = fallback, node\nauto = smart, backup, DIRECT, REJECT, include-all-proxies=true\nProxy = select, auto, backup\n[Rule]\nDOMAIN,dns.google,auto\nFINAL,Proxy\n`;
   const { config, warnings } = await convertSurgeToClash(source, context);
   const auto = config["proxy-groups"].find(({ name }) => name === "auto");
-  assert.deepEqual(auto, { name: "auto", type: "url-test", proxies: ["node"], url: "http://www.gstatic.com/generate_204", interval: 300, timeout: 5000, tolerance: 0 });
+  assert.deepEqual(auto, { name: "auto", type: "url-test", proxies: ["node"], url: "http://www.gstatic.com/generate_204", interval: 300, timeout: 5000, "expected-status": 204, tolerance: 50 });
   assert.deepEqual(config.rules, ["DOMAIN,dns.google,auto", "MATCH,Proxy"]);
   assert.ok(warnings.some((warning) => warning.includes("smart approximated")));
 });
@@ -609,6 +650,24 @@ test("automatic groups preserve Surge defaults and distinguish latency filters f
   for (const value of ["-1", "NaN", "1.5"]) {
     const { config } = await convertSurgeToClash(source.replace("tolerance=0", `tolerance=${value}`), context);
     assert.ok(!config["proxy-groups"].some((group) => group.name === "explicit"));
+  }
+});
+
+test("health checks expect HTTP 204 only from generate_204 test URLs", async () => {
+  const source = `[Proxy]\nnode = ${vmess}\n[Proxy Group]\nbackup = fallback, node\nauto = url-test, node\nranked = smart, node\nmanual = select, node\n[Rule]\nFINAL,manual`;
+  for (const [url, expected] of [
+    ["http://www.gstatic.com/generate_204", 204],
+    ["https://cp.cloudflare.com/generate_204?probe=1", 204],
+    ["https://www.apple.com/library/test/success.html", undefined],
+    ["http://example.com/generate_204/page", undefined],
+    ["not a url", undefined],
+    [undefined, undefined],
+  ]) {
+    const { config } = await convertSurgeToClash(`${url ? `[General]\nproxy-test-url = ${url}\n` : ""}${source}`, context);
+    assert.deepEqual(config["proxy-groups"].map(({ name }) => name), ["backup", "auto", "ranked", "manual"]);
+    for (const group of config["proxy-groups"]) {
+      assert.equal(group["expected-status"], group.type === "select" ? undefined : expected, `${group.name}: ${url}`);
+    }
   }
 });
 
