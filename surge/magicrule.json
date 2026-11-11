@@ -59,6 +59,10 @@
     "surge": "https://rule-26r.pages.dev/data/rules/Surge/974ea1320492a005c3d4ebd6/manifest.json",
     "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/0d9f9f54dd16a4eaf0f48c57/manifest.json"
   },
+  "Perplexity": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/efd11e26b02c5246eb892ef3/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/9fe73f9456054f9680cdd31a/manifest.json"
+  },
   "Telegram": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/7dd68efe605596f2a48e96d1/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/032dffc4064edc7b7007bfd1/manifest.json"

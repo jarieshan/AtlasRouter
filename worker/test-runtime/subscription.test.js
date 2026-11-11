@@ -732,7 +732,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
         assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/\/magicrule\/surge\/([A-Za-z]+)\.list$/)[1], policy]), [
           [CUSTOM_REJECT_URL, "REJECT"], [RED_POCKET_URL, "🇺🇸USA-ISP"], [CUSTOM_DIRECT_URL, "DIRECT"], ["IBKR", "DIRECT"], ["LongBridge", "Proxy"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
-          ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
+          ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], ["Perplexity", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
           ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
           [COIN_URL, "Coin"], ["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"],

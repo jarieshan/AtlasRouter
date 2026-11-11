@@ -12,7 +12,7 @@ master 使用 Smart 节点权重之前的稳定订阅实现；Dev 开关选择�
 | GlobalMedia 默认出口 | ISP → WARP → IDC，默认首个 ISP 组 | WARP → IDC → ISP，默认首个 WARP 组；仅接收 AppleTV、Netflix、Disney、Spotify、TIDAL、TikTok 6 份独立规则，已移除 GlobalMedia 聚合列表 |
 | 加密货币交易所 | Binance 固定直连；OKX、Coinbase、Bybit、Bitget 无专门规则 | 五家均进入 `Coin`，ISP → WARP → IDC → DIRECT，默认首个 ISP 组 |
 | 券商 | `longbridge.global`、`ibkr.com` 固定直连 | MagicRule IBKR → `DIRECT`（`[Host]` 指定国内 DNS），LongBridge → `Proxy`，均紧随 CustomDirect |
-| AI 规则 | OpenAI、Bing、Copilot、Anthropic、Gemini → `AIProxy`（Copilot 列表含 Cursor、Grok、Meta AI 等）；Cloudflare → `Proxy` | Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor、本仓库 CustomAI（Meta AI、Muse、Grok Bot）和 AppleIntelligence → `AIProxy`，紧随 WeChat；不引用 Bing、Copilot |
+| AI 规则 | OpenAI、Bing、Copilot、Anthropic、Gemini → `AIProxy`（Copilot 列表含 Cursor、Grok、Meta AI 等）；Cloudflare → `Proxy` | Cloudflare、OpenAI、Anthropic、Gemini、Grok、Cursor、Perplexity、本仓库 CustomAI（Meta AI、Muse、Grok Bot）和 AppleIntelligence → `AIProxy`，紧随 WeChat；不引用 Bing、Copilot |
 | Auto | Surge Smart；Clash url-test，容差 0 | Surge Smart；Clash url-test，容差 50 ms |
 | UI | 默认管理正式数据 | 同一页面通过 Dev 开关管理独立测试数据 |
 | 订阅 | `/AtlasRouter`，正式 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
