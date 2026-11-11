@@ -1,5 +1,6 @@
 # NAME: CustomAI
-# AI services MagicRule has no separate list for; Grok and Cursor, which Grok Bot runs on, come from MagicRule.
+# AIProxy domains MagicRule does not cover: AI services without a separate list, and gaps in its Grok and Cloudflare lists.
+# Grok and Cursor, which Grok Bot runs on, come from MagicRule.
 
 # Meta AI and Muse, including the Meta Model API (api.meta.ai), its developer site (dev.meta.ai) and Llama.
 DOMAIN-SUFFIX,meta.ai
@@ -18,3 +19,6 @@ DOMAIN-SUFFIX,grokusercontent.com
 
 # Grok Bot; its apps otherwise use Cursor's domains.
 DOMAIN-SUFFIX,grokbot.com
+
+# Cloudflare Mirrors (Arch Linux and Debian), missing from MagicRule's Cloudflare list.
+DOMAIN-SUFFIX,cloudflaremirrors.com
