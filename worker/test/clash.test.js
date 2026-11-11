@@ -189,6 +189,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       mmdb: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb",
       asn: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb",
     });
+    for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) assert.equal(group["expected-status"], 204, group.name);
     // Apple and MagicRule Direct are DIRECT too; foreign DoH would hand them overseas CDN addresses.
     assert.deepEqual(config.dns["nameserver-policy"], {
       ...dohCanary,
@@ -451,7 +452,7 @@ test("smart conversion includes only proxy nodes and retains automatic selection
   const source = `[General]\nproxy-test-url = http://www.gstatic.com/generate_204\n[Proxy]\nnode = trojan, example.com, 443, password=TEST_ONLY\n[Proxy Group]\nbackup = fallback, node\nauto = smart, backup, DIRECT, REJECT, include-all-proxies=true\nProxy = select, auto, backup\n[Rule]\nDOMAIN,dns.google,auto\nFINAL,Proxy\n`;
   const { config, warnings } = await convertSurgeToClash(source, context);
   const auto = config["proxy-groups"].find(({ name }) => name === "auto");
-  assert.deepEqual(auto, { name: "auto", type: "url-test", proxies: ["node"], url: "http://www.gstatic.com/generate_204", interval: 300, timeout: 5000, tolerance: 50 });
+  assert.deepEqual(auto, { name: "auto", type: "url-test", proxies: ["node"], url: "http://www.gstatic.com/generate_204", interval: 300, timeout: 5000, "expected-status": 204, tolerance: 50 });
   assert.deepEqual(config.rules, ["DOMAIN,dns.google,auto", "MATCH,Proxy"]);
   assert.ok(warnings.some((warning) => warning.includes("smart approximated")));
 });
@@ -642,6 +643,24 @@ test("automatic groups preserve Surge defaults and distinguish latency filters f
   for (const value of ["-1", "NaN", "1.5"]) {
     const { config } = await convertSurgeToClash(source.replace("tolerance=0", `tolerance=${value}`), context);
     assert.ok(!config["proxy-groups"].some((group) => group.name === "explicit"));
+  }
+});
+
+test("health checks expect HTTP 204 only from generate_204 test URLs", async () => {
+  const source = `[Proxy]\nnode = ${vmess}\n[Proxy Group]\nbackup = fallback, node\nauto = url-test, node\nranked = smart, node\nmanual = select, node\n[Rule]\nFINAL,manual`;
+  for (const [url, expected] of [
+    ["http://www.gstatic.com/generate_204", 204],
+    ["https://cp.cloudflare.com/generate_204?probe=1", 204],
+    ["https://www.apple.com/library/test/success.html", undefined],
+    ["http://example.com/generate_204/page", undefined],
+    ["not a url", undefined],
+    [undefined, undefined],
+  ]) {
+    const { config } = await convertSurgeToClash(`${url ? `[General]\nproxy-test-url = ${url}\n` : ""}${source}`, context);
+    assert.deepEqual(config["proxy-groups"].map(({ name }) => name), ["backup", "auto", "ranked", "manual"]);
+    for (const group of config["proxy-groups"]) {
+      assert.equal(group["expected-status"], group.type === "select" ? undefined : expected, `${group.name}: ${url}`);
+    }
   }
 });
 

@@ -226,6 +226,8 @@ function convertGroups(lines, proxies, general, warn) {
         group.url = general.get("proxy-test-url") ?? "http://bing.com/";
         group.interval = smart ? 300 : positiveInteger(options.get("interval") ?? "600");
         group.timeout = positiveInteger(general.get("test-timeout") ?? "5") * 1000;
+        // Mihomo counts any HTTP response as healthy, including captive portal and error pages.
+        if (URL.canParse(group.url) && new URL(group.url).pathname === "/generate_204") group["expected-status"] = 204;
         // Surge's group timeout filters measured latency, unlike Mihomo's test deadline.
         if (options.has("timeout")) warn(`Proxy Group entry ${index + 1}: timeout latency filter omitted; test-timeout used`);
         if (options.has("url") && options.get("url") !== group.url) warn(`Proxy Group entry ${index + 1}: legacy url ignored; proxy-test-url used`);
