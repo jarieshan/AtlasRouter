@@ -57,7 +57,7 @@ test("Tailnet-only subscriptions replace every server without changing names, al
     assert.ok(sections.get("rule").includes(`DOMAIN,${host},DIRECT`));
     assert.ok(sections.get("host").includes(`${host} = server:223.5.5.5, 119.29.29.29`));
   }
-  assert.equal(sections.get("rule").at(-1), "FINAL,Proxy,dns-failed");
+  assert.equal(sections.get("rule").at(-1), "FINAL,FINAL,dns-failed");
 });
 
 test("Tailnet-only Clash chains all nodes and keeps bootstrap DNS independent when DoH is enabled", async () => {
@@ -127,7 +127,7 @@ test("Tailnet testing is explicitly selectable and excluded from automatic and D
     const [name, original] = surgeAssignment(line);
     const parts = splitSurgeList(original);
     const updated = splitSurgeList(groups.get(name));
-    if (parts[0] === "select" && name !== "Tailscale") {
+    if (parts[0] === "select" && !["Tailscale", "FINAL"].includes(name)) {
       assert.equal(updated.filter((part) => part === "Tailnet Test").length, 1);
       assert.deepEqual(updated.filter((part) => part !== "Tailnet Test"), parts);
     } else if (name !== "Auto") assert.equal(groups.get(name), original);
@@ -137,7 +137,7 @@ test("Tailnet testing is explicitly selectable and excluded from automatic and D
   for (const hostname of ["controlplane.tailscale.com", "login.tailscale.com"]) {
     const rule = `DOMAIN,${hostname},Auto`;
     assert.ok(after.get("rule").includes(rule));
-    assert.ok(after.get("rule").indexOf(rule) < after.get("rule").indexOf("FINAL,Proxy,dns-failed"));
+    assert.ok(after.get("rule").indexOf(rule) < after.get("rule").indexOf("FINAL,FINAL,dns-failed"));
   }
 });
 

@@ -89,7 +89,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(config.indexOf(rule) < config.indexOf("GEOIP,CN,DIRECT"));
     }
     const rules = config.split("[Rule]\n")[1].split("[MITM]")[0].split("\n").filter((line) => line && !line.startsWith("#"));
-    assert.deepEqual(rules.slice(-4), ["RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`, "GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
+    assert.deepEqual(rules.slice(-4), ["RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`, "GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);
@@ -132,12 +132,15 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).icon, undefined);
     }
-    const icons = { "Proxy": "Proxy", "AIProxy": "AI", "iCloud": "iCloud", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media", "Coin": "Cryptocurrency" };
+    const icons = { "Proxy": "Proxy", "FINAL": "Proxy", "AIProxy": "AI", "iCloud": "iCloud", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media", "Coin": "Cryptocurrency" };
     assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), [...Object.keys(icons), "Tailscale"]);
     for (const [name, file] of Object.entries(icons)) assert.equal(config["proxy-groups"].find((group) => group.name === name)?.icon, `${iconBase}${file}.png`);
     for (const name of ["Proxy", "AIProxy", "X"]) {
       assert.deepEqual(config["proxy-groups"].find((group) => group.name === name).proxies, ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC", name === "Proxy" ? "Auto" : "Proxy", "DIRECT"]);
     }
+    assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "FINAL"), {
+      name: "FINAL", type: "select", proxies: ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC", "DIRECT"], icon: `${iconBase}Proxy.png`,
+    });
     assert.deepEqual(config["proxy-groups"].find((group) => group.name === "GlobalMedia").proxies, ["🇺🇸USA-WARP", "🇭🇰HK-IDC", "🇺🇸USA-ISP", "Proxy", "DIRECT"]);
     for (const name of ["AppleProxy", "AppleDirect"]) assert.ok(!config["proxy-groups"].some((group) => group.name === name), name);
     const icloud = config["proxy-groups"].find((group) => group.name === "iCloud");
@@ -165,7 +168,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       ["AppleTV", ...mediaRules].map((name) => `RULE-SET,${name},GlobalMedia,no-resolve`));
     for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
     // The SS WARP node has no UDP relay; rules that can select it reject skipped UDP like Surge.
-    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,FINAL", "NETWORK,UDP,REJECT"]);
     assert.equal(config.rules[config.rules.indexOf(youtubeRule) + 1], "AND,((NETWORK,UDP),(RULE-SET,YouTube,no-resolve)),REJECT");
     for (const rule of ["RULE-SET,IBKR,DIRECT,no-resolve", "RULE-SET,China,DIRECT,no-resolve", "DOMAIN,dns.alidns.com,DIRECT"]) {
       assert.doesNotMatch(config.rules[config.rules.indexOf(rule) + 1], /UDP/, rule);
@@ -279,10 +282,10 @@ test("subscriptions without IDC nodes reject foreign DoH while retaining domesti
     const source = renderSurgeProfile({ ...input, groups, nodes: groups.flatMap((group) => group.nodes), options: { doh } });
     assert.doesNotMatch(source, /^DoH Proxy =/m);
     assert.doesNotMatch(source, /^PROTOCOL,DOH,/m);
-    assert.match(source, /^FINAL,Proxy,dns-failed$/m);
+    assert.match(source, /^FINAL,FINAL,dns-failed$/m);
     const { config } = await convertSurgeToClash(source, context);
     assert.ok(!config["proxy-groups"].some(({ name }) => name === "DoH Proxy"));
-    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,FINAL", "NETWORK,UDP,REJECT"]);
     for (const [hostname, policy] of [["cloudflare-dns.com", "REJECT"], ["dns.google", "REJECT"], ["dns.alidns.com", "DIRECT"], ["doh.pub", "DIRECT"]]) {
       const rule = `DOMAIN,${hostname},${policy}`;
       assert.ok(source.split("\n").includes(rule));
@@ -311,7 +314,7 @@ test("Clash rejects foreign DoH if all IDC nodes are unsupported and retains any
     }
     for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},${keepCompatible ? "DoH Proxy" : "REJECT"}`));
     for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
-    assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
+    assert.deepEqual(config.rules.slice(-2), ["MATCH,FINAL", "NETWORK,UDP,REJECT"]);
     assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
   }
 });
@@ -338,14 +341,14 @@ test("explicit rendering options preserve protocol behavior across visibility an
       const normalizeAddress = (text) => text.replaceAll(requestUrl, "https://profile.example/SUBSCRIPTION").replaceAll(token, "TEST_TOKEN");
       assert.equal(source.match(/^#!MANAGED-CONFIG (\S+)/)[1], buildSubscriptionUrl(requestUrl, token, options));
       assert.match(source, /^block-quic = per-policy$/m);
-      assert.match(source, /^FINAL,Proxy,dns-failed$/m);
+      assert.match(source, /^FINAL,FINAL,dns-failed$/m);
       const groupSection = source.split("[Proxy Group]\n")[1].split("[Rule]\n")[0];
       assert.equal(/hidden\s*=/i.test(groupSection), !showAllGroups);
       const result = { surge: normalizeAddress(source).replace(/policy-priority="(?:\\.|[^"\\])*"/g, 'policy-priority="CHECKED_SEPARATELY"').replace(/, hidden=true$/gm, "") };
       if (!tencentOa) {
         const { config, warnings } = await convertSurgeToClash(source, { requestUrl, token });
         assert.equal(config["x-clash-block-quic"], "all-proxy");
-        assert.deepEqual(config.rules.slice(-2), ["MATCH,Proxy", "NETWORK,UDP,REJECT"]);
+        assert.deepEqual(config.rules.slice(-2), ["MATCH,FINAL", "NETWORK,UDP,REJECT"]);
         assert.ok(config.proxies.filter(({ type }) => ["vmess", "trojan"].includes(type)).every(({ udp }) => udp === true));
         assert.equal(config["proxy-groups"].some((group) => group.hidden === true), !showAllGroups);
         for (const group of config["proxy-groups"]) delete group.hidden;

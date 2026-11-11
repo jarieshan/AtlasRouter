@@ -205,7 +205,7 @@ test("renders ordered smart groups with valid references and literal credential 
   const config = renderSurgeProfile({ requestUrl: "https://atlas.example/AtlasRouter", token: "test-token", groups, nodes: groups.flatMap((group) => group.nodes) });
   assert.match(config, /^🇺🇸USA-ISP = smart, 🇺🇸 LosAngeles - ISP 2, 🇺🇸 LosAngeles - ISP 3, 🇺🇸 LosAngeles - ISP 1, policy-priority=/m);
   assert.match(config, /password=\$&\$1\$\$/);
-  assert.match(config, /^FINAL,Proxy,dns-failed$/m);
+  assert.match(config, /^FINAL,FINAL,dns-failed$/m);
   assert.match(config, /\/AtlasRouter\/modules\/tencent-oa.sgmodule\?token=/);
   assert.doesNotMatch(config, /{{|💎 Select/);
   assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${ICON_BASE}Auto.png`));
@@ -255,6 +255,7 @@ test("orders selection options by IP type while preserving regional definitions 
       assert.equal(new Set(members).size, members.length);
     }
     assert.ok(config.split("\n").includes(`Coin = select, ${expectedOptions.join(", ")}, DIRECT, icon-url=${ICON_BASE}Cryptocurrency.png`));
+    assert.ok(config.split("\n").includes(`FINAL = select, ${expectedOptions.join(", ")}, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
     const icloud = config.split("\n").find((line) => line.startsWith("iCloud = select, "));
     const expectedIcloud = ["IDC", "WARP", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.equal(icloud, `iCloud = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}iCloud.png`);
@@ -281,7 +282,7 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.ok(config.split("\n").filter((line) => line.includes("policy-priority=")).every((line) => !line.includes(", hidden=")));
     assert.deepEqual(groups, before);
     for (const group of groups) assert.ok(config.includes(`${group.group} = smart, ${group.nodes.map((node) => node.name).join(", ")}, policy-priority=`));
-    assert.match(config, /^FINAL,Proxy,dns-failed$/m);
+    assert.match(config, /^FINAL,FINAL,dns-failed$/m);
   }
 });
 

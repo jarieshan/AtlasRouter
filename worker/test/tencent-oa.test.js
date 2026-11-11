@@ -73,7 +73,7 @@ test("legacy tencent_oa links are opt-in, validate options, and survive managed 
   assert.equal(enabled.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${requestUrl}?token=${token}&doh=1&tencent_oa=1`);
   assert.match(enabled, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
   assert.deepEqual(enabled.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
-  assert.match(enabled, /^FINAL,Proxy,dns-failed$/m);
+  assert.match(enabled, /^FINAL,FINAL,dns-failed$/m);
   assert.doesNotMatch(enabled, /{{|untrusted=|#fragment/);
   assert.equal(enabled.split("[Proxy]\n")[1].split("[Rule]")[0], plain.split("[Proxy]\n")[1].split("[Rule]")[0]);
 });
@@ -89,5 +89,5 @@ test("legacy tencent_oa links replace skip-proxy with the module list and preser
   const lines = config.split("[Rule]\n")[1].split("\n").filter((line) => line && !line.startsWith("#"));
   assert.deepEqual(lines.slice(0, 3), ["RULE-SET,SYSTEM,DIRECT", "DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
   assert.ok(lines.indexOf("DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet") < lines.indexOf("RULE-SET,LAN,DIRECT,no-resolve"));
-  assert.deepEqual(lines.slice(-2), ["GEOIP,CN,DIRECT", "FINAL,Proxy,dns-failed"]);
+  assert.deepEqual(lines.slice(-2), ["GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
 });

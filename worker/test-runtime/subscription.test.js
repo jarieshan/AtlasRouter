@@ -470,7 +470,7 @@ test("simultaneous first logins receive stable unique accounts and exclusive pri
     const config = await response.text();
     assert.deepEqual(orderedSmartMembers(config, "🇺🇸USA-ISP"), profile.groups[0].nodes.map((node) => node.name));
     assert.match(config, /^#!MANAGED-CONFIG https:\/\/atlas.example\/AtlasRouter\?token=/);
-    assert.match(config, /^FINAL,Proxy,dns-failed$/m);
+    assert.match(config, /^FINAL,FINAL,dns-failed$/m);
     const moduleUrl = config.match(/https:\/\/[^\s]+\/modules\/tencent-oa.sgmodule\?token=[^\s]+/)[0];
     const module = await request(mf, moduleUrl);
     assert.equal(module.status, 200);
@@ -649,6 +649,9 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(config["geo-auto-update"], true);
         assert.equal(config["geo-update-interval"], 168);
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Proxy").proxies, ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "Auto", "DIRECT"]);
+        assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "FINAL"), {
+          name: "FINAL", type: "select", proxies: ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "DIRECT"], icon: `${ICON_BASE}Proxy.png`,
+        });
         const dohProxy = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
         assert.equal(dohProxy.type, "url-test");
         assert.equal(dohProxy.icon, `${ICON_BASE}Server.png`);
@@ -657,7 +660,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
         for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
         assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
-        assert.equal(config.rules.at(-1), "MATCH,Proxy");
+        assert.equal(config.rules.at(-1), "MATCH,FINAL");
         for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
         for (const name of ["AppleProxy", "AppleDirect"]) assert.ok(!config["proxy-groups"].some((group) => group.name === name), name);
         const icloud = config["proxy-groups"].find((group) => group.name === "iCloud");
@@ -689,6 +692,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(text, /^Tailscale = select, Tailnet$/m);
         assert.match(text, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
+        assert.ok(text.split("\n").includes(`FINAL = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
         assert.ok(text.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png, hidden=true`));
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
@@ -851,7 +855,7 @@ test("removing an assigned node reassigns users and removes it from stored inven
         assert.deepEqual(config["proxy-groups"].find((group) => group.name === removed.group).proxies, isp.nodes.map((node) => node.name));
       } else {
         assert.deepEqual(orderedSmartMembers(body, isp.group), isp.nodes.map((node) => node.name));
-        assert.match(body, /^FINAL,Proxy,dns-failed$/m);
+        assert.match(body, /^FINAL,FINAL,dns-failed$/m);
       }
     }
   }
@@ -932,7 +936,7 @@ test("imported drafts deduplicate and reach subscriptions only after an explicit
   const profile = await account(mf);
   const config = await (await request(mf, profile.subscriptionUrl)).text();
   assert.ok(config.includes(draft.nodes[0].line));
-  assert.match(config, /^FINAL,Proxy,dns-failed$/m);
+  assert.match(config, /^FINAL,FINAL,dns-failed$/m);
   assert.equal((await request(mf, POOL_IMPORT_PATH, {
     subject: "admin", method: "POST", body: { text: link, nodes: [] }, headers: { origin: "https://foreign.example" },
   })).status, 403);
