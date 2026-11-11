@@ -8,6 +8,8 @@ import { orderedSmartPriority, positiveInteger, SMART_PRIORITY_SCHEMES, splitSur
 
 // Tailscale's default address pools; the control plane assigns each node an address inside them.
 const TAILNET_RANGES = ["100.64.0.0/10", "fd7a:115c:a1e0::/48"];
+// Surge bundles its ASN database; Mihomo downloads one for IP-ASN rules, from GitHub unless set.
+const ASN_DATABASE_URL = "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb";
 
 export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const sections = surgeSections(applyRuleSetVisibility(profile));
@@ -131,6 +133,12 @@ function convertGeneral(general, warn) {
     config["geodata-mode"] = false;
     config["geox-url"] = { mmdb: value };
   });
+  let geoAutoUpdate = true;
+  read("disable-geoip-db-auto-update", (value) => { geoAutoUpdate = !surgeBoolean(value); });
+  // Surge refreshes GeoIP unless disabled; Mihomo never does by default and checks daily once enabled.
+  // ProjectClash downloads every GEO file in full on each refresh, so follow the weekly GeoIP releases.
+  if (geoAutoUpdate) Object.assign(config, { "geo-auto-update": true, "geo-update-interval": 168 });
+  config["geox-url"] = { ...config["geox-url"], asn: ASN_DATABASE_URL };
   consumed.add("test-timeout");
   consumed.add("proxy-test-url");
   consumed.add("udp-policy-not-supported-behaviour");
