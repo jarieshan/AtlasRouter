@@ -138,5 +138,17 @@
   "China": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/11af2559235209b8783239b3/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/3cf8a9f4c33c2ff30d0b23ea/manifest.json"
+  },
+  "Alphabet": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/18df3b4bd47b0edfabdb143c/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/50704530861cfa8c10ef5c71/manifest.json"
+  },
+  "GitHub": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/65f7111de131dc0e6341090f/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/938adbcd28e778c220e09d1d/manifest.json"
+  },
+  "Wikimedia": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/0696d8ac6cb7028bfe9c5b69/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/05c21152f331fa3480ea70c2/manifest.json"
   }
 }

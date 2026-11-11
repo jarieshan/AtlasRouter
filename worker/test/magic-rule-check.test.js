@@ -43,7 +43,7 @@ test("the cron checks one registered list per run, covers all of them in one rot
   await env.DB.prepare(`INSERT INTO magic_rule_checks (name, client, failures, notified, updated_at) VALUES
     ('Removed', 'surge', 5, 0, '2026-01-01T00:00:00.000Z'), ('Retired', 'mihomo', 0, 1, '2026-01-01T00:00:00.000Z')`).run();
   const state = upstream();
-  assert.equal(sources.length, 70);
+  assert.equal(sources.length, 76);
   for (let run = 0; run < sources.length; run += 1) await checkMagicRules(env, run * CHECK_INTERVAL, state.fetcher);
   assert.deepEqual(state.lists, sources.map(id));
   assert.equal(new Set(state.lists).size, sources.length);
