@@ -11,6 +11,22 @@
     "surge": "https://rule-26r.pages.dev/data/rules/Surge/80adcc0f4668f884d689cd62/manifest.json",
     "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/4619b2247a648e4e2b0315b9/manifest.json"
   },
+  "PayPal": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/2359897e8571f99958cbc9ba/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/47d821bda088a86cd4250ab8/manifest.json"
+  },
+  "eBay": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/4a37efca43d758195fb7f52e/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/37a77a1a24007cb489a46f9f/manifest.json"
+  },
+  "Stripe": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/8706c64ac6cc4a7644eca3d6/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/9dadc75252de9958b4a87620/manifest.json"
+  },
+  "Wise": {
+    "surge": "https://rule-26r.pages.dev/data/rules/Surge/d81972d4f7299397f18b3158/manifest.json",
+    "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/3196e98a06de7ac752ac910c/manifest.json"
+  },
   "IBKR": {
     "surge": "https://rule-26r.pages.dev/data/rules/Surge/f4eb5063a59d218925a2d98d/manifest.json",
     "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/9e4647594c581247aae3a91c/manifest.json"

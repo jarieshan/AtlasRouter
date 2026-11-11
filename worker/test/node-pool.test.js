@@ -254,7 +254,7 @@ test("orders selection options by IP type while preserving regional definitions 
       assert.deepEqual(members, [...expectedOptions, name === "Proxy" ? "Auto" : "Proxy", "DIRECT"]);
       assert.equal(new Set(members).size, members.length);
     }
-    assert.ok(config.split("\n").includes(`Coin = select, ${expectedOptions.join(", ")}, DIRECT, icon-url=${ICON_BASE}Cryptocurrency.png`));
+    assert.ok(config.split("\n").includes(`OverseasFinance = select, ${expectedOptions.join(", ")}, DIRECT, icon-url=${ICON_BASE}Cryptocurrency.png`));
     const icloud = config.split("\n").find((line) => line.startsWith("iCloud = select, "));
     const expectedIcloud = ["IDC", "WARP", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.ok(config.split("\n").includes(`FINAL = select, Auto, Proxy, ${expectedIcloud.join(", ")}, DIRECT, icon-url=${ICON_BASE}Proxy.png`));

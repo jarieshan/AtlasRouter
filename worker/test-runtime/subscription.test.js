@@ -735,7 +735,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
           ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], ["Perplexity", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
           ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
-          [COIN_URL, "Coin"], ["Binance", "Coin"], ["OKX", "Coin"], ["Bybit", "Coin"],
+          [COIN_URL, "OverseasFinance"], ...["Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise"].map((name) => [name, "OverseasFinance"]),
           ...MEDIA_RULE_NAMES.map((name) => [name, "GlobalMedia"]),
           ["China", "DIRECT"],
         ]);
