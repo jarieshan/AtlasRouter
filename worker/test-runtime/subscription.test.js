@@ -616,6 +616,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) assert.equal(group["expected-status"], 204, group.name);
         assert.equal(config["geo-auto-update"], true);
         assert.equal(config["geo-update-interval"], 168);
+        assert.equal(config["tcp-concurrent"], true);
         assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Proxy").proxies, ["🇺🇸USA-ISP", "🇭🇰HK-IDC", "Auto", "DIRECT"]);
         const dohProxy = config["proxy-groups"].find(({ name }) => name === "DoH Proxy");
         assert.equal(dohProxy.type, "url-test");

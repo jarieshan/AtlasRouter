@@ -81,7 +81,9 @@ function convertGeneral(general, warn) {
   // no-resolve IP rules never match domain traffic and app lookups never wait for DoH.
   // Windows' connectivity probe needs a real answer; Surge answers Firefox's DoH canary itself.
   // Latency tests leave out the handshake so TLS and plain nodes compare fairly, as ProjectClash enforces.
-  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false, "unified-delay": true, profile: { "store-fake-ip": true } };
+  // Surge races every address of a host; Mihomo otherwise dials them in turn within one 5 s deadline,
+  // so an unresponsive first address fails the connection before the others are tried.
+  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false, "unified-delay": true, "tcp-concurrent": true, profile: { "store-fake-ip": true } };
   const dns = { enable: true, "enhanced-mode": "fake-ip", "fake-ip-filter": ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"], ipv6: false };
   const consumed = new Set();
   const read = (key, convert) => {
