@@ -10,6 +10,12 @@ import { orderedSmartPriority, positiveInteger, SMART_PRIORITY_SCHEMES, splitSur
 const TAILNET_RANGES = ["100.64.0.0/10", "fd7a:115c:a1e0::/48"];
 // Surge bundles its ASN database; Mihomo downloads one for IP-ASN rules, from GitHub unless set.
 const ASN_DATABASE_URL = "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb";
+// Rules never read GeoIP.dat or GeoSite.dat, yet ProjectClash's scheduled sync downloads every GEO file
+// and retries the whole set after any failure, so serve both as small files from the same CDN.
+const UNUSED_GEODATA_URLS = {
+  geoip: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat",
+  geosite: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite-lite.dat",
+};
 
 export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const sections = surgeSections(applyRuleSetVisibility(profile));
@@ -139,7 +145,7 @@ function convertGeneral(general, warn) {
   // Surge refreshes GeoIP unless disabled; Mihomo never does by default and checks daily once enabled.
   // ProjectClash downloads every GEO file in full on each refresh, so follow the weekly GeoIP releases.
   if (geoAutoUpdate) Object.assign(config, { "geo-auto-update": true, "geo-update-interval": 168 });
-  config["geox-url"] = { ...config["geox-url"], asn: ASN_DATABASE_URL };
+  config["geox-url"] = { ...UNUSED_GEODATA_URLS, ...config["geox-url"], asn: ASN_DATABASE_URL };
   consumed.add("test-timeout");
   consumed.add("proxy-test-url");
   consumed.add("udp-policy-not-supported-behaviour");

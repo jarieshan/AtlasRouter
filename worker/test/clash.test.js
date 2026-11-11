@@ -186,6 +186,8 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(config["geo-auto-update"], true);
     assert.equal(config["geo-update-interval"], 168);
     assert.deepEqual(config["geox-url"], {
+      geoip: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat",
+      geosite: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite-lite.dat",
       mmdb: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb",
       asn: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb",
     });
@@ -364,25 +366,30 @@ test("TUN takes over all port 53 DNS and keeps hijack targets on other ports", a
   assert.deepEqual(invalid.warnings, ["General hijack-dns: invalid value omitted"]);
 });
 
-test("GEO data refreshes weekly unless Surge disables GeoIP updates and the ASN database comes from jsDelivr", async () => {
+test("GEO data refreshes weekly unless Surge disables GeoIP updates and every GEO file comes from jsDelivr", async () => {
   const convert = (general) => convertSurgeToClash(`[General]\n${general}[Proxy]\nnode = ${vmess}\n[Rule]\nFINAL,node\n`, context);
   const mmdb = "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb";
   const asn = "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb";
+  // ProjectClash downloads these even though no rule reads them.
+  const unused = {
+    geoip: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat",
+    geosite: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite-lite.dat",
+  };
   const defaults = await convert("");
   assert.equal(defaults.config["geo-auto-update"], true);
   assert.equal(defaults.config["geo-update-interval"], 168);
-  assert.deepEqual(defaults.config["geox-url"], { asn });
+  assert.deepEqual(defaults.config["geox-url"], { ...unused, asn });
   assert.equal(defaults.config["geodata-mode"], undefined);
   assert.deepEqual(defaults.warnings, []);
   const mapped = await convert(`geoip-maxmind-url = ${mmdb}\ndisable-geoip-db-auto-update = false\n`);
-  assert.deepEqual(mapped.config["geox-url"], { mmdb, asn });
+  assert.deepEqual(mapped.config["geox-url"], { ...unused, mmdb, asn });
   assert.equal(mapped.config["geodata-mode"], false);
   assert.equal(mapped.config["geo-auto-update"], true);
   assert.deepEqual(mapped.warnings, []);
   const disabled = await convert("disable-geoip-db-auto-update = true\n");
   assert.equal(disabled.config["geo-auto-update"], undefined);
   assert.equal(disabled.config["geo-update-interval"], undefined);
-  assert.deepEqual(disabled.config["geox-url"], { asn });
+  assert.deepEqual(disabled.config["geox-url"], { ...unused, asn });
   assert.deepEqual(disabled.warnings, []);
   const invalid = await convert("disable-geoip-db-auto-update = NEVER_LOG_THIS\n");
   assert.equal(invalid.config["geo-auto-update"], true);
