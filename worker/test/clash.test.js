@@ -94,9 +94,9 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     const redPocketRule = `RULE-SET,${redPocketUrl},🇺🇸USA-ISP,no-resolve`;
     assert.ok(rules.includes(redPocketRule));
     assert.ok(rules.indexOf(redPocketRule) < rules.indexOf(`RULE-SET,${customDirectUrl},DIRECT,no-resolve`));
-    assert.deepEqual(rules.slice(-7), ["RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`,
+    assert.deepEqual(rules.slice(-7), [
       ...autoRules.map((name) => `RULE-SET,${magicRuleUrl(name, "surge", context.requestUrl)},Auto,no-resolve,update-interval=21600`),
-      "GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
+      "RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`, "GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);
@@ -191,7 +191,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(resolvedLan >= 0 && resolvedLan < directRule);
     const autoIndexes = autoRules.map((name) => config.rules.indexOf(`RULE-SET,${name},Auto,no-resolve`));
     assert.deepEqual(autoIndexes, [...autoIndexes].sort((a, b) => a - b));
-    assert.ok(directRule < autoIndexes[0] && autoIndexes.at(-1) < config.rules.indexOf("GEOIP,CN,DIRECT"));
+    assert.ok(config.rules.indexOf("RULE-SET,TikTok,GlobalMedia,no-resolve") < autoIndexes[0] && autoIndexes.at(-1) < resolvedLan);
     assert.ok(config.rules.includes(`RULE-SET,${customRejectSource.id},REJECT,no-resolve`));
     assert.ok(config.rules.includes(`RULE-SET,${redPocketSource.id},🇺🇸USA-ISP,no-resolve`));
     assert.equal(config["proxy-groups"][0].timeout, 5000);
@@ -244,7 +244,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, redPocketSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", "Perplexity", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise", "Facebook", "Threads", "Reddit", "Line", ...mediaRules, "China", ...autoRules]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, redPocketSource.id, customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", "Perplexity", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise", "Facebook", "Threads", "Reddit", "Line", ...mediaRules, ...autoRules, "China"]);
     for (const id of ["Cloudflare", "Grok", "Cursor", "Perplexity", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|Apple),/.test(rule)), [
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
