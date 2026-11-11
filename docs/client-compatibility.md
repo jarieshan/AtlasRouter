@@ -19,6 +19,7 @@ master 使用 Smart 节点权重之前的稳定订阅实现；Dev 开关选择�
 | 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10`；ISP 组的备用节点从 100 起：1、100、1000、10000…，WARP、IDC 组为 1、10、100… |
 | Surge QUIC | `block-quic = all-proxy`，代理一律阻止 QUIC | 全局 `block-quic = per-policy`，节点默认 `auto`：Surge iOS 6.0.0+ / Mac 6.11.0+ 对支持 UDP 的代理使用 `adaptive`，不支持 UDP 的代理阻止，DIRECT 放行；`adaptive` 不能写在 `[General]` |
 | Clash 测速与 GEO 数据 | 健康检查接受任意状态码；未设置 `unified-delay`；不自动更新 GEO 数据；ASN 库使用 Mihomo 默认的 GitHub 地址 | `/generate_204` 测试地址要求 HTTP 204；`unified-delay: true`；GEO 数据每 168 小时更新，全部 GEO 文件从 jsDelivr 下载 |
+| Clash 多地址连接 | 未设置 `tcp-concurrent`，逐个尝试各地址，共用 5 秒期限 | `tcp-concurrent: true`，同时尝试全部地址 |
 | 发布 | Cloudflare master 构建，`npm run deploy` | 私有开发 Worker，`npm run deploy:development` |
 
 两分支保留相同的 Proxy / Auto 选项顺序，以及可映射的 UDP 参数；Apple 规则顺序见上表；Clash 两端都输出 `x-clash-block-quic: all-proxy`，Surge 的 QUIC 策略见上表。develop 的 DoH 分流使用 IDC 专用组，国内上游直连，详见下表。主备分配逻辑一致，正式与测试数据库独立。Smart 的选择语义并不等于 fallback；不能要求两分支始终使用同一出口。
@@ -40,6 +41,7 @@ master 源码不因设置旧实验变量而生成节点权重。真正的开发�
 | QUIC | Surge `all-proxy`（master）或 `per-policy`（develop）→ `x-clash-block-quic: all-proxy` | 仅支持该扩展的 ProjectClash 可按最终代理出口拦截；普通 Mihomo 可能忽略。DIRECT 的 QUIC 放行，不等于拦截所有 UDP/443；ProjectClash 没有自适应模式，只用 QUIC、不回退 TCP 的应用在 Clash 中仍被阻止 |
 | 节点传输默认值 | VMess AES-128-GCM；TLS/WS 默认关闭；TLS 校验开启；TFO 默认关闭；保留显式值 | VMess 仅转换显式 AEAD；不支持的协议、连接选项或 `sni=off` 会删去节点，并清理空组/失效规则；所有节点不可转换时返回 422 |
 | 测速参数 | 全局测试 URL 与 5 秒超时映射；fallback/url-test 省略间隔时 600 秒；url-test 默认容差 100 ms，Smart 转换的组为 50 ms；`/generate_204` 测试地址要求 HTTP 204；`unified-delay` 开启，测速不计握手耗时 | Surge 组级 timeout 是结果延迟筛选，不能映射为 Mihomo 请求超时；节点测速覆盖、DIRECT 独立测速不等价 |
+| 多地址连接 | Clash 输出 `tcp-concurrent: true`，对应 Surge 对多条 A / AAAA 记录同时握手；直连和节点服务器域名都适用 | Surge 记住最快的地址，后续连接优先使用；Mihomo 每次连接都重新同时尝试全部地址 |
 | 调度与失败次数 | Smart 转换后的组输出间隔 300 秒 | Surge Smart 固定五分钟重测；Clash 保留 Mihomo 的 lazy 默认 true，未选中组不测。max-failed-times 默认 5 触发强制健康检查，不表示容忍五次测速失败后才切换；当前无固定失败次数/固定 IP 保证 |
 | DNS | 普通 DNS、默认与直连名单（CustomDirect、MagicRule IBKR / Direct / Apple / China）的 DoH、上游及节点引导 DNS、系统 hosts、IPv6 关闭已映射；Clash TUN 劫持全部 53 端口 DNS，对应 Surge 接管系统 DNS；Clash 使用 fake-ip 并持久保存映射，对应 Surge 增强模式；HTTPS / SVCB 不返回 IP 提示，`use-application-dns.net` 返回 NXDOMAIN | 应用不等待 DoH；IP 规则只在不带 no-resolve 时才解析，解析失败后 Mihomo 继续匹配，Surge 的 dns-failed 直接走 FINAL。Windows 联网检测域名保留真实地址。域名集 DNS 复用规则提供器；TUN 是否开启由客户端控制。DoH 按已知上游域名分流，Clash 通过 `#RULES` 使用这些规则；阿里和腾讯 DoH 域名固定使用普通 DNS 解析 |
 | GEO 数据 | Surge 的 GeoIP 自动更新映射为每 168 小时更新；ASN 库和其余 GEO 文件均指向 jsDelivr | Surge 的 ASN 库随 App 更新，Mihomo 需另行下载；Mihomo 只更新实际使用的数据库，ProjectClash 每次同步完整下载全部 4 个文件（约 18 MB），任一失败时整组重试 |
