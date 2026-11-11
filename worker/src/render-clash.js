@@ -74,7 +74,8 @@ function convertGeneral(general, warn) {
   // Surge's enhanced mode answers with fake IPs and keeps the mapping across restarts, so
   // no-resolve IP rules never match domain traffic and app lookups never wait for DoH.
   // Windows' connectivity probe needs a real answer; Surge answers Firefox's DoH canary itself.
-  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false, profile: { "store-fake-ip": true } };
+  // Latency tests leave out the handshake so TLS and plain nodes compare fairly, as ProjectClash enforces.
+  const config = { "mixed-port": 7890, "allow-lan": false, mode: "rule", "log-level": "warning", ipv6: false, "unified-delay": true, profile: { "store-fake-ip": true } };
   const dns = { enable: true, "enhanced-mode": "fake-ip", "fake-ip-filter": ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"], ipv6: false };
   const consumed = new Set();
   const read = (key, convert) => {

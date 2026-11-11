@@ -182,6 +182,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(config.dns["enhanced-mode"], "fake-ip");
     assert.deepEqual(config.dns["fake-ip-filter"], ["+.msftconnecttest.com", "+.msftncsi.com", "use-application-dns.net"]);
     assert.deepEqual(config.profile, { "store-fake-ip": true });
+    assert.equal(config["unified-delay"], true);
     assert.equal(config["geo-auto-update"], true);
     assert.equal(config["geo-update-interval"], 168);
     assert.deepEqual(config["geox-url"], {
