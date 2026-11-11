@@ -234,6 +234,10 @@ test("unconfigured Dev cannot change production accounts or the retained test da
 });
 
 test("Dev portal and private service isolate data, tokens, module links and token rotation", async (t) => {
+  const devNodes = nodes(3).map((node) => ({ ...node, line: node.line.replace("Example", "Development")
+    .replace("trojan,", "vmess,").replace("password=TEST_ONLY", "username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true") }));
+  const endpoints = devNodes.map((_, index) => ({ server: `node-${index + 1}.example.com`, port: 443,
+    hostname: `node-${index + 1}.example-tailnet.ts.net` }));
   const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
     { ...common, name: "portal", d1Databases: { DB: "production", DEV_DB: "development" },
@@ -241,7 +245,8 @@ test("Dev portal and private service isolate data, tokens, module links and toke
       bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
         ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG } },
     { ...common, name: "development", d1Databases: { DB: "development" },
-      bindings: { UI_ENABLED: "false", SUBSCRIPTION_VARIANT: "development", SMART_PRIORITY_SCHEME: "geometric-10", SHOW_ALL_PROXY_GROUPS: "true" } },
+      bindings: { UI_ENABLED: "false", SUBSCRIPTION_VARIANT: "development", SMART_PRIORITY_SCHEME: "geometric-10", SHOW_ALL_PROXY_GROUPS: "true",
+        TAILNET_ENDPOINTS: JSON.stringify(endpoints) } },
   ] }));
   t.after(() => mf.dispose());
   const prodDb = await mf.getD1Database("DB", "portal");
@@ -254,22 +259,45 @@ test("Dev portal and private service isolate data, tokens, module links and toke
   const query = "?environment=development";
   const devApi = (path) => path.replace("/api/", "/api/AtlasRouter-Dev/");
   await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT",
-    body: { revision: 0, nodes: nodes(3).map((node) => ({ ...node, line: node.line.replace("Example", "Development") })) } }));
+    body: { revision: 0, nodes: devNodes } }));
   const dev = await json(await request(mf, devApi(ACCOUNT_PROFILE_PATH), { subject: "alice" }));
   assert.equal(new URL(dev.subscriptionUrl).pathname, "/AtlasRouter-Dev");
   assert.equal(new URL(dev.subscriptionUrl).searchParams.get("dev"), null);
   assert.equal((await request(mf, devApi(ACCOUNT_PROFILE_PATH))).status, 403);
+  assert.equal((await request(mf, "/AtlasRouter-Dev")).status, 401);
+  assert.equal((await request(mf, "/AtlasRouter-Dev/modules/missing")).status, 404);
   assert.equal((await json(await request(mf, devApi(ACCOUNT_PROFILE_PATH) + "?environment=production", { subject: "alice" }))).subscriptionUrl, dev.subscriptionUrl);
   assert.notEqual(new URL(dev.subscriptionUrl).searchParams.get("token"), new URL(production.subscriptionUrl).searchParams.get("token"));
   const page = await request(mf, "/" + query, { subject: "admin" });
   assert.match(await page.text(), /id="enable-dev" type="checkbox" role="switch" checked/);
+  const devBefore = await readSubscriptionState({ DB: devDb });
   for (const client of ["surge", "clash"]) {
     const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&doh=1");
     assert.equal(response.status, 200);
     const text = await response.text();
     assert.match(text, /Development/);
-    assert.doesNotMatch(text, /Production/);
+    assert.doesNotMatch(text, /Production|Tailnet Test|node-\d\.example\.com/);
+    if (client === "surge") {
+      assert.equal(text.split("\n").filter((line) => / = vmess, .+underlying-proxy=Tailnet$/.test(line)).length, 3);
+    } else {
+      const proxies = parseYaml(text).proxies.filter(({ type }) => type !== "tailscale");
+      assert.equal(proxies.length, 3);
+      assert.ok(proxies.every((node) => node.server.endsWith(".example-tailnet.ts.net") && node["dialer-proxy"] === "Tailnet"));
+    }
   }
+  assert.deepEqual(await readSubscriptionState({ DB: devDb }), devBefore);
+  // A missing mapping fails the whole subscription; URL options cannot restore public nodes.
+  const unmatched = { id: "unmapped", line: devNodes[0].line.replace("ISP 1", "IDC 4").replace("node-1.example.com", "unmapped.example.com") };
+  await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT",
+    body: { revision: devBefore.state.revision, nodes: [...devNodes, unmatched] } }));
+  for (const client of ["surge", "clash"]) {
+    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&tailnetOnly=false&environment=production");
+    assert.equal(response.status, 503);
+    assert.doesNotMatch(await response.text(), /11111111|example\.com|vmess|\[Proxy\]/);
+  }
+  const unmatchedState = await readSubscriptionState({ DB: devDb });
+  await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT",
+    body: { revision: unmatchedState.state.revision, nodes: devNodes } }));
   assert.equal((await request(mf, production.subscriptionUrl + "&dev=1")).status, 401);
   const wrong = new URL(dev.subscriptionUrl);
   wrong.pathname = "/AtlasRouter";

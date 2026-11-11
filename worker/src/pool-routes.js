@@ -106,6 +106,7 @@ export async function handlePoolRequest(request, env) {
       smartPriorityScheme: env.SMART_PRIORITY_SCHEME,
       showAllGroups: env.SHOW_ALL_PROXY_GROUPS === "true",
       tailnetEndpoints: env.TAILNET_ENDPOINTS,
+      tailnetOnly: env.SUBSCRIPTION_VARIANT === "development",
     });
     const body = options.client === "clash" ? await renderClashProfile(surge, { requestUrl: request.url, token: tokens[0] }) : surge;
     return new Response(body, { headers: {

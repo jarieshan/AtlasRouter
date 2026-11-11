@@ -22,6 +22,75 @@ function fixture() {
   return { ...context, groups, nodes: groups.flatMap((group) => group.nodes) };
 }
 
+function privateFixture() {
+  const input = fixture();
+  const us = input.nodes.find((node) => node.id === "us");
+  us.value = value.replaceAll("hk.example.com", "us.example.com");
+  us.line = `${us.name} = ${us.value}`;
+  return { ...input, tailnetOnly: true, tailnetEndpoints: JSON.stringify([
+    endpoint, { ...endpoint, server: "us.example.com", hostname: "us.example-tailnet.ts.net" },
+  ]) };
+}
+
+test("Tailnet-only subscriptions replace every server without changing names, allocations or groups", () => {
+  const input = privateFixture();
+  const before = structuredClone(input);
+  const baseline = surgeSections(renderSurgeProfile({ ...input, tailnetOnly: false, tailnetEndpoints: undefined }));
+  const profile = renderSurgeProfile(input);
+  const sections = surgeSections(profile);
+  assert.deepEqual(input, before);
+  assert.deepEqual(sections.get("proxy group"), baseline.get("proxy group"));
+  assert.doesNotMatch(profile, /Tailnet Test|hk\.example\.com|us\.example\.com/);
+  const proxies = new Map(sections.get("proxy").map(surgeAssignment));
+  assert.equal(proxies.size, input.nodes.length + 1);
+  for (const original of input.nodes) {
+    const [protocol, host, port, ...params] = splitSurgeList(proxies.get(original.name));
+    const expectedHost = original.id === "us" ? "us.example-tailnet.ts.net" : endpoint.hostname;
+    assert.deepEqual([protocol, host, port], ["vmess", expectedHost, "443"]);
+    const expected = surgeOptions(splitSurgeList(original.value).slice(3));
+    expected.set("sni", expectedHost);
+    expected.set("skip-cert-verify", "false");
+    expected.set("underlying-proxy", "Tailnet");
+    assert.deepEqual(surgeOptions(params), expected);
+  }
+  for (const host of ["controlplane.tailscale.com", "login.tailscale.com"]) {
+    assert.ok(sections.get("rule").includes(`DOMAIN,${host},DIRECT`));
+    assert.ok(sections.get("host").includes(`${host} = server:223.5.5.5, 119.29.29.29`));
+  }
+  assert.equal(sections.get("rule").at(-1), "FINAL,Proxy,dns-failed");
+});
+
+test("Tailnet-only Clash chains all nodes and keeps bootstrap DNS independent when DoH is enabled", async () => {
+  const input = { ...privateFixture(), options: { doh: true } };
+  const baseline = await convertSurgeToClash(renderSurgeProfile({ ...input, tailnetOnly: false, tailnetEndpoints: undefined }), context);
+  const { config } = await convertSurgeToClash(renderSurgeProfile(input), context);
+  assert.deepEqual(config["proxy-groups"], baseline.config["proxy-groups"]);
+  assert.equal(config.proxies.length, input.nodes.length + 1);
+  for (const node of config.proxies.filter(({ name }) => name !== "Tailnet")) {
+    const original = baseline.config.proxies.find(({ name }) => name === node.name);
+    const hostname = original.server === "us.example.com" ? "us.example-tailnet.ts.net" : endpoint.hostname;
+    assert.deepEqual(node, { ...original, server: hostname, servername: hostname, "skip-cert-verify": false, "dialer-proxy": "Tailnet" });
+  }
+  for (const host of ["controlplane.tailscale.com", "login.tailscale.com"]) {
+    assert.ok(config.rules.includes(`DOMAIN,${host},DIRECT`));
+    assert.deepEqual(config.dns["nameserver-policy"][host], ["223.5.5.5", "119.29.29.29"]);
+  }
+  assert.deepEqual(config.proxies.find(({ name }) => name === "Tailnet"), { name: "Tailnet", type: "tailscale", udp: true });
+});
+
+test("Tailnet-only mode rejects missing mappings and incompatible nodes instead of falling back to public servers", () => {
+  const input = privateFixture();
+  const safeError = (error) => error.status === 503 && !/11111111|hk\.example|us\.example|NEVER_LOG_THIS/.test(error.message);
+  for (const config of [undefined, "", "[]", tailnetEndpoints, "NEVER_LOG_THIS",
+    JSON.stringify([{ ...endpoint, port: 8443 }])]) {
+    assert.throws(() => renderSurgeProfile({ ...input, tailnetEndpoints: config }), safeError);
+  }
+  for (const badValue of ['vmess, "NEVER_LOG_THIS', value.replace("tls=true", "tls=false"),
+    value.replace("vmess,", "trojan,"), `${value}, ws=true`]) {
+    assert.throws(() => createTailnetNodes([{ ...input.nodes[0], value: badValue }], tailnetEndpoints, { replace: true }), safeError);
+  }
+});
+
 test("Tailnet variants preserve public nodes, credentials, quoted options and allocation", () => {
   const input = fixture();
   const before = structuredClone(input);

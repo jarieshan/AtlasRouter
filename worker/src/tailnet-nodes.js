@@ -7,26 +7,32 @@ const SUPPORTED_OPTIONS = new Set([
   "udp-relay", "tfo", "test-url", "test-timeout", "block-quic", "hybrid", "ip-version",
 ]);
 
-// Derive alternatives after allocation so adding a transport never reallocates users.
-export function createTailnetNodes(nodes, rawEndpoints) {
-  if (!rawEndpoints) return [];
-  const endpoints = readEndpoints(rawEndpoints);
-  const names = new Set(nodes.map((node) => node.name));
+// Apply the transport after allocation so switching it never reallocates users.
+export function createTailnetNodes(nodes, rawEndpoints, { replace = false } = {}) {
+  if (!rawEndpoints && !replace) return [];
+  const endpoints = readTailnetEndpoints(rawEndpoints);
+  const names = new Set(replace ? [] : nodes.map((node) => node.name));
   const result = [];
   for (const node of nodes) {
     let parts;
     try { parts = splitSurgeList(node.value); }
-    catch { continue; }
+    catch {
+      if (replace) throw new HttpError(503, "Invalid Tailnet subscription node");
+      continue;
+    }
     const endpoint = endpoints.find(({ server, port }) =>
       server === parts[1]?.toLowerCase() && String(port) === parts[2]);
-    if (!endpoint) continue;
+    if (!endpoint) {
+      if (replace) throw new HttpError(503, "Tailnet endpoint is not configured for every subscription node");
+      continue;
+    }
     try {
       const options = surgeOptions(parts.slice(3));
       if (parts[0].toLowerCase() !== "vmess" || !options.get("username")
         || !surgeBoolean(options.get("tls") ?? "false")
         || !surgeBoolean(options.get("vmess-aead") ?? "false")
         || [...options.keys()].some((key) => !SUPPORTED_OPTIONS.has(key))) throw new Error();
-      const name = PREFIX + node.name;
+      const name = replace ? node.name : PREFIX + node.name;
       if (names.has(name)) throw new Error();
       names.add(name);
       // Preserve quoted values (including credentials and ALPN lists) verbatim.
@@ -43,7 +49,7 @@ export function createTailnetNodes(nodes, rawEndpoints) {
   return result;
 }
 
-function readEndpoints(raw) {
+export function readTailnetEndpoints(raw) {
   try {
     const entries = JSON.parse(raw);
     if (!Array.isArray(entries) || entries.length > 100) throw new Error();

@@ -14,14 +14,16 @@ const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
 const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
 const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
-export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false, tailnetEndpoints }) {
+export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false, tailnetEndpoints, tailnetOnly = false }) {
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
-  const tailnetNodes = createTailnetNodes(nodes, tailnetEndpoints);
+  const tailnetNodes = createTailnetNodes(nodes, tailnetEndpoints, { replace: tailnetOnly });
+  const subscriptionNodes = tailnetOnly ? tailnetNodes : nodes;
+  const alternatives = tailnetOnly ? [] : tailnetNodes;
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
-    PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes).concat(tailnetNodes)),
-    RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT"),
+    PROXY_LINES: renderProxyLines([...subscriptionNodes].sort(compareNodes).concat(alternatives)),
+    RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT", tailnetOnly),
     DIRECT_DNS_SERVERS: (options.doh
       ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
       : ["223.5.5.5", "119.29.29.29"]).join(", "),
@@ -29,11 +31,16 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
       `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl),
     ])),
   };
-  const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames, tailnetNodes).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
+  let template = renderPoolTemplate(groups, smartPriorityScheme, idcNames, alternatives).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${options.doh ? "" : "# "}${setting}`);
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => `skip-proxy = ${tencentOaSkipProxy()}`);
     return heading + general;
   });
+  if (tailnetOnly) {
+    const bootstrapDns = ["controlplane.tailscale.com", "login.tailscale.com"]
+      .map((host) => `${host} = server:223.5.5.5, 119.29.29.29`).join("\n");
+    template = template.replace(/^\[Host\]\n/m, `[Host]\n${bootstrapDns}\n`);
+  }
   return applyRuleSetVisibility(replaceTemplate(template, replacements), { showAllGroups });
 }
 
@@ -70,11 +77,14 @@ function compareNodeGroups(a, b) {
   return compareNodes(a.nodes[0], b.nodes[0]);
 }
 
-function renderPoolRules(rules, dohPolicy) {
+function renderPoolRules(rules, dohPolicy, tailnetOnly) {
   return rules.split("\n").map((line) => {
     if (line.trimStart().startsWith("#")) return line;
     const parts = line.split(",");
     if (parts[2]?.trim() === "DoH Proxy") parts[2] = dohPolicy;
+    // The control connection must work before any Tailnet-backed proxy can start.
+    if (tailnetOnly && parts[0]?.trim() === "DOMAIN"
+      && ["controlplane.tailscale.com", "login.tailscale.com"].includes(parts[1]?.trim())) parts[2] = "DIRECT";
     return parts.join(",");
   }).join("\n");
 }
