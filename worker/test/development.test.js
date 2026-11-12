@@ -3,7 +3,7 @@ import test from "node:test";
 import { developmentAvailable, developmentRequest } from "../src/development.js";
 import { uiEnvironment } from "../src/ui-environment.js";
 import { deployDevelopment } from "../scripts/deploy-development.js";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 const tailnetEndpoints = JSON.stringify([{ server: "node.example.com", port: 443, hostname: "node.example-tailnet.ts.net" }]);
 
@@ -46,15 +46,13 @@ test("private development deployment cannot expose a public route or use product
   const config = JSON.parse(await readFile(new URL("../wrangler.development.jsonc", import.meta.url), "utf8"));
   const production = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   const calls = [];
-  const context = { config, production, ci: "1", branch: "develop", commit: "a".repeat(40), tailnetEndpoints,
+  const context = { config, production, ci: "1", branch: "develop", commit: "a".repeat(40),
     async run(args) { calls.push(args); } };
   await deployDevelopment(context);
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[0], ["d1", "migrations", "apply", "DB", "--remote", "--config", "wrangler.development.jsonc"]);
-  for (const override of [{ ci: undefined }, { branch: "master" }, { commit: "" },
-    { tailnetEndpoints: undefined }, { tailnetEndpoints: "[]" }, { tailnetEndpoints: "INVALID_SECRET" }]) {
-    await assert.rejects(deployDevelopment({ ...context, ...override, run() { assert.fail("No remote work"); } }),
-      (error) => !error.message.includes("INVALID_SECRET"));
+  for (const override of [{ ci: undefined }, { branch: "master" }, { commit: "" }]) {
+    await assert.rejects(deployDevelopment({ ...context, ...override, run() { assert.fail("No remote work"); } }));
   }
   for (const change of [
     (c) => { c.workers_dev = true; },
@@ -68,24 +66,17 @@ test("private development deployment cannot expose a public route or use product
   }
 });
 
-test("development uploads the Tailnet mapping with code and removes the private file after success or failure", async () => {
+test("public development deployment does not require or upload a Tailnet mapping", async () => {
   const config = JSON.parse(await readFile(new URL("../wrangler.development.jsonc", import.meta.url), "utf8"));
   const production = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
-  for (const fail of [false, true]) {
-    let secretsFile;
-    const deployment = deployDevelopment({ config, production, ci: "1", branch: "develop", commit: "a".repeat(40), tailnetEndpoints,
-      async run(args, redacted) {
-        if (args[0] !== "deploy") return;
-        assert.deepEqual(args.slice(0, 4), ["deploy", "--config", "wrangler.development.jsonc", "--secrets-file"]);
-        secretsFile = args[4];
-        assert.deepEqual(JSON.parse(await readFile(secretsFile, "utf8")), { TAILNET_ENDPOINTS: tailnetEndpoints });
-        assert.equal((await stat(secretsFile)).mode & 0o777, 0o600);
-        assert.equal(redacted, tailnetEndpoints);
-        if (fail) throw new Error("upload failed");
-      } });
-    if (fail) await assert.rejects(deployment, /upload failed/);
-    else await deployment;
-    await assert.rejects(readFile(secretsFile), { code: "ENOENT" });
+  for (const mapping of [undefined, tailnetEndpoints, "[]", "INVALID_SECRET"]) {
+    const calls = [];
+    await deployDevelopment({ config, production, ci: "1", branch: "develop", commit: "a".repeat(40), tailnetEndpoints: mapping,
+      async run(args) { calls.push(args); } });
+    assert.deepEqual(calls, [
+      ["d1", "migrations", "apply", "DB", "--remote", "--config", "wrangler.development.jsonc"],
+      ["deploy", "--config", "wrangler.development.jsonc"],
+    ]);
   }
   const calls = [];
   await deployDevelopment({ config, production, dryRun: true, async run(args) { calls.push(args); } });

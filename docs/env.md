@@ -12,9 +12,9 @@
 
 正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。开发管理请求使用 `/api/AtlasRouter-Dev/*`，读取测试库并生成 `/AtlasRouter-Dev` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务可设置 `SMART_PRIORITY_SCHEME=geometric-10`、`SHOW_ALL_PROXY_GROUPS=true`；正式分流行为保持独立。旧环境参数仅供已发出链接兼容，新页面不再生成。
 
-开发服务必须配置 `TAILNET_ENDPOINTS` Secret，内容是源节点到 Tailscale HTTPS 域名的映射数组，例如 `[{"server":"node.example.com","port":443,"hostname":"node.example-tailnet.ts.net"}]`。每个已分配节点的源地址和端口都必须有对应项；多个账号共用同一地址和端口只需一项。`SUBSCRIPTION_VARIANT=development` 强制所有节点经 Tailnet 连接，缺少或无效映射、非 VMess TCP TLS 节点返回 503，不输出公网备用节点。映射在分配后应用，不修改 D1 中的源节点、用户分配或节点名称；真实映射只保存在 Secrets。
+开发服务直接使用测试节点池保存的公网地址、端口和 TLS 设置，节点 443 不再经 Tailnet 转接。`SUBSCRIPTION_VARIANT=development` 仍用于隔离开发服务和数据，不再切换节点传输通道；节点名称、用户分配及出口保持原样。客户端的 Tailnet 策略继续提供 SSH 等私网管理访问。
 
-在私有开发 Worker 的 **Builds → Variables and secrets** 中把完整映射保存为同名 Secret。`deploy:development` 校验后通过临时私密文件，与代码一起上传为运行时 Secret，并在成功或失败后删除文件；不提供映射或传入空数组会阻止发布。构建变量不会自动成为运行时变量，此步骤由发布脚本完成。正式 Worker 不读取这项构建 Secret。
+Dev 运行时忽略遗留的 `TAILNET_ENDPOINTS` Secret，`deploy:development` 也不再要求、校验或上传该映射；缺少映射不会阻止发布或订阅生成。其他运行时 Secrets 继续继承。
 
 生产网页和浏览器 API 还需要以下配置：
 

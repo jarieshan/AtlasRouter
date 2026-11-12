@@ -127,7 +127,7 @@ test("Tailnet testing is explicitly selectable and excluded from automatic and D
     const [name, original] = surgeAssignment(line);
     const parts = splitSurgeList(original);
     const updated = splitSurgeList(groups.get(name));
-    if (parts[0] === "select" && !["Tailscale", "FINAL"].includes(name)) {
+    if (parts[0] === "select" && !["Tailscale", "FINAL", "Speedtest"].includes(name)) {
       assert.equal(updated.filter((part) => part === "Tailnet Test").length, 1);
       assert.deepEqual(updated.filter((part) => part !== "Tailnet Test"), parts);
     } else if (name !== "Auto") assert.equal(groups.get(name), original);

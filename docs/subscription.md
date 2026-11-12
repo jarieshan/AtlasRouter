@@ -98,21 +98,23 @@ master 按地区/IP 类型生成顺序 `fallback` 组，成员依照每位用户
 
 develop 的兜底规则指向独立可见的手动选择组：`FINAL,FINAL,dns-failed`。`FINAL` 组选项按 Auto → Proxy → IDC → WARP → ISP → DIRECT 排列，地区/IP 类型分组内部保持现有地区顺序，缺少的类型跳过；不单独加入 `Tailnet Test`。首次使用默认 `Auto`。这里是手动选项顺序，不是故障自动回退顺序；客户端会保留仍有效的手动选择。Clash 对应可见的 `select` 组和 `MATCH,FINAL`。master 的 `FINAL,Proxy,dns-failed` 保持原样。
 
+develop 新增独立可见的 `Speedtest` 手动选择组，选项按 IDC → WARP → ISP → DIRECT 排列，各类型内保持现有地区顺序，缺少的类型跳过；首次默认第一项（有 IDC 时选第一个 IDC 地区组）。使用 MagicRule 的 Speedtest 完整规则集，Surge 和 Clash 分别通过现有中转取得 Surge / Mihomo 原生列表，每 6 小时更新。规则位于 CustomDirect、Direct、Cloudflare、Netflix 和 China 之前，让已收录的测速域名及服务器统一进入 `Speedtest`。测速时使用规则模式并在此组选择出口；[全局代理模式不使用规则列表](https://manual.nssurge.com/rules/overview.html)，仍由全局选中的策略决定出口。
+
 可见的 `Auto` 使用 `smart, include-all-proxies=true`，包含当前订阅 `[Proxy]` 中的代理节点，不包含 `DIRECT` 或其他策略组；develop 使用 `policy-regex-filter=^(?!Tailnet$).*` 排除仅用于访问 tailnet 的 `Tailnet` 策略；在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留；从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge [smart 组](https://manual.nssurge.com/policy-groups/smart.html)结合测速延迟、真实连接响应和丢包择优，并自动重试；它不是始终固定选择单次测速最低的节点。Clash 无等价 smart 类型，转换为每 300 秒测速、容差 50 毫秒的 `url-test`，输出注释说明差异：其他节点比当前节点快 50 毫秒以上才切换，避免延迟相近的节点随测速波动来回切换；当前节点测速失败时不受容差限制。地区/IP 类型组的主备顺序保持原样。
 
 develop 默认提供 `Tailnet = tailscale, section-name=tailnet` 和 `[Tailscale tailnet]`，要求 Surge Mac 6.8.0+ / iOS 5.21.0+。另有可见策略组 `Tailscale = select, Tailnet`，方便在策略组列表找到 Tailnet；它不加入普通上网策略组。使用 Dev 订阅时，在策略组列表找到 Tailscale，展开查看 Tailnet，再打开 Tailnet 的策略编辑器完成交互登录。`interactive-login = true` 只引用当前设备的登录状态，不会自动打开浏览器，也不会继承服务器或其他设备的认证；登录状态按 `tailnet` 段名保存在本机。参见 [Surge Tailscale 官方说明](https://manual.nssurge.com/policies/tailscale.html)。
 
 该策略启用 `auto-add-magic-dns-rule = true`，自动路由控制面下发的可见节点 IPv4/IPv6 地址及 MagicDNS 后缀，无需在仓库硬编码服务器 Tailscale IP、tailnet 域名或登录凭据；未设置子网路由。`exit-node = none`，并从 `Auto` 中排除，避免普通上网流量误选 Tailnet。默认配置及 Tencent OA 模块都不再将 `100.64.0.0/10` 放进 `skip-proxy`，让这些请求有机会交给 Surge；这不等于把整个网段都路由到 Tailnet。
 
-Dev 订阅的所有代理节点使用 `TAILNET_ENDPOINTS` Secret 中的 `.ts.net` 地址，节点名称、地区/IP 类型组和出口保持原样；Surge 通过 `underlying-proxy=Tailnet` 连接，并按该域名严格校验证书。不再另加 `Tailnet Test` 节点或公网备用节点，缺少映射会返回 503。`Auto`、各地区组和 `DoH Proxy` 因而都使用 Tailscale 通道。客户端需要先在同一 tailnet 登录，并获准访问对应节点端口；这项切换只影响 Dev 订阅节点，网页和管理面板的 Cloudflare 入口不变。
+Dev 订阅节点使用测试节点池保存的公网地址、443 端口和原 TLS 设置，节点名称、地区/IP 类型组和出口保持原样。Surge 节点不再添加 `underlying-proxy=Tailnet`，Clash 节点不再添加 `dialer-proxy: Tailnet`，也不再生成 `Tailnet Test` 节点；遗留的 `TAILNET_ENDPOINTS` Secret 不会改变这一行为。`Auto`、各地区组和 `DoH Proxy` 都使用这些公网节点，普通代理流量不依赖 Tailnet 登录。
 
-为避免启动循环，Dev 中 `controlplane.tailscale.com`、`login.tailscale.com` 使用 `DIRECT`，并通过 `[Host]` 指定独立的国内 DNS；开启 DoH 后也不依赖 Tailnet 节点解析这两个域名。当前网络必须能直接访问控制服务。Tailscale 自身的加密隧道仍会通过互联网直连或 DERP 中继；这里的“仅 Tailscale”指代理节点连接不再访问服务器的公网入口。参见 [Surge 控制连接说明](https://manual.nssurge.com/policies/tailscale.html#control-url)。
+Tailnet 策略继续用于 SSH 等私网管理访问。访问这些私网地址前，客户端仍需在同一 tailnet 登录并获得对应端口的访问权限；网页和管理面板的 Cloudflare 入口保持原样。
 
 Mac 终端 SSH 不使用系统 HTTP 代理，需开启 Surge 增强模式，或为 SSH 单独配置经过 Surge 的 SOCKS 连接，再用服务器的 Tailscale IPv4 或完整 MagicDNS 域名连接。关闭服务器公网管理端口前，应先从 Mac 验证 SSH 登录成功。
 
 Clash 将 Tailnet 和 `[Tailscale tailnet]` 转换为 Mihomo 的 `type: tailscale` 节点，保留 `Tailscale` 策略组和上述 tailnet 域名规则，`Auto` 同样排除 Tailnet。这需要 Mihomo 1.19.25+ 且编译时包含 Tailscale 的内核（ProjectClash 的 macOS 和 iOS 版本均包含）；更早或不含 Tailscale 的内核无法识别该节点，会拒绝整份配置。订阅不含登录凭据：首次访问 tailnet 或对 Tailnet 测速时，内核在 info 级别日志输出 `To start this tsnet server, restart with TS_AUTHKEY set, or go to: <授权链接>`，在浏览器打开该链接完成授权即可。生成配置的 `log-level` 为 `warning`，但 ProjectClash 日志页默认按 info 显示实时日志。登录状态保存在客户端本地，ProjectClash 按配置和节点名区分，重新导入配置或 Tailnet 改名后需重新登录；设备在 tailnet 中默认以内核进程名注册，可在 Tailscale 管理后台改名。
 
-Mihomo 不能像 `auto-add-magic-dns-rule` 那样按控制面下发的节点逐个添加规则，转换时在所有规则之前加入 `IP-CIDR,100.64.0.0/10,Tailnet,no-resolve` 和 `IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve`，使 Tailscale IP 先于 LAN 直连规则匹配。代价是不属于 tailnet 的 `100.64.0.0/10` 地址也会进入 Tailnet 并连接失败，而 Surge 中这些地址按 LAN 规则直连。Tailscale 控制面、DERP 和点对点连接由内核直接发出，不经过规则，上面的 `controlplane.tailscale.com`、`login.tailscale.com` 规则只影响浏览器等其他流量。Tailnet 未设置出口节点，客户端按 `proxy-test-url` 对它测速会显示失败，不影响访问 tailnet。Dev 中各节点的 `underlying-proxy=Tailnet` 转换为 `dialer-proxy: Tailnet`，Bootstrap DNS 对应独立的 `nameserver-policy`。
+Mihomo 不能像 `auto-add-magic-dns-rule` 那样按控制面下发的节点逐个添加规则，转换时在所有规则之前加入 `IP-CIDR,100.64.0.0/10,Tailnet,no-resolve` 和 `IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve`，使 Tailscale IP 先于 LAN 直连规则匹配。代价是不属于 tailnet 的 `100.64.0.0/10` 地址也会进入 Tailnet 并连接失败，而 Surge 中这些地址按 LAN 规则直连。Tailscale 控制面、DERP 和点对点连接由内核直接发出，不经过规则，`controlplane.tailscale.com`、`login.tailscale.com` 规则只影响浏览器等其他流量。Tailnet 未设置出口节点，客户端按 `proxy-test-url` 对它测速会显示失败，不影响访问 tailnet。
 
 develop 的 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨地区汇集，不包含 ISP、WARP、`DIRECT`、`REJECT` 或其他策略组。Surge 使用不带权重的 `smart`，Clash 使用 `url-test`（间隔 300 秒、容差 50 毫秒）。没有 IDC 节点时不输出空组，将原本指向该组的国外 DoH 规则改为 `REJECT`，国内 DNS 和其余订阅照常生成，避免 [Surge 空组自动替换为直连](https://manual.nssurge.com/policy-groups/overview.html)。Clash 过滤掉全部不兼容 IDC 节点时同样保留这些拒绝规则；只过滤部分节点时继续使用剩余 IDC。
 
@@ -184,7 +186,7 @@ AppleIntelligence 列表放在 AI 规则末尾；其余 Apple 规则位于 AI �
 
 Hulu、IMDB 及其他未保留的影音服务不再单独登记，继续匹配通用规则。平台清单可能包含同品牌其他业务，规则内容由上游维护。
 
-AppleTV 仍在 Apple 完整规则之前，其余 5 项位于 ISP First 之后、LAN / China / GEOIP / FINAL 之前，全部引用仍带 `no-resolve`，每 6 小时更新。develop 现共登记 38 种规则、76 份客户端产物；私有开发 Worker 不运行 Cron。
+AppleTV 仍在 Apple 完整规则之前，其余 5 项位于 ISP First 之后、LAN / China / GEOIP / FINAL 之前，全部引用仍带 `no-resolve`，每 6 小时更新。develop 现共登记 39 种规则、78 份客户端产物；私有开发 Worker 不运行 Cron。
 
 运行时使用 D1 的 `users`、`nodes`、`assignments`、`store_versions`，不读取历史手动订阅表。
 

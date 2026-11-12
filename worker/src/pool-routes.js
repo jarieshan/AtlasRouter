@@ -105,8 +105,7 @@ export async function handlePoolRequest(request, env) {
       requestUrl: request.url, token: tokens[0], groups, nodes: groups.flatMap((group) => group.nodes), options,
       smartPriorityScheme: env.SMART_PRIORITY_SCHEME,
       showAllGroups: env.SHOW_ALL_PROXY_GROUPS === "true",
-      tailnetEndpoints: env.TAILNET_ENDPOINTS,
-      tailnetOnly: env.SUBSCRIPTION_VARIANT === "development",
+      tailnetEndpoints: env.SUBSCRIPTION_VARIANT === "development" ? undefined : env.TAILNET_ENDPOINTS,
     });
     const body = options.client === "clash" ? await renderClashProfile(surge, { requestUrl: request.url, token: tokens[0] }) : surge;
     return new Response(body, { headers: {

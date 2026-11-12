@@ -273,29 +273,37 @@ test("Dev portal and private service isolate data, tokens, module links and toke
   const page = await request(mf, "/" + query, { subject: "admin" });
   assert.match(await page.text(), /id="enable-dev" type="checkbox" role="switch" checked/);
   const devBefore = await readSubscriptionState({ DB: devDb });
-  for (const client of ["surge", "clash"]) {
-    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&doh=1");
+  for (const client of ["surge", "clash"]) for (const doh of [0, 1]) {
+    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&doh=" + doh);
     assert.equal(response.status, 200);
     const text = await response.text();
     assert.match(text, /Development/);
-    assert.doesNotMatch(text, /Production|Tailnet Test|node-\d\.example\.com/);
+    assert.doesNotMatch(text, /Production|Tailnet Test|example-tailnet\.ts\.net|underlying-proxy=Tailnet|dialer-proxy/);
     if (client === "surge") {
-      assert.equal(text.split("\n").filter((line) => / = vmess, .+underlying-proxy=Tailnet$/.test(line)).length, 3);
+      for (const node of devNodes) assert.ok(text.split("\n").includes(node.line));
+      assert.match(text, /^Tailnet = tailscale, section-name=tailnet$/m);
+      assert.match(text, /^Tailscale = select, Tailnet$/m);
     } else {
-      const proxies = parseYaml(text).proxies.filter(({ type }) => type !== "tailscale");
+      const config = parseYaml(text);
+      const proxies = config.proxies.filter(({ type }) => type !== "tailscale");
       assert.equal(proxies.length, 3);
-      assert.ok(proxies.every((node) => node.server.endsWith(".example-tailnet.ts.net") && node["dialer-proxy"] === "Tailnet"));
+      assert.deepEqual(proxies.map((node) => node.server).sort(), endpoints.map((endpoint) => endpoint.server).sort());
+      assert.ok(proxies.every((node) => node.port === 443 && node.tls === true && node["dialer-proxy"] === undefined));
+      assert.ok(config.proxies.some((node) => node.name === "Tailnet" && node.type === "tailscale"));
+      assert.ok(config.rules.includes("IP-CIDR,100.64.0.0/10,Tailnet,no-resolve"));
     }
   }
   assert.deepEqual(await readSubscriptionState({ DB: devDb }), devBefore);
-  // A missing mapping fails the whole subscription; URL options cannot restore public nodes.
+  // Legacy Tailnet mappings and URL options cannot redirect public subscription nodes.
   const unmatched = { id: "unmapped", line: devNodes[0].line.replace("ISP 1", "IDC 4").replace("node-1.example.com", "unmapped.example.com") };
   await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT",
     body: { revision: devBefore.state.revision, nodes: [...devNodes, unmatched] } }));
   for (const client of ["surge", "clash"]) {
-    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&tailnetOnly=false&environment=production");
-    assert.equal(response.status, 503);
-    assert.doesNotMatch(await response.text(), /11111111|example\.com|vmess|\[Proxy\]/);
+    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&tailnetOnly=true&environment=production");
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    assert.match(text, /unmapped\.example\.com/);
+    assert.doesNotMatch(text, /Tailnet Test|example-tailnet\.ts\.net|underlying-proxy=Tailnet|dialer-proxy/);
   }
   const unmatchedState = await readSubscriptionState({ DB: devDb });
   await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT",
@@ -732,7 +740,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         }
         assert.deepEqual(sources.at(-1).slice(1), [DIRECT_URL, "DIRECT"]);
         assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/\/magicrule\/surge\/([A-Za-z]+)\.list$/)[1], policy]), [
-          [CUSTOM_REJECT_URL, "REJECT"], [RED_POCKET_URL, "🇺🇸USA-ISP"], [CUSTOM_DIRECT_URL, "DIRECT"], ["IBKR", "DIRECT"], ["LongBridge", "Proxy"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
+          [CUSTOM_REJECT_URL, "REJECT"], [RED_POCKET_URL, "🇺🇸USA-ISP"], ["Speedtest", "Speedtest"], [CUSTOM_DIRECT_URL, "DIRECT"], ["IBKR", "DIRECT"], ["LongBridge", "Proxy"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
           ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], ["Perplexity", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
           ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],

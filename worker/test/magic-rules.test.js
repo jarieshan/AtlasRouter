@@ -15,10 +15,10 @@ const relayRequest = (etag) => new Request(magicRuleUrl("OpenAI", "surge", REQUE
 test("MagicRule registry covers template placeholders with manifests on either MagicRule site and token-free relay URLs", () => {
   const names = [...new Set([...ASSETS.template.matchAll(/{{RULESET_([A-Za-z0-9]+)}}/g)].map((match) => match[1]))];
   assert.deepEqual([...names].sort(), Object.keys(ASSETS.magicRules).sort());
-  assert.equal(names.length, 38);
+  assert.equal(names.length, 39);
   assert.doesNotMatch(ASSETS.template, /blackmatrix7|ios_rule_script/);
   const rules = ASSETS.template.split("\n").filter((line) => line.startsWith("RULE-SET,{{RULESET_"));
-  assert.equal(rules.length, 38);
+  assert.equal(rules.length, 39);
   for (const line of rules) assert.match(line, /^RULE-SET,{{RULESET_[A-Za-z0-9]+}},[^,]+,no-resolve,update-interval=21600$/);
   for (const name of names) {
     for (const [client, clientName, extension] of [["surge", "Surge", "list"], ["mihomo", "Mihomo", "yaml"]]) {

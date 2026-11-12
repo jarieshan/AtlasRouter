@@ -1,11 +1,9 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { runWrangler } from "./deploy.js";
-import { readTailnetEndpoints } from "../src/tailnet-nodes.js";
 
-export async function deployDevelopment({ config, production, ci, branch, commit, tailnetEndpoints, dryRun = false, run = runWrangler }) {
+export async function deployDevelopment({ config, production, ci, branch, commit, dryRun = false, run = runWrangler }) {
   if (!dryRun && (ci !== "1" || branch !== "develop" || !/^[a-f0-9]{40}$/.test(commit ?? ""))) {
     throw new Error("Development releases run only in Cloudflare Workers Builds for develop");
   }
@@ -21,20 +19,8 @@ export async function deployDevelopment({ config, production, ci, branch, commit
     || config.vars?.SUBSCRIPTION_VARIANT !== "development") {
     throw new Error("Development must use the private subscription Worker and isolated test database");
   }
-  if ((!dryRun || tailnetEndpoints) && !readTailnetEndpoints(tailnetEndpoints).length) {
-    throw new Error("Development Builds requires a non-empty TAILNET_ENDPOINTS secret");
-  }
-  const directory = tailnetEndpoints ? await mkdtemp(path.join(tmpdir(), "atlasrouter-dev-secrets-")) : null;
-  try {
-    const secretsFile = directory && path.join(directory, "secrets.json");
-    if (secretsFile) await writeFile(secretsFile, JSON.stringify({ TAILNET_ENDPOINTS: tailnetEndpoints }), { mode: 0o600, flag: "wx" });
-    if (!dryRun) await run(["d1", "migrations", "apply", "DB", "--remote", "--config", "wrangler.development.jsonc"]);
-    // Publish the complete mapping and code together in Builds; inherit unrelated Secrets.
-    await run(["deploy", "--config", "wrangler.development.jsonc", ...(dryRun ? ["--dry-run"] : []),
-      ...(secretsFile ? ["--secrets-file", secretsFile] : [])], tailnetEndpoints);
-  } finally {
-    if (directory) await rm(directory, { recursive: true, force: true });
-  }
+  if (!dryRun) await run(["d1", "migrations", "apply", "DB", "--remote", "--config", "wrangler.development.jsonc"]);
+  await run(["deploy", "--config", "wrangler.development.jsonc", ...(dryRun ? ["--dry-run"] : [])]);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
@@ -45,7 +31,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     const production = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
     await deployDevelopment({ config, production, ci: process.env.WORKERS_CI,
       branch: process.env.WORKERS_CI_BRANCH, commit: process.env.WORKERS_CI_COMMIT_SHA,
-      tailnetEndpoints: process.env.TAILNET_ENDPOINTS, dryRun: args.includes("--dry-run") });
+      dryRun: args.includes("--dry-run") });
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

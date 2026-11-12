@@ -27,6 +27,10 @@
     "surge": "https://rule-26r.pages.dev/data/rules/Surge/d81972d4f7299397f18b3158/manifest.json",
     "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/3196e98a06de7ac752ac910c/manifest.json"
   },
+  "Speedtest": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/6ff3f8a9fce0ae6005d55c76/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/ec2a45608da552f69417a938/manifest.json"
+  },
   "IBKR": {
     "surge": "https://rule-26r.pages.dev/data/rules/Surge/f4eb5063a59d218925a2d98d/manifest.json",
     "mihomo": "https://rule-26r.pages.dev/data/rules/Mihomo/9e4647594c581247aae3a91c/manifest.json"
