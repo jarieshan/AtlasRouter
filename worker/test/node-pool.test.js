@@ -262,7 +262,7 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.ok(config.split("\n").includes(`Speedtest = select, ${expectedIcloud.join(", ")}, DIRECT, icon-url=${ICON_BASE}Speedtest.png`));
     assert.equal(icloud, `iCloud = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}iCloud.png`);
     assert.ok(config.split("\n").includes(`WeChat = select, DIRECT, ${expectedIcloud.join(", ")}, icon-url=${ICON_BASE}WeChat.png`));
-    assert.ok(config.split("\n").includes("RULE-SET,https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list,WeChat,no-resolve"));
+    assert.ok(config.split("\n").includes("RULE-SET,https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/WeChat.list,WeChat,no-resolve"));
     const telegram = config.split("\n").find((line) => line.startsWith("Telegram = select, "));
     assert.equal(telegram, `Telegram = select, ${expectedIcloud.join(", ")}, Proxy, DIRECT, icon-url=${ICON_BASE}Telegram.png`);
     const expectedWarpFirst = ["WARP", "IDC", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));

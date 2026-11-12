@@ -1,8 +1,8 @@
 # 生产基线与发布边界
 
-master 使用引入 Smart 节点权重之前的稳定订阅行为。Dev 开关调用私有开发服务，使用独立测试库和 develop 版配置；原生公开预览保持关闭。
+2026-11-12，master 合入 develop 的 `48c4916`，正式订阅采用已验证的策略、规则和客户端转换实现。Dev 开关继续调用私有开发服务，使用独立测试库和 develop 配置；原生公开预览保持关闭。
 
-## 基线来源
+## 旧生产基线来源（历史记录）
 
 原 master 的 `ac91a54` 是旧 KV 版本，不能作为当前线上 D1 服务的发布源码。develop 首次提交 `691483e` 将此前多项本地改动合并入库，其中已经包含 Smart 权重，所以 Git 中不存在可直接切换的独立“权重前”提交。
 
@@ -10,18 +10,19 @@ master 使用引入 Smart 节点权重之前的稳定订阅行为。Dev 开关�
 
 本地用同一组合成节点、用户和独立 D1 分别运行原生产 bundle 与候选代码，比较默认 Surge、DoH、Tencent OA、两者组合、默认 Clash、Clash + DoH 六种输出，结果逐字一致；401/404 检查也通过。真实节点、用户 token、下载的生产 bundle 和私有备份不进入仓库。 该逐字比较针对恢复提交 `f957447`。随后为修复开启 Surge 后无法访问订阅入口的问题，两分支补充了生产与开发订阅域名的精确 `DIRECT` 规则；这两条入口规则是相对于原生产输出的有意差异，全局 QUIC 策略与节点分组方式保持不变。
 
-## 保留的生产行为
+## 当前生产行为
 
-- 地区/IP 类型组使用顺序 fallback，保留个人主备顺序、300 秒间隔和隐藏属性；Surge 与 Clash 均不生成地区组权重。
-- Auto 仍是原有的全节点 Smart 组，Clash 近似为 url-test；“权重前”不等于删除所有 Smart 组。
-- 保留 D1 多用户节点池、Clash 完整配置识别、UDP 默认值、ProjectClash QUIC 映射、DoH/Tencent OA 开关、Proxy/Auto 顺序及 AppleDirect 优先顺序。
-- master 不读取 `SMART_PRIORITY_SCHEME`，生产遗留变量不会意外打开权重试验。
+- 地区/IP 类型组在 Surge 中使用 Smart 和 `policy-priority`，保留个人主备次序；Clash 按相同次序转换为 300 秒的 fallback。正式部署没有配置 `SMART_PRIORITY_SCHEME`，使用默认线性权重 1、2、3…；开发服务保留 geometric-10，ISP 备用节点权重从 100 起。
+- Auto 为全节点 Smart，排除 Tailnet；Clash 近似为容差 50 ms 的 url-test。FINAL 为可见的 select：Auto → Proxy → IDC → WARP → ISP → DIRECT。Speedtest 使用 MagicRule，select 顺序为 IDC → WARP → ISP → DIRECT。
+- 合入 OverseasFinance、ISP First、RedPocket、Apple/AI/影音独立规则、IDC 专用 DoH 组及 Clash DNS、测速和多地址连接适配。地区与业务组可见；正式部署按模板隐藏 DoH Proxy，开发服务的 `SHOW_ALL_PROXY_GROUPS=true` 显示全部组。
+- 正式仓库规则集固定引用 `@master`，开发服务保留 `@develop`；MagicRule 的 39 类规则使用各客户端原生产物及最后有效副本。正式 Cron 每 5 分钟检查一份，共 78 份约 6 小时 30 分钟一轮。
+- 使用各自节点池保存的公网节点，Tailnet 用于私网管理。保留两库、个人 token、节点分配和 Access/Tunnel 配置；本次只发布正式 Worker。
 
 ## 正式入口
 
 正式页面默认管理生产 `DB`，Dev 开关原地加载独立 `DEV_DB`。正式与开发订阅分别使用 `/AtlasRouter` 和 `/AtlasRouter-Dev`，开发订阅由私有开发 Worker 处理；旧独立测试域名不恢复。
 
-本次清理保持既有生产分流行为，只从订阅中删除已退役测试域名的精确 `DIRECT` 规则。香港 Access + Tunnel 配置保持独立。
+正式页面继续通过 Service binding 转发开发订阅。香港和洛杉矶的 Access + Tunnel 配置保持独立，不参与本次分支合并。
 
 ## 自动发布
 

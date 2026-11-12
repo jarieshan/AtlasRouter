@@ -39,7 +39,7 @@ Client、DoH、复制和重置链接在当前页面内存中模拟，不请求�
 
 “专属主节点”表示该用户配置中的首选节点。主备组会把同组其他节点的连接凭据一并下发，且容量不足时主节点可以共享，因此它不代表网络凭据独享。均衡针对配置位置和分配人数，不是实时流量。已经导入设备的旧配置需要完成订阅更新后才能获得新分配；撤销订阅 token 不会撤销已下载的节点凭据。
 
-master 的 Surge / Clash 都使用顺序 `fallback`，按个人主备次序选择可用节点，间隔 300 秒。develop 分支单独试验 Smart 权重，不能把其选择行为当作生产行为。健康检测由客户端执行，全部失效时遵循各客户端行为；Worker 不主动探测代理，也不因短时故障改写永久归属。
+master 与 develop 的 Surge 都使用带权重的 Smart，Clash 转为个人主备次序的 `fallback`、间隔 300 秒。正式默认线性权重，开发服务使用 geometric-10；Smart 与 fallback 的选择行为不等价。健康检测由客户端执行，全部失效时遵循各客户端行为；Worker 不主动探测代理，也不因短时故障改写永久归属。
 
 ## 节点命名与管理
 
@@ -76,9 +76,9 @@ VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、�
 
 `WeChat` 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连，并接收 WeChat 规则集的流量。`Telegram` 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组。这两个策略组均可见。`OverseasFinance`（原 `Coin`）同样可见，按 ISP → WARP → IDC → `DIRECT` 排列，默认选择首个可用的 ISP 组，接收 Binance、OKX、Coinbase、Bybit、Bitget、PayPal、eBay、Stripe 和 Wise 规则的流量。Apple 只保留 `iCloud` 一个分组：可见，先列 `DIRECT`，然后按 IDC → WARP → ISP 列出可用组；其余 Apple 服务固定直连，不再设 AppleDirect 组。Apple TV+ 进入 `GlobalMedia`，Apple Intelligence 进入 `AIProxy`。模板规则行中的 `hidden=true` 由 Worker 转换为对应策略组的隐藏属性，规则继续参与分流。同一 IP 类型内均使用上述地区顺序。`💎 Select` 已移除。
 
-`YouTube` 使用可见的独立策略组和品牌 Logo，选项按 WARP → IDC → ISP 排列，缺少某类节点时跳过，只列出当前可用的地区/IP 类型组。YouTube 规则在 Netflix 等影音规则之前匹配，使用 MagicRule 的原生 Surge / Mihomo 完整规则。develop 的 GlobalMedia 策略组仅接收所选 6 项服务的独立清单，不再引用同名聚合列表；完整列表见[影音规则说明](subscription.md#影音音乐和直播规则develop)。
+`YouTube` 使用可见的独立策略组和品牌 Logo，选项按 WARP → IDC → ISP 排列，缺少某类节点时跳过，只列出当前可用的地区/IP 类型组。YouTube 规则在 Netflix 等影音规则之前匹配，使用 MagicRule 的原生 Surge / Mihomo 完整规则。GlobalMedia 策略组仅接收所选 6 项服务的独立清单，不再引用同名聚合列表；完整列表见[影音规则说明](subscription.md#影音音乐和直播规则)。
 
-地区组定义按地区、IP 类型顺序输出。master 设置 `hidden=true`，仅隐藏客户端主面板中的独立分组；更新订阅后可展开查看各组节点。保留其他策略中的地区组选项，账户网页和管理员页面继续展示节点分配。各组内部的主节点与备用顺序不受影响。Surge 的 [`select` 组](https://manual.nssurge.com/policy-groups/select.html)会保存已有选择，更新订阅不会强制重置已选策略。iCloud 的 DIRECT → IDC → WARP → ISP 是手动选项顺序，组内节点由 Surge / Clash 的同顺序 fallback 选择。
+地区组定义按地区、IP 类型顺序输出。正式和开发订阅的地区组都可见，更新订阅后可展开查看各组节点。保留其他策略中的地区组选项，账户网页和管理员页面继续展示节点分配。各组内部的主节点与备用顺序不受影响。Surge 的 [`select` 组](https://manual.nssurge.com/policy-groups/select.html)会保存已有选择，更新订阅不会强制重置已选策略。iCloud 的 DIRECT → IDC → WARP → ISP 是手动选项顺序，组内节点由 Surge Smart 或 Clash 的同顺序 fallback 选择。
 
 `[Proxy]` 中的节点行也先按上述国家/地区顺序、再按 ISP → WARP → IDC 输出；同一地区、同一 IP 类型的节点保持原有相对顺序，不改变策略组的主备关系。
 

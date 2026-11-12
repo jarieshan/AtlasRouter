@@ -12,12 +12,12 @@ import { magicRuleUrl } from "../src/magic-rules.js";
 import { orderedSmartPriority, splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
 
 const context = { requestUrl: "https://atlas.example/AtlasRouter", token: `ar_${"a".repeat(64)}` };
-const wechatUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list";
-const customDirectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
-const customRejectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
-const redPocketUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/RedPocket.list";
-const coinUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
-const customAIUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
+const wechatUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/WeChat.list";
+const customDirectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomDirect.list";
+const customRejectUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomReject.list";
+const redPocketUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/RedPocket.list";
+const coinUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/Coin.list";
+const customAIUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomAI.list";
 const directUrl = magicRuleUrl("China", "surge", context.requestUrl);
 const mediaRules = ["Netflix", "Disney", "Spotify", "TIDAL", "TikTok"];
 const autoRules = ["Alphabet", "GitHub", "Wikimedia"];
@@ -881,10 +881,10 @@ test("rule sources use stable ids, preserve intervals, and reject arbitrary unre
 
 test("repository rule sets are fetched directly without a token; lookalike sources keep the converter", async () => {
   const lookalikes = [
-    "https://cdn.jsdelivr.net/gh/someone/AtlasRouter@develop/surge/rule-sets/WeChat.list",
-    "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rules.list",
-    "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list?token=x",
-    "https://fastly.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list",
+    "https://cdn.jsdelivr.net/gh/someone/AtlasRouter@master/surge/rule-sets/WeChat.list",
+    "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rules.list",
+    "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/WeChat.list?token=x",
+    "https://fastly.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/WeChat.list",
   ];
   const lines = [`RULE-SET,${wechatUrl},WeChat,no-resolve`, `DOMAIN-SET,${customDirectUrl},DIRECT`, ...lookalikes.map((url) => `RULE-SET,${url},DIRECT`), "FINAL,DIRECT"];
   const { providers } = await convertClashRules(lines, new Set(["DIRECT", "WeChat"]), context.requestUrl, context.token, assert.fail);

@@ -95,7 +95,7 @@ npm run check:live-security -- https://<worker-domain>
 
 ## Surge 配置约定
 
-- master 自动订阅的 `[Proxy Group]` 使用 `surge/pool-groups.conf`，动态生成如 `🇺🇸USA-ISP`、`🇭🇰HK-IDC`、`🇸🇬SG-WARP` 的顺序 `fallback` 组；Surge / Clash 均保留个人主备次序，间隔 300 秒。Smart 权重仅在 develop 分支实验；原有 Auto Smart 组仍保留。
+- master 已合入 develop 的订阅实现。`surge/pool-groups.conf` 按个人主备次序生成地区/IP 类型 Smart 组，Clash 转为同顺序 fallback、间隔 300 秒；正式默认线性权重，开发服务保留 geometric-10，详见 [生产基线](docs/production-baseline.md)。
 - `[Rule]` 负责流量匹配，规则按文件顺序从上到下匹配，并以 `FINAL` 规则兜底。
 - 外部策略可通过 `policy-path` 引入，区域筛选可用 `policy-regex-filter`。
 - 模块文件用于对主配置做局部覆盖或追加，不应承担主配置无法解释的大段逻辑。

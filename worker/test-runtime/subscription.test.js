@@ -20,15 +20,15 @@ const ADMIN_API_SLUG = "0123456789abcdef0123456789abcdef";
 const { state: POOL_STATE_PATH, nodes: POOL_NODES_PATH, users: POOL_USERS_PATH, import: POOL_IMPORT_PATH } = getAdminRoutes({ ADMIN_API_SLUG });
 const ORIGIN = "https://atlas.example";
 
-const WECHAT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list";
+const WECHAT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/WeChat.list";
 const WECHAT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${WECHAT_URL}`).digest("hex").slice(0, 32)}`;
-const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
+const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomDirect.list";
 const CUSTOM_DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${CUSTOM_DIRECT_URL}`).digest("hex").slice(0, 32)}`;
-const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
-const RED_POCKET_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/RedPocket.list";
+const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomReject.list";
+const RED_POCKET_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/RedPocket.list";
 const RED_POCKET_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${RED_POCKET_URL}`).digest("hex").slice(0, 32)}`;
-const COIN_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
-const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
+const COIN_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/Coin.list";
+const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomAI.list";
 const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, RED_POCKET_URL, CUSTOM_DIRECT_URL, WECHAT_URL, CUSTOM_AI_URL, COIN_URL];
 const magicRuleRelay = (url, name, client, base = `${ORIGIN}${POOL_SUBSCRIPTION_PATH}`, query = "") =>
   new RegExp(`^${`${base}/rules/magicrule/${client}/`.replace(/\./g, "\\.")}${name}\\.${client === "surge" ? "list" : "yaml"}${query.replace(/\?/g, "\\?")}$`).test(url);

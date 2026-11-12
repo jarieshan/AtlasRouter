@@ -7,7 +7,7 @@ import { convertClashRuleSet } from "../src/clash-rules.js";
 test("repository rule sets referenced by the template exist on this branch and convert for Clash", () => {
   const references = ASSETS.template.match(/https:\/\/cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@[^/\s]+\/[^\s,]+/g);
   const paths = [...new Set(references.map((url) => {
-    const match = /^https:\/\/cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@develop\/(surge\/rule-sets\/[A-Za-z]+\.list)$/.exec(url);
+    const match = /^https:\/\/cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@master\/(surge\/rule-sets\/[A-Za-z]+\.list)$/.exec(url);
     assert.ok(match, url);
     return match[1];
   }))];
