@@ -286,7 +286,9 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.doesNotMatch(config.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
     const definitions = [...config.matchAll(/^(.+) = smart, .+, policy-priority=/gm)].map((match) => match[1]);
     assert.deepEqual(definitions, expectedGroups);
-    assert.ok(config.split("\n").filter((line) => line.includes("policy-priority=")).every((line) => line.endsWith(", hidden=true")));
+    for (const line of config.split("\n").filter((line) => line.includes("policy-priority="))) {
+      assert.equal(line.endsWith(", hidden=true"), !line.split(" = ")[0].endsWith("-ISP"), line.split(" = ")[0]);
+    }
     assert.deepEqual(groups, before);
     for (const group of groups) assert.ok(config.includes(`${group.group} = smart, ${group.nodes.map((node) => node.name).join(", ")}, policy-priority=`));
     assert.match(config, /^FINAL,FINAL,dns-failed$/m);
