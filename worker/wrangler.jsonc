@@ -13,7 +13,7 @@
   "vars": {
     "UI_ENABLED": "true",
     "SUBSCRIPTION_PATH": "/AtlasRouter",
-    "SMART_PRIORITY_SCHEME": "geometric-10-from-100"
+    "SMART_PRIORITY_SCHEME": "geometric-10-from-10000"
   },
   "routes": [
     {
