@@ -59,7 +59,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   for (const config of [plain, encrypted]) {
     assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${iconBase}Auto.png`));
     assert.match(config, /^Tailnet = tailscale, section-name=tailnet$/m);
-    assert.match(config, /^Tailscale = select, Tailnet$/m);
+    assert.doesNotMatch(config, /^Tailscale = /m);
     assert.match(config, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
     const ruleLines = config.split("[Rule]\n")[1].split("\n");
     for (const tailnetRule of ["DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]) {
@@ -128,7 +128,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const output = await renderClashProfile(surge, context);
     const config = parse(output);
     assert.deepEqual(config.proxies.at(-1), { name: "Tailnet", type: "tailscale", udp: true });
-    assert.deepEqual(config["proxy-groups"].find(({ name }) => name === "Tailscale"), { name: "Tailscale", type: "select", proxies: ["Tailnet"] });
+    assert.ok(config["proxy-groups"].every(({ proxies }) => !proxies?.includes("Tailnet")));
     assert.deepEqual(config.rules.slice(0, 4), ["IP-CIDR,100.64.0.0/10,Tailnet,no-resolve", "IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve",
       "DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
     assert.doesNotMatch(output, /auth-key|interactive-login|Section tailscale/);
@@ -147,7 +147,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).icon, undefined);
     }
     const icons = { "Proxy": "Proxy", "FINAL": "Proxy", "Speedtest": "Speedtest", "AIProxy": "AI", "iCloud": "iCloud", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media", "OverseasFinance": "Cryptocurrency", "ISP First": "Global" };
-    assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), [...Object.keys(icons), "Tailscale"]);
+    assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), Object.keys(icons));
     for (const [name, file] of Object.entries(icons)) assert.equal(config["proxy-groups"].find((group) => group.name === name)?.icon, `${iconBase}${file}.png`);
     for (const name of ["Proxy", "AIProxy", "X"]) {
       assert.deepEqual(config["proxy-groups"].find((group) => group.name === name).proxies, ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC", name === "Proxy" ? "Auto" : "Proxy", "DIRECT"]);
