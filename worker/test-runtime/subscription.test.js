@@ -130,36 +130,6 @@ async function account(mf, subject = "alice", claims) {
   return json(await request(mf, ACCOUNT_PROFILE_PATH, { subject, claims }));
 }
 
-test("Tailnet secret adds authenticated test alternatives without changing stored nodes or assignments", async (t) => {
-  const mf = await createRuntime(t, { SUBSCRIPTION_PATH: "/AtlasRouter", TAILNET_ENDPOINTS: JSON.stringify([
-    { server: "hk.example.com", port: 443, hostname: "node.example-tailnet.ts.net" },
-  ]) });
-  const line = "🇭🇰 HK IDC = vmess, hk.example.com, 443, username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true";
-  await save(mf, [{ id: "hk", line }]);
-  const user = await account(mf);
-  const db = await mf.getD1Database("DB");
-  const before = await readSubscriptionState({ DB: db });
-  const url = new URL(user.subscriptionUrl);
-  url.pathname = "/AtlasRouter";
-  const response = await mf.dispatchFetch(url.toString());
-  assert.equal(response.status, 200);
-  const profile = await response.text();
-  assert.ok(profile.split("\n").includes(line));
-  assert.match(profile, /^Tailnet Test - 🇭🇰 HK IDC = vmess, node\.example-tailnet\.ts\.net, 443, .+underlying-proxy=Tailnet$/m);
-  assert.match(profile, /^Tailnet Test = select, Tailnet Test - 🇭🇰 HK IDC$/m);
-  assert.deepEqual(await readSubscriptionState({ DB: db }), before);
-  assert.equal((await mf.dispatchFetch(`${ORIGIN}/AtlasRouter`)).status, 401);
-  assert.equal((await mf.dispatchFetch(`${ORIGIN}/not-a-subscription`)).status, 404);
-  const clash = await mf.dispatchFetch(`${url}&client=clash`);
-  assert.equal(clash.status, 200);
-  const config = parseYaml(await clash.text());
-  assert.deepEqual(config.proxies.map((node) => [node.name, node.type, node.server, node["dialer-proxy"]]), [
-    ["🇭🇰 HK IDC", "vmess", "hk.example.com", undefined],
-    ["Tailnet Test - 🇭🇰 HK IDC", "vmess", "node.example-tailnet.ts.net", "Tailnet"],
-    ["Tailnet", "tailscale", undefined, undefined],
-  ]);
-});
-
 test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {
   const production = await createRuntime(t);
   const development = await createRuntime(t, { ACCESS_AUD: "development-app", SMART_PRIORITY_SCHEME: "geometric-10-from-100" });
@@ -238,8 +208,6 @@ test("unconfigured Dev cannot change production accounts or the retained test da
 test("Dev portal and private service isolate data, tokens, module links and token rotation", async (t) => {
   const devNodes = nodes(3).map((node) => ({ ...node, line: node.line.replace("Example", "Development")
     .replace("trojan,", "vmess,").replace("password=TEST_ONLY", "username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true") }));
-  const endpoints = devNodes.map((_, index) => ({ server: `node-${index + 1}.example.com`, port: 443,
-    hostname: `node-${index + 1}.example-tailnet.ts.net` }));
   const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
     { ...common, name: "portal", d1Databases: { DB: "production", DEV_DB: "development" },
@@ -247,8 +215,7 @@ test("Dev portal and private service isolate data, tokens, module links and toke
       bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
         ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG } },
     { ...common, name: "development", d1Databases: { DB: "development" },
-      bindings: { UI_ENABLED: "false", SUBSCRIPTION_VARIANT: "development", SMART_PRIORITY_SCHEME: "geometric-10-from-100", SHOW_ALL_PROXY_GROUPS: "true",
-        TAILNET_ENDPOINTS: JSON.stringify(endpoints) } },
+      bindings: { UI_ENABLED: "false", SUBSCRIPTION_VARIANT: "development", SMART_PRIORITY_SCHEME: "geometric-10-from-100", SHOW_ALL_PROXY_GROUPS: "true" } },
   ] }));
   t.after(() => mf.dispose());
   const prodDb = await mf.getD1Database("DB", "portal");
@@ -278,36 +245,26 @@ test("Dev portal and private service isolate data, tokens, module links and toke
     assert.equal(response.status, 200);
     const text = await response.text();
     assert.match(text, /Development/);
-    assert.doesNotMatch(text, /Production|Tailnet Test|example-tailnet\.ts\.net|underlying-proxy=Tailnet|dialer-proxy/);
+    assert.doesNotMatch(text, /Production|dialer-proxy/);
+    assert.doesNotMatch(text, /tailnet|tailscale/i);
     if (client === "surge") {
       for (const node of devNodes) assert.ok(text.split("\n").includes(node.line));
-      assert.match(text, /^Tailnet = tailscale, section-name=tailnet$/m);
-      assert.doesNotMatch(text, /^Tailscale = /m);
     } else {
-      const config = parseYaml(text);
-      const proxies = config.proxies.filter(({ type }) => type !== "tailscale");
+      const { proxies } = parseYaml(text);
       assert.equal(proxies.length, 3);
-      assert.deepEqual(proxies.map((node) => node.server).sort(), endpoints.map((endpoint) => endpoint.server).sort());
+      assert.deepEqual(proxies.map((node) => node.server).sort(), ["node-1.example.com", "node-2.example.com", "node-3.example.com"]);
       assert.ok(proxies.every((node) => node.port === 443 && node.tls === true && node["dialer-proxy"] === undefined));
-      assert.ok(config.proxies.some((node) => node.name === "Tailnet" && node.type === "tailscale"));
-      assert.ok(config.rules.includes("IP-CIDR,100.64.0.0/10,Tailnet,no-resolve"));
     }
   }
   assert.deepEqual(await readSubscriptionState({ DB: devDb }), devBefore);
-  // Legacy Tailnet mappings and URL options cannot redirect public subscription nodes.
-  const unmatched = { id: "unmapped", line: devNodes[0].line.replace("ISP 1", "IDC 4").replace("node-1.example.com", "unmapped.example.com") };
-  await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT",
-    body: { revision: devBefore.state.revision, nodes: [...devNodes, unmatched] } }));
+  // URL options cannot redirect Dev subscriptions to production nodes.
   for (const client of ["surge", "clash"]) {
-    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&tailnetOnly=true&environment=production");
+    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&environment=production");
     assert.equal(response.status, 200);
     const text = await response.text();
-    assert.match(text, /unmapped\.example\.com/);
-    assert.doesNotMatch(text, /Tailnet Test|example-tailnet\.ts\.net|underlying-proxy=Tailnet|dialer-proxy/);
+    assert.match(text, /Development/);
+    assert.doesNotMatch(text, /Production/);
   }
-  const unmatchedState = await readSubscriptionState({ DB: devDb });
-  await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT",
-    body: { revision: unmatchedState.state.revision, nodes: devNodes } }));
   assert.equal((await request(mf, production.subscriptionUrl + "&dev=1")).status, 401);
   const wrong = new URL(dev.subscriptionUrl);
   wrong.pathname = "/AtlasRouter";
@@ -630,7 +587,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(config["rule-providers"].GlobalMedia, undefined);
         assert.deepEqual(config.rules.filter((rule) => rule.endsWith(",GlobalMedia,no-resolve")),
           ["AppleTV", ...MEDIA_RULE_NAMES].map((name) => `RULE-SET,${name},GlobalMedia,no-resolve`));
-        assert.equal(config.proxies.filter(({ type }) => type !== "tailscale").length, 4);
+        assert.equal(config.proxies.length, 4);
         for (const group of profile.groups) assert.deepEqual(config["proxy-groups"].find(({ name }) => name === group.group).proxies, group.nodes.map(({ name }) => name));
         assert.equal(config.dns.nameserver.every((server) => server.startsWith("https://")), encrypted);
         assert.deepEqual(config.dns.nameserver, encrypted ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
@@ -652,7 +609,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         const auto = config["proxy-groups"].find(({ name }) => name === "Auto");
         assert.equal(auto.type, "url-test");
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
-        assert.deepEqual(auto.proxies, config.proxies.filter(({ type }) => type !== "tailscale").map(({ name }) => name));
+        assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
         assert.equal(auto.tolerance, 50);
         for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) assert.equal(group["expected-status"], 204, group.name);
         assert.equal(config["geo-auto-update"], true);
@@ -697,10 +654,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(response.headers.get("content-type"), /text\/plain/);
         assert.equal(/^encrypted-dns-server =/m.test(text), encrypted);
         assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), encrypted);
-        assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${ICON_BASE}Auto.png`));
-        assert.match(text, /^Tailnet = tailscale, section-name=tailnet$/m);
-        assert.doesNotMatch(text, /^Tailscale = /m);
-        assert.match(text, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
+        assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
+        assert.doesNotMatch(text, /tailnet|tailscale/i);
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
         assert.ok(text.split("\n").includes(`FINAL = select, Auto, Proxy, 🇭🇰HK-IDC, 🇺🇸USA-ISP, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
         assert.ok(text.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png, hidden=true`));
@@ -783,8 +738,7 @@ test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token chec
       for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) {
         assert.equal(skip.includes(value), tencentOa === "1", value);
       }
-      for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
-      assert.ok(!skip.includes("100.64.0.0/10"));
+      for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
       assert.equal(skip.includes("10.0.0.0/8"), tencentOa !== "1");
       if (tencentOa === null) plain = withoutOverrides(body);
       else assert.equal(withoutOverrides(body), plain);
@@ -867,7 +821,7 @@ test("removing an assigned node reassigns users and removes it from stored inven
       assert.ok(!body.includes(removed.name));
       if (client === "clash") {
         const config = parseYaml(body);
-        assert.equal(config.proxies.filter(({ type }) => type !== "tailscale").length, 3);
+        assert.equal(config.proxies.length, 3);
         assert.deepEqual(config["proxy-groups"].find((group) => group.name === removed.group).proxies, isp.nodes.map((node) => node.name));
       } else {
         assert.deepEqual(orderedSmartMembers(body, isp.group), isp.nodes.map((node) => node.name));
