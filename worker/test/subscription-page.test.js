@@ -14,7 +14,7 @@ function element() {
 
 test("Dev switches in place and preserves client choices without navigating", async () => {
   for (const active of [false, true]) {
-    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
     fields.get("#subscription-client").value = "surge";
     fields.get("#enable-dev").checked = active;
     let href = `https://atlas.example/?client=clash&doh=0${active ? "&environment=development" : ""}`;
@@ -54,8 +54,29 @@ test("Dev switches in place and preserves client choices without navigating", as
   assert.doesNotMatch(renderAccountPage({ preview: true, developmentAvailable: true }), /id="enable-dev"/);
 });
 
+test("Tencent OA choice loads from the page URL and survives the Dev switch", async () => {
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  fields.get("#subscription-client").value = "surge";
+  let href = "https://atlas.example/?tencent_oa=1";
+  const location = { get href() { return href; }, set href(value) { assert.fail("Unexpected navigation: " + value); } };
+  const history = { replaceState(_state, _title, url) { href = url.toString(); } };
+  vm.runInNewContext(renderAccountPage({ developmentAvailable: true }).match(/<script>([\s\S]*?)<\/script>/)[1], {
+    document: { getElementById: (id) => id === "development-notice" ? { hidden: true } : ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
+    URL, location, history, confirm: () => true,
+    fetch: async (path) => Response.json({ email: "member@example.com", status: "active", groups: [],
+      subscriptionUrl: `https://atlas.example/AtlasRouter${path.includes("/api/AtlasRouter-Dev/") ? "-Dev" : ""}?token=TEST_ONLY` }),
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(fields.get("#enable-tencent-oa").checked, true);
+  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter?token=TEST_ONLY&tencent_oa=1");
+  fields.get("#enable-dev").checked = true;
+  await fields.get("#enable-dev").onchange();
+  assert.equal(new URL(href).searchParams.get("tencent_oa"), "1");
+  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter-Dev?token=TEST_ONLY&tencent_oa=1");
+});
+
 test("subscription controls customize copied URLs and retain choices across token rotation", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   let token = "ar_TEST_ONLY";
   let copied;
@@ -64,7 +85,9 @@ test("subscription controls customize copied URLs and retain choices across toke
   const html = renderAccountPage();
   assert.match(html, /value="surge" selected/);
   assert.match(html, /id="enable-doh" type="checkbox" role="switch" checked>/);
-  assert.doesNotMatch(html, /tencent-oa|tencent_oa|Tencent OA|install-module/);
+  assert.match(html, /<span>Tencent OA Compatibility<\/span>/);
+  assert.match(html, /id="enable-tencent-oa" type="checkbox" role="switch" aria-describedby="tencent-oa-help">/);
+  assert.doesNotMatch(html, /install-module|tencent-oa\.sgmodule/);
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
     document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
     URL, location, confirm: () => true,
@@ -80,9 +103,16 @@ test("subscription controls customize copied URLs and retain choices across toke
   assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}`);
   const client = fields.get("#subscription-client");
   const doh = fields.get("#enable-doh");
+  const tencentOa = fields.get("#enable-tencent-oa");
   assert.equal(doh.checked, true);
+  assert.equal(tencentOa.checked, false);
+  tencentOa.checked = true;
+  tencentOa.onchange();
+  assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&tencent_oa=1`);
   client.value = "clash";
   client.onchange();
+  assert.equal(tencentOa.disabled, true);
+  assert.match(fields.get("#tencent-oa-help").textContent, /仅适用于 Surge/);
   doh.checked = false;
   doh.onchange();
   assert.equal(calls.length, 1, "customizing a URL must not change the stored account or token");
@@ -93,14 +123,18 @@ test("subscription controls customize copied URLs and retain choices across toke
   assert.match(fields.get("#client-help").textContent, /Mihomo/);
   client.value = "surge";
   client.onchange();
-  assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&doh=0`);
+  assert.equal(tencentOa.disabled, false);
+  assert.match(fields.get("#tencent-oa-help").textContent, /iOA/);
+  assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&doh=0&tencent_oa=1`);
   doh.checked = true;
   doh.onchange();
+  tencentOa.checked = false;
+  tencentOa.onchange();
   assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}`);
 });
 
 test("production account calls and copied links retain token rotation", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   let copied;
   let calls = 0;
@@ -137,7 +171,7 @@ test("page previews keep all interactions in memory and reset on a new page load
   let storageAccesses = 0;
   let copied;
   async function openPage() {
-    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
     fields.get("#subscription-client").value = "surge";
     fields.get("#enable-doh").checked = true;
     const storage = new Proxy({}, { get() { storageAccesses += 1; throw new Error("Preview must not use browser storage"); } });
@@ -185,7 +219,7 @@ test("database node labels render as text and preview interactions stay in the p
   assert.match(html, /只读展示当前启用的真实节点/);
   assert.equal(html.match(/<script>/g).length, 1);
   assert.ok(!html.includes(name));
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
     document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
@@ -203,7 +237,7 @@ test("database node labels render as text and preview interactions stay in the p
 
 
 test("inventory updates refresh the account without rotating its token or resetting options", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   const listeners = new Map();
   let requests = 0;
