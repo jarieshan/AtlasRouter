@@ -256,6 +256,11 @@ test("orders selection options by IP type while preserving regional definitions 
     }
     assert.ok(config.split("\n").includes(`OverseasFinance = select, ${expectedOptions.join(", ")}, DIRECT, icon-url=${ICON_BASE}Cryptocurrency.png`));
     assert.ok(config.split("\n").includes(`ISP First = select, ${expectedOptions.join(", ")}, icon-url=${ICON_BASE}Global.png`));
+    const expectedGeneralSite = ["🇭🇰HK-ISP", "🇭🇰HK-WARP", "🇭🇰HK-IDC", ...expectedOptions.filter((group) => !group.startsWith("🇭🇰"))];
+    assert.ok(config.split("\n").includes(`GeneralSite = select, ${expectedGeneralSite.join(", ")}, icon-url=${ICON_BASE}Area.png`));
+    const withoutHk = groups.filter(({ group }) => !group.startsWith("🇭🇰"));
+    const withoutHkConfig = renderSurgeProfile({ requestUrl: "https://atlas.example/AtlasRouter", token: "test-token", groups: withoutHk, nodes: withoutHk.flatMap((group) => group.nodes) });
+    assert.ok(withoutHkConfig.split("\n").includes(`GeneralSite = select, ${expectedGeneralSite.slice(3).join(", ")}, icon-url=${ICON_BASE}Area.png`));
     const icloud = config.split("\n").find((line) => line.startsWith("iCloud = select, "));
     const expectedIcloud = ["IDC", "WARP", "ISP"].flatMap((type) => expectedGroups.filter((group) => group.endsWith(`-${type}`)));
     assert.ok(config.split("\n").includes(`FINAL = select, Auto, Proxy, ${expectedIcloud.join(", ")}, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
