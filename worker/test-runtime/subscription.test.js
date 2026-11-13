@@ -45,7 +45,7 @@ function orderedSmartMembers(profile, name, expectedWeights) {
   const parts = splitSurgeList(surgeAssignment(line)[1]).slice(1);
   const members = parts.filter((part) => !part.includes("="));
   const options = surgeOptions(parts.filter((part) => part.includes("=")));
-  assert.equal(options.get("hidden"), undefined);
+  assert.equal(options.get("hidden"), "true");
   const weights = options.get("policy-priority").split(";").map((entry) => entry.split(":"));
   assert.equal(weights.length, members.length);
   for (const [index, member] of members.entries()) {
@@ -674,7 +674,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
         assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
         assert.equal(config.rules.at(-1), "MATCH,FINAL");
-        for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, undefined);
+        for (const group of profile.groups) assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, true);
         for (const name of ["AppleProxy", "AppleDirect"]) assert.ok(!config["proxy-groups"].some((group) => group.name === name), name);
         const icloud = config["proxy-groups"].find((group) => group.name === "iCloud");
         assert.deepEqual(icloud.proxies, ["DIRECT", "🇭🇰HK-IDC", "🇺🇸USA-ISP"]);
