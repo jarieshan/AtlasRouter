@@ -206,7 +206,7 @@ test("renders ordered smart groups with valid references and literal credential 
   assert.match(config, /^🇺🇸USA-ISP = smart, 🇺🇸 LosAngeles - ISP 2, 🇺🇸 LosAngeles - ISP 3, 🇺🇸 LosAngeles - ISP 1, policy-priority=/m);
   assert.match(config, /password=\$&\$1\$\$/);
   assert.match(config, /^FINAL,FINAL,dns-failed$/m);
-  assert.match(config, /\/AtlasRouter\/modules\/tencent-oa.sgmodule\?token=/);
+  assert.match(config, /^# Available modules:\n# - None$/m);
   assert.doesNotMatch(config, /{{|💎 Select/);
   assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${ICON_BASE}Auto.png`));
   assert.doesNotMatch(config, /^\[MITM\]$/m);

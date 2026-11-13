@@ -29,11 +29,10 @@ const checks = [
   unauthorizedRoute("subscription forged credentials ignored", POOL_SUBSCRIPTION_PATH, {
     authorization: "Bearer test-only", "cf-access-jwt-assertion": "bogus",
   }),
-  unauthorizedRoute("module without token", `${POOL_SUBSCRIPTION_PATH}/modules/tencent-oa.sgmodule`),
   ...[
     ["GET", "/admin"], ["GET", "/admin/config"], ["POST", "/admin/certificates"],
     ["GET", "/atlas"], ["GET", "/atlas/config"], ["GET", "/atlasrouter"], ["GET", "/atlas-router"],
-    ["GET", "/atlasrouter/modules/skip-proxy-lists.sgmodule"],
+    ["GET", "/atlasrouter/modules/skip-proxy-lists.sgmodule"], ["GET", "/AtlasRouter/modules/tencent-oa.sgmodule"],
     ["GET", "/AtlasRouter/rules/missing"],
     ["GET", "/AtlasRouter/subscription"], ["GET", "/AtlasRouter/account"], ["GET", "/AtlasRouter/admin"],
     ["GET", "/AtlasRouter/admin/pool"], ["GET", "/AtlasRouter/account/profile"], ["POST", "/AtlasRouter/account/token"],
