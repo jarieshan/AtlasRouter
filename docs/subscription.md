@@ -69,7 +69,7 @@ hijack-dns = 8.8.8.8:53, 8.8.4.4:53
 
 不带 `tencent_oa=1` 的订阅在下次更新后不再包含腾讯例外；需要时在页面打开该开关并重新复制链接。
 
-默认 `skip-proxy` 共 11 项：`127.0.0.1`、`localhost`、`*.local`、`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`169.254.0.0/16`，以及建行、农行、邮储和上海银行的 4 项域名例外。Tencent OA 名单共 33 项：先列出默认的 11 项（`10.0.0.0/8` 换成 `10.0.0.0/7`），再加 6 项公司 IP 网段和 16 项域名匹配。名单由 Worker 打包提供，不依赖外部规则站点；由于是整行替换，修改默认 `skip-proxy` 时须同步修改该名单，测试会检查名单内容、顺序、无重复并覆盖默认的每一项。`oa.com` 和 `woa.com` 各自保留根域名与 `*.` 子域名两项，其余 12 个域名使用 `*域名`，例如 `*tencentyun.com`、`*workbuddy.cn`；这种形式也会匹配其他以该字符串结尾的域名。`*qcloud.com` 已覆盖 `myqcloud.com` 及其子域名，因此不另列 `*myqcloud.com`。IP 清单将 `10.0.0.0/8` 与 `11.0.0.0/8` 等价合并为 `10.0.0.0/7`，将 `28.0.0.0/8` 与 `29.0.0.0/8` 等价合并为 `28.0.0.0/7`，其余条目保持原样，IP 整体覆盖范围不变。这些域名包含公网服务，并非全部为内网域名。现有 `exclude-simple-hostnames = true` 仍保留，不含点的简单主机名继续适用该设置。
+默认 `skip-proxy` 共 12 项：`127.0.0.1`、`localhost`、`*.local`、`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`100.64.0.0/10`、`169.254.0.0/16`，以及建行、农行、邮储和上海银行的 4 项域名例外。Tencent OA 名单共 34 项：先列出默认的 12 项（`10.0.0.0/8` 换成 `10.0.0.0/7`），再加 6 项公司 IP 网段和 16 项域名匹配。名单由 Worker 打包提供，不依赖外部规则站点；由于是整行替换，修改默认 `skip-proxy` 时须同步修改该名单，测试会检查名单内容、顺序、无重复并覆盖默认的每一项。`oa.com` 和 `woa.com` 各自保留根域名与 `*.` 子域名两项，其余 12 个域名使用 `*域名`，例如 `*tencentyun.com`、`*workbuddy.cn`；这种形式也会匹配其他以该字符串结尾的域名。`*qcloud.com` 已覆盖 `myqcloud.com` 及其子域名，因此不另列 `*myqcloud.com`。IP 清单将 `10.0.0.0/8` 与 `11.0.0.0/8` 等价合并为 `10.0.0.0/7`，将 `28.0.0.0/8` 与 `29.0.0.0/8` 等价合并为 `28.0.0.0/7`，其余条目保持原样，IP 整体覆盖范围不变。这些域名包含公网服务，并非全部为内网域名。现有 `exclude-simple-hostnames = true` 仍保留，不含点的简单主机名继续适用该设置。
 
 该选项只替换 `skip-proxy` 这一行，保留上述两个目标的 DNS 劫持配置，不追加 `[Host]`、域名或 IP 直连规则；DoH 是否开启仍由独立开关决定，原有 DNS 上游、SYSTEM、LAN、业务规则和最终兜底保持不变。腾讯专用的规则集和 Host 订阅入口已移除，请求返回 404。原 `skip-proxy-lists.sgmodule` 与默认 `skip-proxy` 内容完全相同，已删除。开关不会改变 D1 中的用户、节点和分配关系。
 
@@ -96,25 +96,11 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 master 与 develop 按地区/IP 类型生成带 `policy-priority` 的 Smart 组，成员依照每位用户的主节点、备用节点排列。正式与开发服务均配置 `SMART_PRIORITY_SCHEME=geometric-10-from-100`：主节点权重为 1，备用节点依次为 100、1000、10000…，ISP、WARP、IDC 组相同；受安全整数限制，每组最多 15 个节点，超过后订阅生成会报错。Clash 将这些组转换为相同主备次序的 fallback，间隔 300 秒。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL` 兜底规则。不生成 `[MITM]` 段。
 
-正式和开发订阅的兜底规则指向独立可见的手动选择组：`FINAL,FINAL,dns-failed`。`FINAL` 组选项按 Auto → Proxy → IDC → WARP → ISP → DIRECT 排列，地区/IP 类型分组内部保持现有地区顺序，缺少的类型跳过；不单独加入 `Tailnet Test`。首次使用默认 `Auto`。这里是手动选项顺序，不是故障自动回退顺序；客户端会保留仍有效的手动选择。Clash 对应可见的 `select` 组和 `MATCH,FINAL`。
+正式和开发订阅的兜底规则指向独立可见的手动选择组：`FINAL,FINAL,dns-failed`。`FINAL` 组选项按 Auto → Proxy → IDC → WARP → ISP → DIRECT 排列，地区/IP 类型分组内部保持现有地区顺序，缺少的类型跳过。首次使用默认 `Auto`。这里是手动选项顺序，不是故障自动回退顺序；客户端会保留仍有效的手动选择。Clash 对应可见的 `select` 组和 `MATCH,FINAL`。
 
 正式和开发订阅均提供独立可见的 `Speedtest` 手动选择组，选项按 IDC → WARP → ISP → DIRECT 排列，各类型内保持现有地区顺序，缺少的类型跳过；首次默认第一项（有 IDC 时选第一个 IDC 地区组）。使用 MagicRule 的 Speedtest 完整规则集，Surge 和 Clash 分别通过现有中转取得 Surge / Mihomo 原生列表，每 6 小时更新。规则位于 CustomDirect、Direct、Cloudflare、Netflix 和 China 之前，让已收录的测速域名及服务器统一进入 `Speedtest`。测速时使用规则模式并在此组选择出口；[全局代理模式不使用规则列表](https://manual.nssurge.com/rules/overview.html)，仍由全局选中的策略决定出口。
 
-可见的 `Auto` 使用 `smart, include-all-proxies=true`，包含当前订阅 `[Proxy]` 中的代理节点，不包含 `DIRECT` 或其他策略组；两分支均使用 `policy-regex-filter=^(?!Tailnet$).*` 排除仅用于访问 tailnet 的 `Tailnet` 策略；在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留；从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge [smart 组](https://manual.nssurge.com/policy-groups/smart.html)结合测速延迟、真实连接响应和丢包择优，并自动重试；它不是始终固定选择单次测速最低的节点。Clash 无等价 smart 类型，转换为每 300 秒测速、容差 50 毫秒的 `url-test`，输出注释说明差异：其他节点比当前节点快 50 毫秒以上才切换，避免延迟相近的节点随测速波动来回切换；当前节点测速失败时不受容差限制。地区/IP 类型组的主备顺序保持原样。
-
-正式和开发订阅默认提供 `Tailnet = tailscale, section-name=tailnet` 和 `[Tailscale tailnet]`，要求 Surge Mac 6.8.0+ / iOS 5.21.0+。Tailnet 不加入任何策略组，订阅也不再提供 `Tailscale` 入口分组。交互登录需要打开 Tailnet 的策略编辑器，需要时可临时加回 `Tailscale = select, Tailnet`，从策略组列表进入。`interactive-login = true` 只引用当前设备的登录状态，不会自动打开浏览器，也不会继承服务器或其他设备的认证；登录状态按 `tailnet` 段名保存在本机。参见 [Surge Tailscale 官方说明](https://manual.nssurge.com/policies/tailscale.html)。
-
-该策略启用 `auto-add-magic-dns-rule = true`，自动路由控制面下发的可见节点 IPv4/IPv6 地址及 MagicDNS 后缀，无需在仓库硬编码服务器 Tailscale IP、tailnet 域名或登录凭据；未设置子网路由。`exit-node = none`，并从 `Auto` 中排除，避免普通上网流量误选 Tailnet。默认配置及 Tencent OA 名单都不再将 `100.64.0.0/10` 放进 `skip-proxy`，让这些请求有机会交给 Surge；这不等于把整个网段都路由到 Tailnet。
-
-Dev 订阅节点使用测试节点池保存的公网地址、443 端口和原 TLS 设置，节点名称、地区/IP 类型组和出口保持原样。Surge 节点不再添加 `underlying-proxy=Tailnet`，Clash 节点不再添加 `dialer-proxy: Tailnet`，也不再生成 `Tailnet Test` 节点；遗留的 `TAILNET_ENDPOINTS` Secret 不会改变这一行为。`Auto`、各地区组和 `DoH Proxy` 都使用这些公网节点，普通代理流量不依赖 Tailnet 登录。
-
-Tailnet 策略继续用于 SSH 等私网管理访问。访问这些私网地址前，客户端仍需在同一 tailnet 登录并获得对应端口的访问权限；网页和管理面板的 Cloudflare 入口保持原样。
-
-Mac 终端 SSH 不使用系统 HTTP 代理，需开启 Surge 增强模式，或为 SSH 单独配置经过 Surge 的 SOCKS 连接，再用服务器的 Tailscale IPv4 或完整 MagicDNS 域名连接。关闭服务器公网管理端口前，应先从 Mac 验证 SSH 登录成功。
-
-Clash 将 Tailnet 和 `[Tailscale tailnet]` 转换为 Mihomo 的 `type: tailscale` 节点，保留上述 tailnet 域名规则，`Auto` 同样排除 Tailnet。这需要 Mihomo 1.19.25+ 且编译时包含 Tailscale 的内核（ProjectClash 的 macOS 和 iOS 版本均包含）；更早或不含 Tailscale 的内核无法识别该节点，会拒绝整份配置。订阅不含登录凭据：首次访问 tailnet 或对 Tailnet 测速时，内核在 info 级别日志输出 `To start this tsnet server, restart with TS_AUTHKEY set, or go to: <授权链接>`，在浏览器打开该链接完成授权即可。生成配置的 `log-level` 为 `warning`，但 ProjectClash 日志页默认按 info 显示实时日志。登录状态保存在客户端本地，ProjectClash 按配置和节点名区分，重新导入配置或 Tailnet 改名后需重新登录；设备在 tailnet 中默认以内核进程名注册，可在 Tailscale 管理后台改名。
-
-Mihomo 不能像 `auto-add-magic-dns-rule` 那样按控制面下发的节点逐个添加规则，转换时在所有规则之前加入 `IP-CIDR,100.64.0.0/10,Tailnet,no-resolve` 和 `IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve`，使 Tailscale IP 先于 LAN 直连规则匹配。代价是不属于 tailnet 的 `100.64.0.0/10` 地址也会进入 Tailnet 并连接失败，而 Surge 中这些地址按 LAN 规则直连。Tailscale 控制面、DERP 和点对点连接由内核直接发出，不经过规则，`controlplane.tailscale.com`、`login.tailscale.com` 规则只影响浏览器等其他流量。Tailnet 未设置出口节点，客户端按 `proxy-test-url` 对它测速会显示失败，不影响访问 tailnet。
+可见的 `Auto` 使用 `smart, include-all-proxies=true`，包含当前订阅 `[Proxy]` 中的所有节点，不包含 `DIRECT` 或其他策略组；在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留；从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge [smart 组](https://manual.nssurge.com/policy-groups/smart.html)结合测速延迟、真实连接响应和丢包择优，并自动重试；它不是始终固定选择单次测速最低的节点。Clash 无等价 smart 类型，转换为每 300 秒测速、容差 50 毫秒的 `url-test`，输出注释说明差异：其他节点比当前节点快 50 毫秒以上才切换，避免延迟相近的节点随测速波动来回切换；当前节点测速失败时不受容差限制。地区/IP 类型组的主备顺序保持原样。
 
 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨地区汇集，不包含 ISP、WARP、`DIRECT`、`REJECT` 或其他策略组。Surge 使用不带权重的 `smart`，Clash 使用 `url-test`（间隔 300 秒、容差 50 毫秒）。没有 IDC 节点时不输出空组，将原本指向该组的国外 DoH 规则改为 `REJECT`，国内 DNS 和其余订阅照常生成，避免 [Surge 空组自动替换为直连](https://manual.nssurge.com/policy-groups/overview.html)。Clash 过滤掉全部不兼容 IDC 节点时同样保留这些拒绝规则；只过滤部分节点时继续使用剩余 IDC。
 
