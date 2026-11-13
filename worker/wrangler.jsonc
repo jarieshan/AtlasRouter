@@ -12,7 +12,8 @@
   "keep_vars": true,
   "vars": {
     "UI_ENABLED": "true",
-    "SUBSCRIPTION_PATH": "/AtlasRouter"
+    "SUBSCRIPTION_PATH": "/AtlasRouter",
+    "SMART_PRIORITY_SCHEME": "geometric-10-from-100"
   },
   "routes": [
     {
