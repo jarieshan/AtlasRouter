@@ -6,7 +6,7 @@ master 使用 Smart 节点权重之前的稳定订阅实现；Dev 开关选择�
 
 | 项目 | master / 正式订阅 | develop / Dev 订阅 |
 | --- | --- | --- |
-| 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、10、100、1000…；Clash 为同顺序 fallback |
+| 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、100、1000、10000…；Clash 为同顺序 fallback |
 | 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy 和 AppleDirect |
 | Apple | iCloud → AppleDirect → AppleProxy，几乎全部直连，含 Apple TV+ | AppleTV → `GlobalMedia`、AppleIntelligence → `AIProxy` 先匹配；iCloud 可切换，默认直连；其余 Apple 服务直接 `DIRECT`（`[Host]` 指定国内 DNS） |
 | GlobalMedia 默认出口 | ISP → WARP → IDC，默认首个 ISP 组 | WARP → IDC → ISP，默认首个 WARP 组；仅接收 AppleTV、Netflix、Disney、Spotify、TIDAL、TikTok 6 份独立规则，已移除 GlobalMedia 聚合列表 |
@@ -16,7 +16,7 @@ master 使用 Smart 节点权重之前的稳定订阅实现；Dev 开关选择�
 | Auto | Surge Smart；Clash url-test，容差 0 | Surge Smart；Clash url-test，容差 50 ms |
 | UI | 默认管理正式数据 | 同一页面通过 Dev 开关管理独立测试数据 |
 | 订阅 | `/AtlasRouter`，正式 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
-| 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10`；ISP 组的备用节点从 100 起：1、100、1000、10000…，WARP、IDC 组为 1、10、100… |
+| 权重变量 | 不读取，遗留变量不改变生产行为 | `SMART_PRIORITY_SCHEME=geometric-10-from-100`；ISP、WARP、IDC 组的备用节点均从 100 起：1、100、1000、10000… |
 | Surge QUIC | `block-quic = all-proxy`，代理一律阻止 QUIC | 全局 `block-quic = per-policy`，节点默认 `auto`：Surge iOS 6.0.0+ / Mac 6.11.0+ 对支持 UDP 的代理使用 `adaptive`，不支持 UDP 的代理阻止，DIRECT 放行；`adaptive` 不能写在 `[General]` |
 | Clash 测速与 GEO 数据 | 健康检查接受任意状态码；未设置 `unified-delay`；不自动更新 GEO 数据；ASN 库使用 Mihomo 默认的 GitHub 地址 | `/generate_204` 测试地址要求 HTTP 204；`unified-delay: true`；GEO 数据每 168 小时更新，全部 GEO 文件从 jsDelivr 下载 |
 | Clash 多地址连接 | 未设置 `tcp-concurrent`，逐个尝试各地址，共用 5 秒期限 | `tcp-concurrent: true`，同时尝试全部地址 |

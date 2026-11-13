@@ -9,8 +9,9 @@
 | `DB`（D1 binding） | `atlas-router` 正式库 |
 | `UI_ENABLED`（变量） | `true` |
 | `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` |
+| `SMART_PRIORITY_SCHEME`（变量） | `geometric-10-from-100`：地区组权重 1、100、1000…，每组最多 15 个节点 |
 
-正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。开发管理请求使用 `/api/AtlasRouter-Dev/*`，读取测试库并生成 `/AtlasRouter-Dev` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务可设置 `SMART_PRIORITY_SCHEME=geometric-10`、`SHOW_ALL_PROXY_GROUPS=true`；正式分流行为保持独立。旧环境参数仅供已发出链接兼容，新页面不再生成。
+正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。开发管理请求使用 `/api/AtlasRouter-Dev/*`，读取测试库并生成 `/AtlasRouter-Dev` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务可设置 `SMART_PRIORITY_SCHEME=geometric-10-from-100`（与正式相同）、`SHOW_ALL_PROXY_GROUPS=true`；正式分流行为保持独立。旧环境参数仅供已发出链接兼容，新页面不再生成。
 
 开发服务直接使用测试节点池保存的公网地址、端口和 TLS 设置，节点 443 不再经 Tailnet 转接。`SUBSCRIPTION_VARIANT=development` 仍用于隔离开发服务和数据，不再切换节点传输通道；节点名称、用户分配及出口保持原样。客户端的 Tailnet 策略继续提供 SSH 等私网管理访问。
 
