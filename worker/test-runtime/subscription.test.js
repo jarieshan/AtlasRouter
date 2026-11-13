@@ -760,32 +760,34 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
   assert.equal((await request(mf, `${profile.subscriptionUrl}&client=clash&doh=1`)).status, 401);
 });
 
-test("Tencent OA exceptions ship in every Surge profile and legacy tencent_oa links keep token checks", async (t) => {
+test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token checks", async (t) => {
   const mf = await createRuntime(t);
   await save(mf);
   const profile = await account(mf);
   const before = await json(await request(mf, POOL_STATE_PATH, { subject: "admin" }));
-  const withoutManagedUrl = (value) => value.replace(/^#!MANAGED-CONFIG .*\n/m, "");
+  const withoutOverrides = (value) => value.replace(/^#!MANAGED-CONFIG .*\n/m, "").replace(/^skip-proxy = .*\n/m, "");
   for (const doh of ["0", "1"]) {
     let plain;
-    for (const tencentOa of [null, "1"]) {
+    for (const tencentOa of [null, "0", "1"]) {
       const response = await request(mf, `${profile.subscriptionUrl}&doh=${doh}${tencentOa === null ? "" : `&tencent_oa=${tencentOa}`}`);
       assert.equal(response.status, 200);
       const body = await response.text();
       const managed = new URL(body.match(/^#!MANAGED-CONFIG (\S+)/)[1]);
-      assert.equal(managed.searchParams.get("tencent_oa"), tencentOa);
+      assert.equal(managed.searchParams.get("tencent_oa"), tencentOa === "1" ? "1" : null);
       assert.equal(managed.searchParams.get("doh"), doh === "0" ? "0" : null);
       assert.equal(/^encrypted-dns-server =/m.test(body), doh === "1");
       assert.deepEqual(body.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
       assert.doesNotMatch(body, /TencentOA|10\.28\.0\.21|tencent-oa\.sgmodule/);
       assert.match(body, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
       const skip = body.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
-      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7",
-        "127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
+      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) {
+        assert.equal(skip.includes(value), tencentOa === "1", value);
+      }
+      for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
       assert.ok(!skip.includes("100.64.0.0/10"));
-      assert.ok(!skip.includes("10.0.0.0/8"));
-      if (tencentOa === null) plain = withoutManagedUrl(body);
-      else assert.equal(withoutManagedUrl(body), plain);
+      assert.equal(skip.includes("10.0.0.0/8"), tencentOa !== "1");
+      if (tencentOa === null) plain = withoutOverrides(body);
+      else assert.equal(withoutOverrides(body), plain);
     }
   }
   assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?tencent_oa=1`, { subject: "alice" })).status, 401);
