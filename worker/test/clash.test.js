@@ -20,7 +20,7 @@ const coinUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge
 const customAIUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
 const directUrl = magicRuleUrl("China", "surge", context.requestUrl);
 const mediaRules = ["Netflix", "Disney", "Spotify", "TIDAL", "TikTok"];
-const autoRules = ["Alphabet", "GitHub", "Wikimedia"];
+const generalSiteRules = ["Alphabet", "GitHub", "Wikimedia"];
 const iconBase = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
 const uuid = "11111111-2222-4333-8444-555555555555";
 const vmess = `vmess, vmess.example.com, 443, username=${uuid}, vmess-aead=true, tls=true`;
@@ -102,7 +102,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       assert.ok(rules.indexOf(speedtestRule) < rules.indexOf(`RULE-SET,${magicRuleUrl(name, "surge", context.requestUrl)},${policy},no-resolve,update-interval=21600`));
     }
     assert.deepEqual(rules.slice(-7), [
-      ...autoRules.map((name) => `RULE-SET,${magicRuleUrl(name, "surge", context.requestUrl)},Auto,no-resolve,update-interval=21600`),
+      ...generalSiteRules.map((name) => `RULE-SET,${magicRuleUrl(name, "surge", context.requestUrl)},GeneralSite,no-resolve,update-interval=21600`),
       "RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`, "GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
@@ -149,7 +149,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, true);
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).icon, undefined);
     }
-    const icons = { "Proxy": "Proxy", "FINAL": "Proxy", "Speedtest": "Speedtest", "AIProxy": "AI", "iCloud": "iCloud", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media", "OverseasFinance": "Cryptocurrency", "ISP First": "Global" };
+    const icons = { "Proxy": "Proxy", "FINAL": "Proxy", "Speedtest": "Speedtest", "AIProxy": "AI", "iCloud": "iCloud", "WeChat": "WeChat", "Telegram": "Telegram", "X": "X", "YouTube": "YouTube", "GlobalMedia": "Media", "OverseasFinance": "Cryptocurrency", "ISP First": "Global", "GeneralSite": "Area" };
     assert.deepEqual(config["proxy-groups"].filter((group) => group.type === "select").map((group) => group.name), Object.keys(icons));
     for (const [name, file] of Object.entries(icons)) assert.equal(config["proxy-groups"].find((group) => group.name === name)?.icon, `${iconBase}${file}.png`);
     for (const name of ["Proxy", "AIProxy", "X"]) {
@@ -183,6 +183,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(config.rules.includes(`RULE-SET,${coinSource.id},OverseasFinance,no-resolve`));
     assert.deepEqual(config["proxy-groups"].find((group) => group.name === "ISP First").proxies, ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC"]);
     for (const name of ["Facebook", "Threads", "Reddit", "Line"]) assert.ok(config.rules.includes(`RULE-SET,${name},ISP First,no-resolve`), name);
+    assert.deepEqual(config["proxy-groups"].find((group) => group.name === "GeneralSite").proxies, ["🇭🇰HK-IDC", "🇺🇸USA-ISP", "🇺🇸USA-WARP"]);
     const telegram = config["proxy-groups"].find((group) => group.name === "Telegram");
     assert.deepEqual(telegram.proxies, ["🇭🇰HK-IDC", "🇺🇸USA-WARP", "🇺🇸USA-ISP", "Proxy", "DIRECT"]);
     assert.ok(!telegram.hidden);
@@ -207,9 +208,9 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const resolvedLan = config.rules.indexOf("IP-CIDR,192.168.0.0/16,DIRECT");
     const directRule = config.rules.indexOf("RULE-SET,China,DIRECT,no-resolve");
     assert.ok(resolvedLan >= 0 && resolvedLan < directRule);
-    const autoIndexes = autoRules.map((name) => config.rules.indexOf(`RULE-SET,${name},Auto,no-resolve`));
-    assert.deepEqual(autoIndexes, [...autoIndexes].sort((a, b) => a - b));
-    assert.ok(config.rules.indexOf("RULE-SET,TikTok,GlobalMedia,no-resolve") < autoIndexes[0] && autoIndexes.at(-1) < resolvedLan);
+    const generalSiteIndexes = generalSiteRules.map((name) => config.rules.indexOf(`RULE-SET,${name},GeneralSite,no-resolve`));
+    assert.deepEqual(generalSiteIndexes, [...generalSiteIndexes].sort((a, b) => a - b));
+    assert.ok(config.rules.indexOf("RULE-SET,TikTok,GlobalMedia,no-resolve") < generalSiteIndexes[0] && generalSiteIndexes.at(-1) < resolvedLan);
     assert.ok(config.rules.includes(`RULE-SET,${customRejectSource.id},REJECT,no-resolve`));
     assert.ok(config.rules.includes(`RULE-SET,${redPocketSource.id},🇺🇸USA-ISP,no-resolve`));
     assert.equal(config["proxy-groups"][0].timeout, 5000);
@@ -262,7 +263,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, redPocketSource.id, "Speedtest", customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", "Perplexity", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise", "Facebook", "Threads", "Reddit", "Line", ...mediaRules, ...autoRules, "China"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, redPocketSource.id, "Speedtest", customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", "Perplexity", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise", "Facebook", "Threads", "Reddit", "Line", ...mediaRules, ...generalSiteRules, "China"]);
     for (const id of ["Cloudflare", "Grok", "Cursor", "Perplexity", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
     assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|Apple),/.test(rule)), [
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
