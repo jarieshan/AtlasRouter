@@ -94,7 +94,7 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 生成内容中的 `#!MANAGED-CONFIG` 和模块 URL 使用正式域名及 `/AtlasRouter` 路径。它们只接受订阅 `token`，不能用浏览器登录身份代替。修改模板不会改变个人 token；用户重置后，旧 token 同时失去订阅和模块访问权。
 
-master 与 develop 按地区/IP 类型生成带 `policy-priority` 的 Smart 组，成员依照每位用户的主节点、备用节点排列。正式与开发服务均配置 `SMART_PRIORITY_SCHEME=geometric-10-from-100`：主节点权重为 1，备用节点依次为 100、1000、10000…，ISP、WARP、IDC 组相同；受安全整数限制，每组最多 15 个节点，超过后订阅生成会报错。Clash 将这些组转换为相同主备次序的 fallback，间隔 300 秒。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL` 兜底规则。不生成 `[MITM]` 段。
+master 与 develop 按地区/IP 类型生成带 `policy-priority` 的 Smart 组，成员依照每位用户的主节点、备用节点排列。正式与开发服务均配置 `SMART_PRIORITY_SCHEME=geometric-10-from-10000`：主节点权重为 1，备用节点依次为 10000、100000、1000000…，ISP、WARP、IDC 组相同；受安全整数限制，每组最多 13 个节点，超过后订阅生成会报错。Clash 将这些组转换为相同主备次序的 fallback，间隔 300 秒。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL` 兜底规则。不生成 `[MITM]` 段。
 
 正式和开发订阅的兜底规则指向独立可见的手动选择组：`FINAL,FINAL,dns-failed`。`FINAL` 组选项按 Auto → Proxy → IDC → WARP → ISP → DIRECT 排列，地区/IP 类型分组内部保持现有地区顺序，缺少的类型跳过。首次使用默认 `Auto`。这里是手动选项顺序，不是故障自动回退顺序；客户端会保留仍有效的手动选择。Clash 对应可见的 `select` 组和 `MATCH,FINAL`。
 
