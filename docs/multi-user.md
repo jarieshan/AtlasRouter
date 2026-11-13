@@ -78,7 +78,7 @@ VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、�
 
 `YouTube` 使用可见的独立策略组和品牌 Logo，选项按 WARP → IDC → ISP 排列，缺少某类节点时跳过，只列出当前可用的地区/IP 类型组。YouTube 规则在 Netflix 等影音规则之前匹配，使用 MagicRule 的原生 Surge / Mihomo 完整规则。develop 的 GlobalMedia 策略组仅接收所选 6 项服务的独立清单，不再引用同名聚合列表；完整列表见[影音规则说明](subscription.md#影音音乐和直播规则develop)。
 
-地区组定义按地区、IP 类型顺序输出。master 设置 `hidden=true`，仅隐藏客户端主面板中的独立分组；更新订阅后可展开查看各组节点。保留其他策略中的地区组选项，账户网页和管理员页面继续展示节点分配。各组内部的主节点与备用顺序不受影响。Surge 的 [`select` 组](https://manual.nssurge.com/policy-groups/select.html)会保存已有选择，更新订阅不会强制重置已选策略。iCloud 的 DIRECT → IDC → WARP → ISP 是手动选项顺序，组内节点由 Surge / Clash 的同顺序 fallback 选择。
+地区组定义按地区、IP 类型顺序输出。master 为 WARP、IDC 地区组设置 `hidden=true`，仅隐藏客户端主面板中的独立分组，ISP 地区组保持可见；更新订阅后可展开查看各组节点。保留其他策略中的地区组选项，账户网页和管理员页面继续展示节点分配。各组内部的主节点与备用顺序不受影响。Surge 的 [`select` 组](https://manual.nssurge.com/policy-groups/select.html)会保存已有选择，更新订阅不会强制重置已选策略。iCloud 的 DIRECT → IDC → WARP → ISP 是手动选项顺序，组内节点由 Surge / Clash 的同顺序 fallback 选择。
 
 `[Proxy]` 中的节点行也先按上述国家/地区顺序、再按 ISP → WARP → IDC 输出；同一地区、同一 IP 类型的节点保持原有相对顺序，不改变策略组的主备关系。
 
