@@ -14,7 +14,7 @@
 
 - 地区/IP 类型组在 Surge 中使用 Smart 和 `policy-priority`，保留个人主备次序；Clash 按相同次序转换为 300 秒的 fallback。正式与开发服务均配置 `SMART_PRIORITY_SCHEME=geometric-10-from-100`，ISP、WARP、IDC 组的权重都是 1、100、1000…；每组最多 15 个节点，超过后订阅生成失败。
 - Auto 为全节点 Smart，排除 Tailnet；Clash 近似为容差 50 ms 的 url-test。FINAL 为可见的 select：Auto → Proxy → IDC → WARP → ISP → DIRECT。Speedtest 使用 MagicRule，select 顺序为 IDC → WARP → ISP → DIRECT。
-- 合入 OverseasFinance、ISP First、RedPocket、Apple/AI/影音独立规则、IDC 专用 DoH 组及 Clash DNS、测速和多地址连接适配。地区与业务组可见；正式部署按模板隐藏 DoH Proxy，开发服务的 `SHOW_ALL_PROXY_GROUPS=true` 显示全部组。
+- 合入 OverseasFinance、ISP First、RedPocket、Apple/AI/影音独立规则、IDC 专用 DoH 组及 Clash DNS、测速和多地址连接适配。业务组可见；正式部署隐藏地区组和 DoH Proxy，开发服务的 `SHOW_ALL_PROXY_GROUPS=true` 显示全部组。
 - 正式仓库规则集固定引用 `@master`，开发服务保留 `@develop`；MagicRule 的 39 类规则使用各客户端原生产物及最后有效副本。正式 Cron 每 5 分钟检查一份，共 78 份约 6 小时 30 分钟一轮。
 - 使用各自节点池保存的公网节点，Tailnet 用于私网管理。保留两库、个人 token、节点分配和 Access/Tunnel 配置；本次只发布正式 Worker。
 

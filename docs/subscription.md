@@ -140,7 +140,7 @@ RedPocket 使用本仓库的 [`RedPocket.list`](../surge/rule-sets/RedPocket.lis
 
 券商规则之后、WeChat 之前是 MagicRule 的 `Direct` 列表。它是 MagicRule 的直连白名单，收录 PT 站、路由器与 NAS 管理域名、私有网段的反向解析域名、学术数据库和 Windows 更新等，另含 36 条 `PROCESS-NAME`（BT 下载工具、其他代理客户端、`cloudflared`、`tailscaled`、远程桌面等，仅在支持进程规则的客户端上生效）。它排在 AI、Apple 等规则集之前，因此这些进程的流量一律直连，例如 `cloudflared` 连接 Cloudflare 时不再按 Cloudflare 列表进入 AIProxy。
 
-正式和开发订阅的地区/IP 类型组均可见，也可作为其他策略组的选项。正式按模板隐藏 `DoH Proxy`；私有开发服务启用 `SHOW_ALL_PROXY_GROUPS`，显示全部策略组。账户网页和管理员节点清单继续展示分配信息。Apple 只保留 `iCloud` 一个可见分组，首项为 `DIRECT`，其余选项先按 IDC → WARP → ISP，再按地区顺序排列；其余 Apple 服务由 Apple 完整规则直接走 `DIRECT`。这里的顺序是手动选择项顺序，不是 DIRECT 失败后的自动切换顺序；客户端已有且仍有效的手动选择可能被保留。
+地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中的独立分组，仍可作为其他策略组的选项。正式订阅同时隐藏 `DoH Proxy`；私有开发服务启用 `SHOW_ALL_PROXY_GROUPS`，显示全部策略组。账户网页和管理员节点清单继续展示分配信息。Apple 只保留 `iCloud` 一个可见分组，首项为 `DIRECT`，其余选项先按 IDC → WARP → ISP，再按地区顺序排列；其余 Apple 服务由 Apple 完整规则直接走 `DIRECT`。这里的顺序是手动选择项顺序，不是 DIRECT 失败后的自动切换顺序；客户端已有且仍有效的手动选择可能被保留。
 
 模板支持在 `[Rule]` 的 `RULE-SET` / `DOMAIN-SET` 行上追加 `hidden=true` 或 `hidden=false`，作为 AtlasRouter 对所引用策略组的显示设置。生成时会移除规则行的该参数，将其应用到对应 `[Proxy Group]` 定义，再转换为 Clash 的 `hidden` 属性；规则、策略引用和匹配顺序保持有效。`hidden=false` 会移除组上的隐藏参数，使用默认可见行为。源码中的 `SHOW_ALL_PROXY_GROUPS` 可覆盖逐组显示设置，但正式部署未启用此选项。此写法不是 Surge 原生规则参数；原生 `hidden` 属于[策略组参数](https://manual.nssurge.com/policy-groups/parameters.html#hidden)。同一组被多条规则引用时，未标记的规则不覆盖显式设置，多个显式设置必须一致；不能用于 `DIRECT`、`REJECT` 或不存在的组。
 
