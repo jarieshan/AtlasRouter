@@ -314,6 +314,10 @@ function accountPanel(preview, { development, developmentAvailable }) {
             <span class="setting-text"><span>启用 DoH</span><span>加密 DNS 查询，降低窃听和篡改风险；可能增加解析延迟。</span></span>
             <input id="enable-doh" type="checkbox" role="switch" checked>
           </label>
+          <label class="setting" for="enable-tencent-oa">
+            <span class="setting-text"><span>Tencent OA Compatibility</span><span id="tencent-oa-help">腾讯公司内网用：Surge Mac 仅开启系统代理、关闭增强模式时使用；iOA 需设置为全局模式。</span></span>
+            <input id="enable-tencent-oa" type="checkbox" role="switch" aria-describedby="tencent-oa-help">
+          </label>
           ${developmentAvailable ? `<label class="setting" for="enable-dev">
             <span class="setting-text"><span>Dev</span><span>使用独立测试节点和开发版配置；切换后请更新客户端中的订阅链接。</span></span>
             <input id="enable-dev" type="checkbox" role="switch"${development ? " checked" : ""}>
@@ -345,27 +349,36 @@ function accountPanel(preview, { development, developmentAvailable }) {
     const rotate = root.querySelector("#rotate");
     const client = root.querySelector("#subscription-client");
     const doh = root.querySelector("#enable-doh");
+    const tencentOa = root.querySelector("#enable-tencent-oa");
     const development = root.querySelector("#enable-dev");
     let baseSubscriptionUrl;
     if (!previewData) {
       const params = new URL(location.href).searchParams;
       if (["surge", "clash"].includes(params.get("client"))) client.value = params.get("client");
       doh.checked = params.get("doh") !== "0";
+      tencentOa.checked = params.get("tencent_oa") === "1";
     }
     function updateSubscription() {
       root.querySelector("#client-help").textContent = client.value === "clash"
         ? "在使用 Mihomo（Clash Meta）内核的客户端中添加订阅。不兼容的 Surge 配置项会被跳过。"
         : "在 Surge 中通过 URL 安装配置。";
+      tencentOa.disabled = client.value !== "surge";
+      root.querySelector("#tencent-oa-help").textContent = tencentOa.disabled
+        ? "仅适用于 Surge；切回 Surge 后可启用腾讯公司内网兼容。"
+        : "腾讯公司内网用：Surge Mac 仅开启系统代理、关闭增强模式时使用；iOA 需设置为全局模式。";
       if (!baseSubscriptionUrl) return;
       const url = new URL(baseSubscriptionUrl);
       url.searchParams.delete("client");
       url.searchParams.delete("doh");
+      url.searchParams.delete("tencent_oa");
       if (client.value === "clash") url.searchParams.set("client", "clash");
       if (!doh.checked) url.searchParams.set("doh", "0");
+      if (tencentOa.checked && !tencentOa.disabled) url.searchParams.set("tencent_oa", "1");
       subscription.value = url.toString();
     }
     client.onchange = updateSubscription;
     doh.onchange = updateSubscription;
+    tencentOa.onchange = updateSubscription;
     if (development) development.onchange = async () => {
       const previous = pageState.development;
       const selected = development.checked;
@@ -392,8 +405,10 @@ function accountPanel(preview, { development, developmentAvailable }) {
         url.searchParams.delete("environment");
         url.searchParams.delete("client");
         url.searchParams.delete("doh");
+        url.searchParams.delete("tencent_oa");
         if (client.value === "clash") url.searchParams.set("client", "clash");
         if (!doh.checked) url.searchParams.set("doh", "0");
+        if (tencentOa.checked && !tencentOa.disabled) url.searchParams.set("tencent_oa", "1");
         history.replaceState(null, "", url);
         pageState.development = selected;
         development.checked = selected;

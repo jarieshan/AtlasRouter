@@ -6,7 +6,7 @@ Cloudflare Access 负责 Google OAuth 登录，Worker 校验 Access JWT 的签�
 
 首次访问用户 API 自动创建账号和 256 位随机订阅 token。用户在域名根路径 `/` 复制 `/AtlasRouter?token=<token>` 链接，也可重置链接；旧 token 立即失效。管理员停用用户时撤销其链接并释放分配，再启用时生成新凭据。用户 API 只返回本人的邮箱、链接、节点名称及顺序；管理员 API 不返回用户订阅 token。
 
-页面“自定义选项”默认启用 DoH，可关闭 DoH 或将 Client 从默认 Surge 切换为 Clash。非默认选项写入订阅 URL 的 `doh=0`、`client=clash` 参数，两种格式共用同一 token 和分配结果。Clash 从完整 Surge 配置派生，省略不兼容内容；具体边界见 [订阅说明](subscription.md)。
+页面“自定义选项”默认启用 DoH，可关闭 DoH、将 Client 从默认 Surge 切换为 Clash，或为 Surge 打开 Tencent OA Compatibility。非默认选项写入订阅 URL 的 `doh=0`、`client=clash`、`tencent_oa=1` 参数，两种格式共用同一 token 和分配结果。Clash 从完整 Surge 配置派生，省略不兼容内容；具体边界见 [订阅说明](subscription.md)。
 
 普通用户和管理员使用同一个网页 URL `/`。管理员邮箱命中 `ADMIN_EMAILS` 时，页面额外包含节点池和用户管理区域；普通用户收到的 HTML 不包含这些区域及管理脚本。管理 API 使用 `ADMIN_API_SLUG` Secret 组成随机前缀，只注入已核验的管理员 HTML，且每次调用都独立校验权限；角色不能通过查询参数或前端修改获得。网页和所有个人、管理 API 共用一个 Access application。
 
@@ -16,7 +16,7 @@ Surge 不能进行交互式 Google 登录，因此订阅入口使用独立 token
 
 测试身份通过 Cloudflare Access 登录后，从普通首页自动进入页面预览。服务端只读查询 D1 中已启用节点的 ID、名称和分组，不读取节点连接凭据、其他用户或分配记录。页面按节点录入顺序展示每组的预览主备顺序，首个节点仅作为展示用的主节点，不代表真实归属；刷新页面会读取最新节点，节点池为空时显示空状态。
 
-Client、DoH、复制和重置链接在当前页面内存中模拟，不请求正式数据 API，不新增 Cookie，也不使用 localStorage、sessionStorage 或 IndexedDB。重新加载整个页面即重置这些操作，并重新读取节点。预览不会进入正式用户人数、节点归属、分配次数或其他持久化统计；`preview.invalid` 示例链接不能订阅实际节点。
+Client、DoH、Tencent OA、复制和重置链接在当前页面内存中模拟，不请求正式数据 API，不新增 Cookie，也不使用 localStorage、sessionStorage 或 IndexedDB。重新加载整个页面即重置这些操作，并重新读取节点。预览不会进入正式用户人数、节点归属、分配次数或其他持久化统计；`preview.invalid` 示例链接不能订阅实际节点。
 
 在 `PREVIEW_EMAIL_HASHES` Secret 配置测试邮箱规范化后的 SHA-256 摘要。普通首页、个人资料和重置链接 API 都在访问 D1 前识别测试身份，并使用只读节点查询；测试身份不注册正式用户、不参与分配，也不能调用管理 API。已经签发的正式订阅 token 会被拒绝。服务端仅保存识别摘要，不写入测试账号、节点变更、操作或统计，页面不含真实测试邮箱。
 
@@ -43,7 +43,7 @@ master 的 Surge / Clash 都使用顺序 `fallback`，按个人主备次序选�
 
 ## 节点命名与管理
 
-Dev 开关在当前页面加载账户和节点池，用户启停与 Token 重置均作用于当前选中的独立数据库。开发 API 使用 `/api/AtlasRouter-Dev/*`，订阅使用 `/AtlasRouter-Dev`。两库不自动同步；“重置为生产节点”入口不恢复。切换环境保留 Client 与 DoH 选择，加载失败保持原环境，有未保存编辑时先确认；订阅客户端需要更新为当前环境的链接。
+Dev 开关在当前页面加载账户和节点池，用户启停与 Token 重置均作用于当前选中的独立数据库。开发 API 使用 `/api/AtlasRouter-Dev/*`，订阅使用 `/AtlasRouter-Dev`。两库不自动同步；“重置为生产节点”入口不恢复。切换环境保留 Client、DoH 与 Tencent OA 选择，加载失败保持原环境，有未保存编辑时先确认；订阅客户端需要更新为当前环境的链接。
 
 管理员在根路径 `/` 网页的节点池区域按行粘贴 HTTPS 订阅链接、`vmess://` 链接或完整 Surge 节点，点击“转换并加入待保存清单”后核对，再点击“保存并分配”。订阅支持明文或 Base64 编码的 VMess 节点列表，也可读取 Surge 的 `[Proxy]` 节点；不会导入远程规则或策略组。旧页面、API 和手动订阅入口均已停用，统一使用当前根路径。示例使用保留域名和占位密码：
 

@@ -14,7 +14,7 @@ function element(tagName) {
 
 async function openPage({ respond = () => null, confirm = () => true } = {}) {
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
-  const account = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const account = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   const pool = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
   account.get("#subscription-client").value = "surge";
   const notice = { hidden: true };
