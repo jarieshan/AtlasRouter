@@ -102,7 +102,7 @@ master 与 develop 按地区/IP 类型生成带 `policy-priority` 的 Smart 组�
 
 可见的 `Auto` 使用 `smart, include-all-proxies=true`，包含当前订阅 `[Proxy]` 中的代理节点，不包含 `DIRECT` 或其他策略组；两分支均使用 `policy-regex-filter=^(?!Tailnet$).*` 排除仅用于访问 tailnet 的 `Tailnet` 策略；在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留；从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge [smart 组](https://manual.nssurge.com/policy-groups/smart.html)结合测速延迟、真实连接响应和丢包择优，并自动重试；它不是始终固定选择单次测速最低的节点。Clash 无等价 smart 类型，转换为每 300 秒测速、容差 50 毫秒的 `url-test`，输出注释说明差异：其他节点比当前节点快 50 毫秒以上才切换，避免延迟相近的节点随测速波动来回切换；当前节点测速失败时不受容差限制。地区/IP 类型组的主备顺序保持原样。
 
-正式和开发订阅默认提供 `Tailnet = tailscale, section-name=tailnet` 和 `[Tailscale tailnet]`，要求 Surge Mac 6.8.0+ / iOS 5.21.0+。另有可见策略组 `Tailscale = select, Tailnet`，方便在策略组列表找到 Tailnet；它不加入普通上网策略组。在策略组列表找到 Tailscale，展开查看 Tailnet，再打开 Tailnet 的策略编辑器完成交互登录。`interactive-login = true` 只引用当前设备的登录状态，不会自动打开浏览器，也不会继承服务器或其他设备的认证；登录状态按 `tailnet` 段名保存在本机。参见 [Surge Tailscale 官方说明](https://manual.nssurge.com/policies/tailscale.html)。
+正式和开发订阅默认提供 `Tailnet = tailscale, section-name=tailnet` 和 `[Tailscale tailnet]`，要求 Surge Mac 6.8.0+ / iOS 5.21.0+。Tailnet 不加入任何策略组，订阅也不再提供 `Tailscale` 入口分组。交互登录需要打开 Tailnet 的策略编辑器，需要时可临时加回 `Tailscale = select, Tailnet`，从策略组列表进入。`interactive-login = true` 只引用当前设备的登录状态，不会自动打开浏览器，也不会继承服务器或其他设备的认证；登录状态按 `tailnet` 段名保存在本机。参见 [Surge Tailscale 官方说明](https://manual.nssurge.com/policies/tailscale.html)。
 
 该策略启用 `auto-add-magic-dns-rule = true`，自动路由控制面下发的可见节点 IPv4/IPv6 地址及 MagicDNS 后缀，无需在仓库硬编码服务器 Tailscale IP、tailnet 域名或登录凭据；未设置子网路由。`exit-node = none`，并从 `Auto` 中排除，避免普通上网流量误选 Tailnet。默认配置不再将 `100.64.0.0/10` 放进 `skip-proxy`，让这些请求有机会交给 Surge；这不等于把整个网段都路由到 Tailnet。
 
@@ -112,7 +112,7 @@ Tailnet 策略继续用于 SSH 等私网管理访问。访问这些私网地址�
 
 Mac 终端 SSH 不使用系统 HTTP 代理，需开启 Surge 增强模式，或为 SSH 单独配置经过 Surge 的 SOCKS 连接，再用服务器的 Tailscale IPv4 或完整 MagicDNS 域名连接。关闭服务器公网管理端口前，应先从 Mac 验证 SSH 登录成功。
 
-Clash 将 Tailnet 和 `[Tailscale tailnet]` 转换为 Mihomo 的 `type: tailscale` 节点，保留 `Tailscale` 策略组和上述 tailnet 域名规则，`Auto` 同样排除 Tailnet。这需要 Mihomo 1.19.25+ 且编译时包含 Tailscale 的内核（ProjectClash 的 macOS 和 iOS 版本均包含）；更早或不含 Tailscale 的内核无法识别该节点，会拒绝整份配置。订阅不含登录凭据：首次访问 tailnet 或对 Tailnet 测速时，内核在 info 级别日志输出 `To start this tsnet server, restart with TS_AUTHKEY set, or go to: <授权链接>`，在浏览器打开该链接完成授权即可。生成配置的 `log-level` 为 `warning`，但 ProjectClash 日志页默认按 info 显示实时日志。登录状态保存在客户端本地，ProjectClash 按配置和节点名区分，重新导入配置或 Tailnet 改名后需重新登录；设备在 tailnet 中默认以内核进程名注册，可在 Tailscale 管理后台改名。
+Clash 将 Tailnet 和 `[Tailscale tailnet]` 转换为 Mihomo 的 `type: tailscale` 节点，保留上述 tailnet 域名规则，`Auto` 同样排除 Tailnet。这需要 Mihomo 1.19.25+ 且编译时包含 Tailscale 的内核（ProjectClash 的 macOS 和 iOS 版本均包含）；更早或不含 Tailscale 的内核无法识别该节点，会拒绝整份配置。订阅不含登录凭据：首次访问 tailnet 或对 Tailnet 测速时，内核在 info 级别日志输出 `To start this tsnet server, restart with TS_AUTHKEY set, or go to: <授权链接>`，在浏览器打开该链接完成授权即可。生成配置的 `log-level` 为 `warning`，但 ProjectClash 日志页默认按 info 显示实时日志。登录状态保存在客户端本地，ProjectClash 按配置和节点名区分，重新导入配置或 Tailnet 改名后需重新登录；设备在 tailnet 中默认以内核进程名注册，可在 Tailscale 管理后台改名。
 
 Mihomo 不能像 `auto-add-magic-dns-rule` 那样按控制面下发的节点逐个添加规则，转换时在所有规则之前加入 `IP-CIDR,100.64.0.0/10,Tailnet,no-resolve` 和 `IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve`，使 Tailscale IP 先于 LAN 直连规则匹配。代价是不属于 tailnet 的 `100.64.0.0/10` 地址也会进入 Tailnet 并连接失败，而 Surge 中这些地址按 LAN 规则直连。Tailscale 控制面、DERP 和点对点连接由内核直接发出，不经过规则，`controlplane.tailscale.com`、`login.tailscale.com` 规则只影响浏览器等其他流量。Tailnet 未设置出口节点，客户端按 `proxy-test-url` 对它测速会显示失败，不影响访问 tailnet。
 
