@@ -382,7 +382,7 @@ test("explicit rendering options preserve protocol behavior across visibility an
     { vars: deployment.vars, origin: "https://atlas.example", token: `ar_${"a".repeat(64)}` },
     { vars: { ...deployment.vars, SMART_PRIORITY_SCHEME: "geometric-10", SHOW_ALL_PROXY_GROUPS: "true" }, origin: "https://atlas.example", token: `ar_${"b".repeat(64)}` },
   ];
-  assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME, "geometric-10-from-100");
+  assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME, "geometric-10-from-10000");
   assert.equal(environments[1].vars.SMART_PRIORITY_SCHEME, "geometric-10");
   assert.equal(environments[0].vars.SHOW_ALL_PROXY_GROUPS, undefined);
   assert.equal(environments[1].vars.SHOW_ALL_PROXY_GROUPS, "true");
@@ -575,7 +575,7 @@ test("geometric-10 starts ISP backups at 100 while WARP and IDC keep tenfold ste
   }
 });
 
-test("production and development start every regional Smart backup at 100", async () => {
+test("production and development start every regional Smart backup at 10000", async () => {
   const state = { nodes: parsePoolNodes(["ISP", "WARP", "IDC"].flatMap((type) => [1, 2, 3].map((number) => ({
     id: `${type}-${number}`, line: `🇺🇸 US ${type} ${number} = ${vmess}`,
   })))), users: [{ id: "user", enabled: true }] };
@@ -588,7 +588,7 @@ test("production and development start every regional Smart backup at 100", asyn
     for (const name of ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇺🇸USA-IDC"]) {
       const weights = source.split("\n").find((line) => line.startsWith(`${name} = smart, `))
         .match(/policy-priority="([^"]*)"/)[1].split(";").map((entry) => Number(entry.split(":").at(-1)));
-      assert.deepEqual(weights, [1, 100, 1000], `${file} ${name}`);
+      assert.deepEqual(weights, [1, 10000, 100000], `${file} ${name}`);
       assert.equal(config["proxy-groups"].find((group) => group.name === name)?.type, "fallback", `${file} ${name}`);
     }
   }
@@ -604,6 +604,10 @@ test("tenfold smart priorities stay within safe integers and reject larger group
   assert.deepEqual(ispWeights.slice(0, 4).map((entry) => entry.split(":")[1]), ["1", "100", "1000", "10000"]);
   assert.equal(ispWeights.at(-1), "^node-14$:1000000000000000");
   assert.throws(() => orderedSmartPriority(names.slice(0, 16), "geometric-10-from-100"), /Smart priority exceeds the supported range/);
+  const backupWeights = orderedSmartPriority(names.slice(0, 13), "geometric-10-from-10000").split(";");
+  assert.deepEqual(backupWeights.slice(0, 4).map((entry) => entry.split(":")[1]), ["1", "10000", "100000", "1000000"]);
+  assert.equal(backupWeights.at(-1), "^node-12$:1000000000000000");
+  assert.throws(() => orderedSmartPriority(names.slice(0, 14), "geometric-10-from-10000"), /Smart priority exceeds the supported range/);
 });
 
 test("ordered smart conversion skips unsupported nodes without changing order and rejects other weight formats safely", async () => {

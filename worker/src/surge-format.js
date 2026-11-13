@@ -73,6 +73,7 @@ const SMART_PRIORITY_WEIGHTS = {
   "geometric-3": (index) => 3 ** index,
   "geometric-10": (index) => 10 ** index,
   "geometric-10-from-100": (index) => (index ? 10 ** (index + 1) : 1),
+  "geometric-10-from-10000": (index) => (index ? 10 ** (index + 3) : 1),
 };
 export const SMART_PRIORITY_SCHEMES = Object.keys(SMART_PRIORITY_WEIGHTS);
 

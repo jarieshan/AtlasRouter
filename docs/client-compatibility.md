@@ -7,7 +7,7 @@
 | 项目 | master / 正式订阅 | develop / Dev 订阅 |
 | --- | --- | --- |
 | 订阅与数据 | `/AtlasRouter`，正式 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
-| 地区组权重 | Surge Smart，`geometric-10-from-100`：ISP、WARP、IDC 均为 1、100、1000…；Clash 同顺序 fallback | 同左 |
+| 地区组权重 | Surge Smart，`geometric-10-from-10000`：ISP、WARP、IDC 均为 1、10000、100000…；Clash 同顺序 fallback | 同左 |
 | 策略组显示 | 业务组和 ISP 地区组可见，WARP / IDC 地区组和 DoH Proxy 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有组可见 |
 | 仓库规则资源 | jsDelivr `@master` | jsDelivr `@develop` |
 | MagicRule | 39 类、78 份客户端产物；启用定时检查 | 同一规则基线，不运行 Cron |

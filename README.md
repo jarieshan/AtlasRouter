@@ -95,7 +95,7 @@ npm run check:live-security -- https://<worker-domain>
 
 ## Surge 配置约定
 
-- master 已合入 develop 的订阅实现。`surge/pool-groups.conf` 按个人主备次序生成地区/IP 类型 Smart 组，Clash 转为同顺序 fallback、间隔 300 秒；正式与开发服务均配置 `geometric-10-from-100`，各组权重为 1、100、1000…，详见 [生产基线](docs/production-baseline.md)。
+- master 已合入 develop 的订阅实现。`surge/pool-groups.conf` 按个人主备次序生成地区/IP 类型 Smart 组，Clash 转为同顺序 fallback、间隔 300 秒；正式与开发服务均配置 `geometric-10-from-10000`，各组权重为 1、10000、100000…，详见 [生产基线](docs/production-baseline.md)。
 - `[Rule]` 负责流量匹配，规则按文件顺序从上到下匹配，并以 `FINAL` 规则兜底。
 - 外部策略可通过 `policy-path` 引入，区域筛选可用 `policy-regex-filter`。
 - 模块文件用于对主配置做局部覆盖或追加，不应承担主配置无法解释的大段逻辑。
