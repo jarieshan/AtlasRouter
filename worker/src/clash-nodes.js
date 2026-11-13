@@ -81,31 +81,6 @@ export function convertClashNode(line, warn = () => {}) {
   return node;
 }
 
-// Surge keeps tailnet settings in [Tailscale <section-name>]; Mihomo embeds them in the proxy.
-export function convertClashTailscale(line, sections, warn = () => {}) {
-  const [name, value] = surgeAssignment(line);
-  const [protocol, ...params] = splitSurgeList(value);
-  if (protocol?.toLowerCase() !== "tailscale") throw new Error("Unsupported protocol");
-  const options = surgeOptions(params);
-  omitTestOverrides(options, warn);
-  const section = `tailscale ${options.get("section-name")?.toLowerCase()}`;
-  options.delete("section-name");
-  // Surge sends only DERP through underlying-proxy and control traffic through rules; Mihomo's dialer-proxy would carry both.
-  if (!sections.has(section) || options.size) throw new Error("Unsupported Tailscale policy");
-  const settings = surgeOptions(sections.get(section));
-  const take = (key, fallback) => { const result = settings.has(key) ? settings.get(key) : fallback; settings.delete(key); return result; };
-  const node = { name, type: "tailscale", udp: true };
-  const authKey = take("auth-key");
-  if (surgeBoolean(take("interactive-login", "false")) === Boolean(authKey)) throw new Error("Tailscale requires one login method");
-  if (authKey) node["auth-key"] = authKey;
-  const hostname = take("hostname");
-  if (hostname) node.hostname = hostname;
-  if (take("exit-node", "none").toLowerCase() !== "none") throw new Error("Unsupported exit node");
-  const autoRoute = surgeBoolean(take("auto-add-magic-dns-rule", "true"));
-  if (settings.size) throw new Error("Unsupported Tailscale settings");
-  return { node, section, autoRoute, interactive: !authKey };
-}
-
 function omitTestOverrides(options, warn) {
   // Mihomo tests at group level; do not silently discard per-policy overrides.
   for (const key of ["test-url", "test-timeout"]) {

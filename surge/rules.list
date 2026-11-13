@@ -1,11 +1,3 @@
-# Tailnet hostnames must take precedence over the built-in LAN ranges.
-DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet
-DOMAIN-SUFFIX,ts.net,Tailnet
-
-# Bootstrap uses public proxies by default; Tailnet-only subscriptions render DIRECT here.
-DOMAIN,controlplane.tailscale.com,Auto
-DOMAIN,login.tailscale.com,Auto
-
 # Keep subscription and UI access independent of proxy availability, including QUIC.
 DOMAIN,atlasrouter.zslab.ai,DIRECT
 
