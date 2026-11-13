@@ -39,14 +39,15 @@ function profile() {
 }
 
 test("subscription options default to Surge, validate duplicates, and preserve only supported options in managed URLs", () => {
-  assert.deepEqual(readSubscriptionOptions(new URLSearchParams()), { client: "surge", doh: false, tencentOa: false });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams()), { client: "surge", doh: true, tencentOa: false });
   assert.deepEqual(readSubscriptionOptions(new URLSearchParams("client=clash&doh=1")), { client: "clash", doh: true, tencentOa: false });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("doh=0")), { client: "surge", doh: false, tencentOa: false });
   for (const query of ["client=", "client=other", "client=clash&client=surge", "doh=true", "doh=", "doh=1&doh=0"]) {
     assert.throws(() => readSubscriptionOptions(new URLSearchParams(query)), (error) => error.status === 400);
   }
   const input = profile();
-  const plain = renderSurgeProfile(input);
-  const encrypted = renderSurgeProfile({ ...input, requestUrl: `${context.requestUrl}?unknown=secret#fragment`, options: { doh: true } });
+  const plain = renderSurgeProfile({ ...input, options: { doh: false } });
+  const encrypted = renderSurgeProfile({ ...input, requestUrl: `${context.requestUrl}?unknown=secret#fragment` });
   assert.doesNotMatch(plain, /^encrypted-dns-(?:server|follow-outbound-mode) =/m);
   assert.deepEqual(plain.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.match(encrypted, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
@@ -105,9 +106,11 @@ test("subscription options default to Surge, validate duplicates, and preserve o
       "RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`, "GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
-  assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=1`);
+  assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}`);
+  assert.equal(plain.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}&doh=0`);
   assert.doesNotMatch(encrypted, /unknown=|#fragment/);
-  assert.equal(buildSubscriptionUrl(context.requestUrl, context.token, { client: "clash", doh: true }), `${context.requestUrl}?token=${context.token}&client=clash&doh=1`);
+  assert.equal(buildSubscriptionUrl(context.requestUrl, context.token, { client: "clash", doh: true }), `${context.requestUrl}?token=${context.token}&client=clash`);
+  assert.equal(buildSubscriptionUrl(context.requestUrl, context.token, { client: "clash", doh: false }), `${context.requestUrl}?token=${context.token}&client=clash&doh=0`);
 });
 
 test("Clash output is derived from the rendered Surge profile and retains sorting, allocation and rules", async () => {
