@@ -7,7 +7,7 @@ master 使用 Smart 节点权重之前的稳定订阅实现；Dev 开关选择�
 | 项目 | master / 正式订阅 | develop / Dev 订阅 |
 | --- | --- | --- |
 | 地区/IP 类型组 | Surge 和 Clash 都是顺序 fallback，300 秒 | Surge 为 Smart，系数 1、100、1000、10000…；Clash 为同顺序 fallback |
-| 策略组显示 | 按模板设置，地区组与 AppleProxy / AppleDirect 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy 和 AppleDirect |
+| 策略组显示 | 按模板设置，WARP / IDC 地区组与 AppleProxy / AppleDirect 隐藏，ISP 地区组可见 | `SHOW_ALL_PROXY_GROUPS=true`，所有策略组统一可见；已移除 AppleProxy 和 AppleDirect |
 | Apple | iCloud → AppleDirect → AppleProxy，几乎全部直连，含 Apple TV+ | AppleTV → `GlobalMedia`、AppleIntelligence → `AIProxy` 先匹配；iCloud 可切换，默认直连；其余 Apple 服务直接 `DIRECT`（`[Host]` 指定国内 DNS） |
 | GlobalMedia 默认出口 | ISP → WARP → IDC，默认首个 ISP 组 | WARP → IDC → ISP，默认首个 WARP 组；仅接收 AppleTV、Netflix、Disney、Spotify、TIDAL、TikTok 6 份独立规则，已移除 GlobalMedia 聚合列表 |
 | 加密货币交易所与海外支付 | Binance 固定直连；OKX、Coinbase、Bybit、Bitget 无专门规则 | 五家交易所及 PayPal、eBay、Stripe、Wise 均进入 `OverseasFinance`，ISP → WARP → IDC → DIRECT，默认首个 ISP 组；`stripe.com` 先由 OpenAI 列表送入 `AIProxy` |
