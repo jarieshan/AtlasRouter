@@ -162,7 +162,7 @@ test("Tailnet secret adds authenticated test alternatives without changing store
 
 test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {
   const production = await createRuntime(t);
-  const development = await createRuntime(t, { ACCESS_AUD: "development-app", SMART_PRIORITY_SCHEME: "geometric-10" });
+  const development = await createRuntime(t, { ACCESS_AUD: "development-app", SMART_PRIORITY_SCHEME: "geometric-10-from-100" });
   await save(production);
   const productionAccount = await account(production);
   const before = await readSubscriptionState({ DB: await production.getD1Database("DB") });
@@ -247,7 +247,7 @@ test("Dev portal and private service isolate data, tokens, module links and toke
       bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
         ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG } },
     { ...common, name: "development", d1Databases: { DB: "development" },
-      bindings: { UI_ENABLED: "false", SUBSCRIPTION_VARIANT: "development", SMART_PRIORITY_SCHEME: "geometric-10", SHOW_ALL_PROXY_GROUPS: "true",
+      bindings: { UI_ENABLED: "false", SUBSCRIPTION_VARIANT: "development", SMART_PRIORITY_SCHEME: "geometric-10-from-100", SHOW_ALL_PROXY_GROUPS: "true",
         TAILNET_ENDPOINTS: JSON.stringify(endpoints) } },
   ] }));
   t.after(() => mf.dispose());
