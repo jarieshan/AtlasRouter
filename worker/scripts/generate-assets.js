@@ -27,6 +27,7 @@ const assets = {
   poolGroups: readText("surge/pool-groups.conf"),
   rules: readText("surge/rules.list"),
   magicRules: JSON.parse(readText("surge/magicrule.json")),
+  tencentOa: readText("surge/tencent-oa.conf"),
   modules: readDirectoryFiles("modules", ".sgmodule"),
 };
 

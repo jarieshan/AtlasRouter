@@ -33,7 +33,8 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     ])),
   };
   let template = renderPoolTemplate(groups, smartPriorityScheme, idcNames, alternatives).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
-    const general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${doh ? "" : "# "}${setting}`);
+    let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${doh ? "" : "# "}${setting}`);
+    if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => ASSETS.tencentOa.match(/^skip-proxy[ \t]*=.*$/m)[0]);
     return heading + general;
   });
   if (tailnetOnly) {
