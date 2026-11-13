@@ -9,7 +9,7 @@ const requestUrl = "https://atlas.example/AtlasRouter";
 const token = `ar_${"a".repeat(64)}`;
 const nodes = parsePoolNodes([{ id: "node", line: "🇺🇸 Test ISP = trojan, example.com, 443, password=TEST_ONLY" }]);
 const input = { requestUrl, token, nodes, groups: [{ group: "🇺🇸USA-ISP", nodes }] };
-const local = ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"];
+const local = ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"];
 const banks = ["yunbusiness.ccb.com", "www.abchina.com.cn", "*.psbc.com", "*.bosc.cn"];
 const companyNetworks = ["9.0.0.0/8", "30.0.0.0/8", "21.0.0.0/8", "22.0.0.0/8", "26.0.0.0/8", "28.0.0.0/7"];
 const companyDomains = [
@@ -31,7 +31,6 @@ function ipv4Range(value) {
 
 test("default skip-proxy keeps local networks and bank exceptions without Tencent OA entries", () => {
   assert.deepEqual(profileList(), [...local.slice(0, 3), "10.0.0.0/8", ...local.slice(3), ...banks]);
-  for (const list of [profileList(), tencentOaList()]) assert.ok(!list.includes("100.64.0.0/10"), "Tailnet requests must reach Surge");
   for (const doh of [false, true]) {
     const config = renderSurgeProfile({ ...input, options: { doh } });
     assert.equal(config, renderSurgeProfile({ ...input, options: { doh, tencentOa: false } }));

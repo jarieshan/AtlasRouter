@@ -6,24 +6,20 @@ import { magicRuleUrl } from "./magic-rules.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority } from "./surge-format.js";
 import { inheritBranch } from "./branch-query.js";
-import { createTailnetNodes } from "./tailnet-nodes.js";
 
 const REGION_ORDER = { US: 0, HK: 1, SG: 2, JP: 3 };
 const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
 const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
 const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
-export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false, tailnetEndpoints, tailnetOnly = false }) {
+export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false }) {
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const doh = options.doh ?? true;
-  const tailnetNodes = createTailnetNodes(nodes, tailnetEndpoints, { replace: tailnetOnly });
-  const subscriptionNodes = tailnetOnly ? tailnetNodes : nodes;
-  const alternatives = tailnetOnly ? [] : tailnetNodes;
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
-    PROXY_LINES: renderProxyLines([...subscriptionNodes].sort(compareNodes).concat(alternatives)),
-    RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT", tailnetOnly),
+    PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
+    RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT"),
     US_ISP_POLICY: groups.find(({ nodes }) => nodes[0]?.region === "US" && nodes[0]?.ipType === "ISP")?.group ?? "REJECT",
     DIRECT_DNS_SERVERS: (doh
       ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
@@ -32,20 +28,15 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
       `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl),
     ])),
   };
-  let template = renderPoolTemplate(groups, smartPriorityScheme, idcNames, alternatives).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
+  const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${doh ? "" : "# "}${setting}`);
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => ASSETS.tencentOa.match(/^skip-proxy[ \t]*=.*$/m)[0]);
     return heading + general;
   });
-  if (tailnetOnly) {
-    const bootstrapDns = ["controlplane.tailscale.com", "login.tailscale.com"]
-      .map((host) => `${host} = server:223.5.5.5, 119.29.29.29`).join("\n");
-    template = template.replace(/^\[Host\]\n/m, `[Host]\n${bootstrapDns}\n`);
-  }
   return applyRuleSetVisibility(replaceTemplate(template, replacements), { showAllGroups });
 }
 
-function renderPoolTemplate(groups, smartPriorityScheme, idcNames, tailnetNodes) {
+function renderPoolTemplate(groups, smartPriorityScheme, idcNames) {
   const orderedGroups = [...groups].sort(compareNodeGroups);
   const groupNamesByIpType = (order, preferredRegion) => [...orderedGroups].sort((a, b) =>
     (a.nodes[0].region !== preferredRegion) - (b.nodes[0].region !== preferredRegion)
@@ -59,9 +50,6 @@ function renderPoolTemplate(groups, smartPriorityScheme, idcNames, tailnetNodes)
     }).join("\n"),
     // An empty Surge Smart group substitutes DIRECT, so omit it and reject its traffic instead.
     DOH_PROXY_GROUP_LINE: idcNames.length ? `DoH Proxy = smart, ${idcNames.join(", ")}, icon-url=https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Server.png, hidden=true` : "",
-    AUTO_POLICY_FILTER: tailnetNodes.length ? "^(?!Tailnet$|Tailnet Test - ).*" : "^(?!Tailnet$).*",
-    TAILNET_TEST_GROUP_LINE: tailnetNodes.length ? `Tailnet Test = select, ${tailnetNodes.map(({ name }) => name).join(", ")}` : "",
-    TAILNET_TEST_OPTION: tailnetNodes.length ? ", Tailnet Test" : "",
     POOL_GROUPS: groupNamesByIpType(IP_TYPE_ORDER),
     IDC_FIRST_POOL_GROUPS: groupNamesByIpType(IDC_FIRST_IP_TYPE_ORDER),
     WARP_FIRST_POOL_GROUPS: groupNamesByIpType(WARP_FIRST_IP_TYPE_ORDER),
@@ -80,14 +68,11 @@ function compareNodeGroups(a, b) {
   return compareNodes(a.nodes[0], b.nodes[0]);
 }
 
-function renderPoolRules(rules, dohPolicy, tailnetOnly) {
+function renderPoolRules(rules, dohPolicy) {
   return rules.split("\n").map((line) => {
     if (line.trimStart().startsWith("#")) return line;
     const parts = line.split(",");
     if (parts[2]?.trim() === "DoH Proxy") parts[2] = dohPolicy;
-    // The control connection must work before any Tailnet-backed proxy can start.
-    if (tailnetOnly && parts[0]?.trim() === "DOMAIN"
-      && ["controlplane.tailscale.com", "login.tailscale.com"].includes(parts[1]?.trim())) parts[2] = "DIRECT";
     return parts.join(",");
   }).join("\n");
 }

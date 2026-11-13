@@ -1,13 +1,11 @@
 import { stringify } from "yaml";
-import { convertClashNode, convertClashTailscale } from "./clash-nodes.js";
+import { convertClashNode } from "./clash-nodes.js";
 import { convertClashRules, ruleSource } from "./clash-rules.js";
 import { HttpError } from "./errors.js";
 import { nativeMagicRuleSource } from "./magic-rules.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority, positiveInteger, SMART_PRIORITY_SCHEMES, splitSurgeList, surgeAssignment, surgeBoolean, surgeOptions, surgeSections } from "./surge-format.js";
 
-// Tailscale's default address pools; the control plane assigns each node an address inside them.
-const TAILNET_RANGES = ["100.64.0.0/10", "fd7a:115c:a1e0::/48"];
 // Surge bundles its ASN database; Mihomo downloads one for IP-ASN rules, from GitHub unless set.
 const ASN_DATABASE_URL = "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb";
 // Rules never read GeoIP.dat or GeoSite.dat, yet ProjectClash's scheduled sync downloads every GEO file
@@ -28,15 +26,11 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
   }
   const config = convertGeneral(general, warn);
   const entries = [];
-  const tailnets = [];
   for (const [index, line] of (sections.get("proxy") ?? []).entries()) {
     try {
-      const note = (message) => warn(`Proxy entry ${index + 1}: ${message}`);
-      const tailnet = splitSurgeList(surgeAssignment(line)[1])[0]?.toLowerCase() === "tailscale" ? convertClashTailscale(line, sections, note) : null;
-      const node = tailnet?.node ?? convertClashNode(line, note);
+      const node = convertClashNode(line, (message) => warn(`Proxy entry ${index + 1}: ${message}`));
       if (["DIRECT", "REJECT"].includes(node.name) || entries.some((entry) => entry.node.name === node.name)) throw new Error();
       entries.push({ index, node });
-      if (tailnet) tailnets.push({ index, ...tailnet });
     } catch { warn(`Proxy entry ${index + 1}: unsupported protocol, parameter or invalid value; node omitted`); }
   }
   // Surge's underlying-proxy may also name a group; only a node that dials directly cannot form a loop.
@@ -47,22 +41,14 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
     else warn(`Proxy entry ${index + 1}: underlying-proxy must be a converted node without its own underlying-proxy; node omitted`);
   }
   if (!proxies.length) throw new HttpError(422, "No nodes can be converted to Clash");
-  for (const { index, interactive, autoRoute } of tailnets) {
-    warn(`Proxy entry ${index + 1}: tailscale requires Mihomo 1.19.25+ with Tailscale support; control-plane connections bypass rules${interactive ? "; interactive login prints its URL to the info log" : ""}`);
-    if (autoRoute) warn(`Proxy entry ${index + 1}: auto-add-magic-dns-rule approximated by ${TAILNET_RANGES.join(" and ")} ahead of all rules`);
-  }
   const groups = convertGroups(sections.get("proxy group") ?? [], proxies, general, warn);
   const policies = new Set(["DIRECT", "REJECT", ...proxies.map(({ name }) => name), ...groups.map(({ name }) => name)]);
   const udp = { udpless: udpIncapablePolicies(proxies, groups), udpFallback: udpFallbackPolicy(general, warn) };
   const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn, udp);
-  // Surge adds a rule per discovered peer; Mihomo can only route the whole tailnet ranges, which must precede the LAN ranges containing them.
-  rules.unshift(...tailnets.filter(({ autoRoute }) => autoRoute).flatMap(({ node }) =>
-    TAILNET_RANGES.map((range) => `${range.includes(":") ? "IP-CIDR6" : "IP-CIDR"},${range},${node.name},no-resolve`)));
   const hostDns = await convertHostDns(sections.get("host") ?? [], providers, general, requestUrl, warn);
   config.dns["nameserver-policy"] = { "use-application-dns.net": "rcode://name_error", ...hostDns };
-  const converted = new Set(tailnets.map(({ section }) => section));
   for (const name of sections.keys()) {
-    if (!["general", "host", "proxy", "proxy group", "rule"].includes(name) && !converted.has(name)) {
+    if (!["general", "host", "proxy", "proxy group", "rule"].includes(name)) {
       // Section names are syntax labels, never include section contents in diagnostics.
       warn(`Section ${/^[a-z -]{1,40}$/.test(name) ? name : "unknown"}: omitted`);
     }

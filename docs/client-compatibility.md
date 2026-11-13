@@ -13,7 +13,7 @@
 | MagicRule | 39 类、78 份客户端产物；启用定时检查 | 同一规则基线，不运行 Cron |
 | 发布 | Cloudflare master 构建，`npm run deploy` | Cloudflare develop 构建，`npm run deploy:development` |
 
-两分支使用相同的 FINAL、Speedtest、OverseasFinance、ISP First、GeneralSite、Apple/AI/影音规则和客户端适配。节点来自各自节点池，公网连接与 Tailnet 管理策略分别保留。Smart 与 fallback 的选择语义不同，两套数据和权重参数也独立，因此不能保证两个环境或客户端始终选择同一出口。
+两分支使用相同的 FINAL、Speedtest、OverseasFinance、ISP First、GeneralSite、Apple/AI/影音规则和客户端适配。节点来自各自节点池。Smart 与 fallback 的选择语义不同，两套数据和权重参数也独立，因此不能保证两个环境或客户端始终选择同一出口。
 
 ## Surge 与 Clash：已对齐和无法等价的行为
 
