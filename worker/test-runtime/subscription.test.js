@@ -282,7 +282,7 @@ test("Dev portal and private service isolate data, tokens, module links and toke
     if (client === "surge") {
       for (const node of devNodes) assert.ok(text.split("\n").includes(node.line));
       assert.match(text, /^Tailnet = tailscale, section-name=tailnet$/m);
-      assert.match(text, /^Tailscale = select, Tailnet$/m);
+      assert.doesNotMatch(text, /^Tailscale = /m);
     } else {
       const config = parseYaml(text);
       const proxies = config.proxies.filter(({ type }) => type !== "tailscale");
@@ -702,7 +702,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), doh === "1");
         assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${ICON_BASE}Auto.png`));
         assert.match(text, /^Tailnet = tailscale, section-name=tailnet$/m);
-        assert.match(text, /^Tailscale = select, Tailnet$/m);
+        assert.doesNotMatch(text, /^Tailscale = /m);
         assert.match(text, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
         assert.ok(text.split("\n").includes(`FINAL = select, Auto, Proxy, 🇭🇰HK-IDC, 🇺🇸USA-ISP, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
