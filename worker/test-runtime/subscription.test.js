@@ -314,7 +314,7 @@ test("Dev portal and private service isolate data, tokens, module links and toke
   assert.equal((await request(mf, wrong.toString())).status, 401);
   const module = new URL(dev.subscriptionUrl);
   module.pathname += "/modules/tencent-oa.sgmodule";
-  assert.equal((await request(mf, module.toString())).status, 200);
+  assert.equal((await request(mf, module.toString())).status, 404);
   const legacy = new URL(dev.subscriptionUrl);
   legacy.pathname = "/AtlasRouter";
   legacy.searchParams.set("dev", "1");
@@ -481,10 +481,7 @@ test("simultaneous first logins receive stable unique accounts and exclusive pri
     assert.deepEqual(orderedSmartMembers(config, "🇺🇸USA-ISP"), profile.groups[0].nodes.map((node) => node.name));
     assert.match(config, /^#!MANAGED-CONFIG https:\/\/atlas.example\/AtlasRouter\?token=/);
     assert.match(config, /^FINAL,FINAL,dns-failed$/m);
-    const moduleUrl = config.match(/https:\/\/[^\s]+\/modules\/tencent-oa.sgmodule\?token=[^\s]+/)[0];
-    const module = await request(mf, moduleUrl);
-    assert.equal(module.status, 200);
-    assert.match(await module.text(), /#!name=Tencent OA Compatibility/);
+    assert.match(config, /^# Available modules:\n# - None$/m);
   }
 });
 
@@ -519,19 +516,18 @@ test("portal, inventory and both subscription formats share balanced backup prio
   assert.deepEqual(await json(await request(mf, POOL_STATE_PATH, { subject: "admin" })), before);
 });
 
-test("only current subscription and module URLs accept tokens", async (t) => {
+test("only current subscription URLs accept tokens", async (t) => {
   const mf = await createRuntime(t);
   await save(mf);
   const profile = await account(mf);
   const token = new URL(profile.subscriptionUrl).searchParams.get("token");
-  const modulePath = `${POOL_SUBSCRIPTION_PATH}/modules/tencent-oa.sgmodule`;
-  for (const route of [POOL_SUBSCRIPTION_PATH, modulePath]) {
+  for (const route of [POOL_SUBSCRIPTION_PATH]) {
     assert.equal((await request(mf, `${route}?token=${token}`)).status, 200);
     assert.equal((await request(mf, route, { subject: "alice" })).status, 401);
     assert.equal((await request(mf, `${route}?token=${token}&token=${token}`)).status, 401);
     assert.equal((await request(mf, `${route}?token=${token}`, { method: "POST" })).status, 405);
   }
-  for (const route of ["/atlasrouter", "/atlasrouter/modules/skip-proxy-lists.sgmodule", "/atlas-router", "/AtlasRouter/subscription", "/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/subscription/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/rules/magicrule/surge/WeChat.list", "/AtlasRouter/rules/magicrule/mihomo/WeChat.yaml", "/AtlasRouter/rules/magicrule/surge/GlobalMedia.list", "/AtlasRouter/rules/magicrule/mihomo/GlobalMedia.yaml"]) {
+  for (const route of [`${POOL_SUBSCRIPTION_PATH}/modules/tencent-oa.sgmodule`, "/atlasrouter", "/atlasrouter/modules/skip-proxy-lists.sgmodule", "/atlas-router", "/AtlasRouter/subscription", "/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/subscription/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/rules/magicrule/surge/WeChat.list", "/AtlasRouter/rules/magicrule/mihomo/WeChat.yaml", "/AtlasRouter/rules/magicrule/surge/GlobalMedia.list", "/AtlasRouter/rules/magicrule/mihomo/GlobalMedia.yaml"]) {
     assert.equal((await request(mf, `${route}?token=${token}`, { subject: "admin" })).status, 404);
   }
   const wechatPath = `${POOL_SUBSCRIPTION_PATH}/rules/${WECHAT_RULE_ID}.txt`;
@@ -539,7 +535,7 @@ test("only current subscription and module URLs accept tokens", async (t) => {
     assert.equal((await request(mf, wechatPath + query, { subject: "alice" })).status, 401);
   }
   await json(await request(mf, ACCOUNT_TOKEN_PATH, { subject: "alice", method: "POST", body: {} }));
-  for (const route of [POOL_SUBSCRIPTION_PATH, modulePath, wechatPath]) {
+  for (const route of [POOL_SUBSCRIPTION_PATH, wechatPath]) {
     assert.equal((await request(mf, `${route}?token=${token}`)).status, 401);
   }
 });
@@ -622,10 +618,11 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
   const profile = await account(mf);
   const before = await json(await request(mf, POOL_STATE_PATH, { subject: "admin" }));
   for (const client of ["surge", "clash"]) {
-    for (const doh of ["0", "1"]) {
-      const response = await request(mf, `${profile.subscriptionUrl}&client=${client}&doh=${doh}`);
+    for (const doh of [null, "0", "1"]) {
+      const response = await request(mf, `${profile.subscriptionUrl}&client=${client}${doh === null ? "" : `&doh=${doh}`}`);
       assert.equal(response.status, 200);
       const text = await response.text();
+      const encrypted = doh !== "0";
       if (client === "clash") {
         assert.match(response.headers.get("content-type"), /application\/yaml/);
         const config = parseYaml(text);
@@ -635,15 +632,15 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
           ["AppleTV", ...MEDIA_RULE_NAMES].map((name) => `RULE-SET,${name},GlobalMedia,no-resolve`));
         assert.equal(config.proxies.filter(({ type }) => type !== "tailscale").length, 4);
         for (const group of profile.groups) assert.deepEqual(config["proxy-groups"].find(({ name }) => name === group.group).proxies, group.nodes.map(({ name }) => name));
-        assert.equal(config.dns.nameserver.every((server) => server.startsWith("https://")), doh === "1");
-        assert.deepEqual(config.dns.nameserver, doh === "1" ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
+        assert.equal(config.dns.nameserver.every((server) => server.startsWith("https://")), encrypted);
+        assert.deepEqual(config.dns.nameserver, encrypted ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
         assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
         assert.equal(config.dns["enhanced-mode"], "fake-ip");
         assert.deepEqual(config.dns["nameserver-policy"], {
           "use-application-dns.net": "rcode://name_error",
           "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
           "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "IBKR", "Direct", "Apple", "China"].map((id) => [`rule-set:${id}`, doh === "1"
+          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "IBKR", "Direct", "Apple", "China"].map((id) => [`rule-set:${id}`, encrypted
             ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
             : ["223.5.5.5", "119.29.29.29"]])),
         });
@@ -698,8 +695,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(Object.values(config["rule-providers"]).every(({ url }) => !url.includes(new URL(profile.subscriptionUrl).searchParams.get("token"))));
       } else {
         assert.match(response.headers.get("content-type"), /text\/plain/);
-        assert.equal(/^encrypted-dns-server =/m.test(text), doh === "1");
-        assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), doh === "1");
+        assert.equal(/^encrypted-dns-server =/m.test(text), encrypted);
+        assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), encrypted);
         assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${ICON_BASE}Auto.png`));
         assert.match(text, /^Tailnet = tailscale, section-name=tailnet$/m);
         assert.doesNotMatch(text, /^Tailscale = /m);
@@ -709,7 +706,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png, hidden=true`));
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
-        const directDns = doh === "1" ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
+        const directDns = encrypted ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
         for (const url of [CUSTOM_DIRECT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
         for (const name of ["IBKR", "Direct", "Apple"]) assert.ok(text.split("\n").some((line) => {
           const [, url, servers] = line.match(/^RULE-SET:(\S+) = server:(.+)$/) ?? [];
@@ -726,7 +723,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         }
         assert.deepEqual(text.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
         const managed = new URL(text.match(/^#!MANAGED-CONFIG (\S+)/)[1]);
-        assert.equal(managed.searchParams.get("doh"), doh === "1" ? "1" : null);
+        assert.equal(managed.searchParams.get("doh"), doh === "0" ? "0" : null);
         assert.ok(text.split("\n").includes(`iCloud = select, DIRECT, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}iCloud.png`));
         assert.ok(text.split("\n").includes(`WeChat = select, DIRECT, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}WeChat.png`));
         assert.ok(text.split("\n").includes(`YouTube = select, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}YouTube.png`));
@@ -762,32 +759,32 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
   assert.equal((await request(mf, `${profile.subscriptionUrl}&client=clash&doh=1`)).status, 401);
 });
 
-test("Tencent OA changes proxy exceptions, preserves targeted DNS hijacking and token checks", async (t) => {
+test("Tencent OA exceptions ship in every Surge profile and legacy tencent_oa links keep token checks", async (t) => {
   const mf = await createRuntime(t);
   await save(mf);
   const profile = await account(mf);
   const before = await json(await request(mf, POOL_STATE_PATH, { subject: "admin" }));
-  const withoutOverrides = (value) => value.replace(/^#!MANAGED-CONFIG .*\n/m, "").replace(/^skip-proxy = .*\n/m, "");
+  const withoutManagedUrl = (value) => value.replace(/^#!MANAGED-CONFIG .*\n/m, "");
   for (const doh of ["0", "1"]) {
     let plain;
-    for (const tencentOa of ["0", "1"]) {
-      const response = await request(mf, `${profile.subscriptionUrl}&tencent_oa=${tencentOa}&doh=${doh}`);
+    for (const tencentOa of [null, "1"]) {
+      const response = await request(mf, `${profile.subscriptionUrl}&doh=${doh}${tencentOa === null ? "" : `&tencent_oa=${tencentOa}`}`);
       assert.equal(response.status, 200);
       const body = await response.text();
       const managed = new URL(body.match(/^#!MANAGED-CONFIG (\S+)/)[1]);
-      assert.equal(managed.searchParams.get("tencent_oa"), tencentOa === "1" ? "1" : null);
-      assert.equal(managed.searchParams.get("doh"), doh === "1" ? "1" : null);
+      assert.equal(managed.searchParams.get("tencent_oa"), tencentOa);
+      assert.equal(managed.searchParams.get("doh"), doh === "0" ? "0" : null);
       assert.equal(/^encrypted-dns-server =/m.test(body), doh === "1");
       assert.deepEqual(body.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
-      assert.doesNotMatch(body, /TencentOA|10\.28\.0\.21/);
+      assert.doesNotMatch(body, /TencentOA|10\.28\.0\.21|tencent-oa\.sgmodule/);
       assert.match(body, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
       const skip = body.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
-      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) assert.equal(skip.includes(value), tencentOa === "1");
-      for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
+      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7",
+        "127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
       assert.ok(!skip.includes("100.64.0.0/10"));
-      assert.equal(skip.includes("10.0.0.0/8"), tencentOa === "0");
-      if (tencentOa === "0") plain = withoutOverrides(body);
-      else assert.equal(withoutOverrides(body), plain);
+      assert.ok(!skip.includes("10.0.0.0/8"));
+      if (tencentOa === null) plain = withoutManagedUrl(body);
+      else assert.equal(withoutManagedUrl(body), plain);
     }
   }
   assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?tencent_oa=1`, { subject: "alice" })).status, 401);

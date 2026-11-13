@@ -3,7 +3,6 @@ import { renderProxyLines } from "./nodes.js";
 import { subscriptionPath } from "./routes.js";
 import { buildSubscriptionUrl } from "./subscription-options.js";
 import { magicRuleUrl } from "./magic-rules.js";
-import { tencentOaSkipProxy } from "./tencent-oa.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority } from "./surge-format.js";
 import { inheritBranch } from "./branch-query.js";
@@ -16,6 +15,7 @@ const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
 export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false, tailnetEndpoints, tailnetOnly = false }) {
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
+  const doh = options.doh ?? true;
   const tailnetNodes = createTailnetNodes(nodes, tailnetEndpoints, { replace: tailnetOnly });
   const subscriptionNodes = tailnetOnly ? tailnetNodes : nodes;
   const alternatives = tailnetOnly ? [] : tailnetNodes;
@@ -25,7 +25,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     PROXY_LINES: renderProxyLines([...subscriptionNodes].sort(compareNodes).concat(alternatives)),
     RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT", tailnetOnly),
     US_ISP_POLICY: groups.find(({ nodes }) => nodes[0]?.region === "US" && nodes[0]?.ipType === "ISP")?.group ?? "REJECT",
-    DIRECT_DNS_SERVERS: (options.doh
+    DIRECT_DNS_SERVERS: (doh
       ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
       : ["223.5.5.5", "119.29.29.29"]).join(", "),
     ...Object.fromEntries(Object.keys(ASSETS.magicRules).map((name) => [
@@ -33,8 +33,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     ])),
   };
   let template = renderPoolTemplate(groups, smartPriorityScheme, idcNames, alternatives).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
-    let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${options.doh ? "" : "# "}${setting}`);
-    if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => `skip-proxy = ${tencentOaSkipProxy()}`);
+    const general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${doh ? "" : "# "}${setting}`);
     return heading + general;
   });
   if (tailnetOnly) {

@@ -256,7 +256,7 @@ test("legacy pages, APIs, subscriptions and unknown paths return 404 without rea
     "/api/admin/certificates", "/api/admin/pool/state", "/api/admin/pool/nodes", "/api/admin/pool/users",
     "/modules/skip-proxy-lists.sgmodule", "/AtlasRouter/subscription/modules/skip-proxy-lists.sgmodule",
     "/missing", `${routes.state}/`, routes.state.replace(ADMIN_API_SLUG, "a".repeat(32)),
-    `${POOL_SUBSCRIPTION_PATH}/modules/missing`, `${POOL_SUBSCRIPTION_PATH}/modules/%E0%A4%A`,
+    `${POOL_SUBSCRIPTION_PATH}/modules/missing`, `${POOL_SUBSCRIPTION_PATH}/modules/%E0%A4%A`, `${POOL_SUBSCRIPTION_PATH}/modules/tencent-oa.sgmodule`,
     `${POOL_SUBSCRIPTION_PATH}/rules/TencentOA-Domain.list`, `${POOL_SUBSCRIPTION_PATH}/rules/TencentOA-IP.list`,
     `${POOL_SUBSCRIPTION_PATH}/hosts/TencentOA-Host.conf`,
     `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/surge/GlobalMedia.list`, `${POOL_SUBSCRIPTION_PATH}/rules/magicrule/mihomo/GlobalMedia.yaml`,
@@ -277,7 +277,7 @@ test("legacy pages, APIs, subscriptions and unknown paths return 404 without rea
 
 test("subscription routes require their own token and only accept GET", async () => {
   const env = unreadableEnv();
-  for (const path of [POOL_SUBSCRIPTION_PATH, `${POOL_SUBSCRIPTION_PATH}/modules/tencent-oa.sgmodule`]) {
+  for (const path of [POOL_SUBSCRIPTION_PATH]) {
     for (const query of ["", "?token=invalid", "?admin_token=test-only", "?token=invalid&token=invalid"]) {
       const response = await request(path + query, { headers: accessHeaders() }, env);
       assert.equal(response.status, 401);

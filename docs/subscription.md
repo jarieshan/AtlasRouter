@@ -20,7 +20,7 @@ Dev 开关在当前页面切换环境，不跳转或整页刷新。关闭时生�
 | `/AtlasRouter?token=<token>` | GET | 用户专属 token；输出完整 Surge 配置 |
 | `/AtlasRouter-Dev?token=<token>` | GET | 测试库用户 token；输出开发版配置，模块和规则使用同一路径前缀 |
 | `/AtlasRouter?token=<token>&client=clash` | GET | 同一 token；输出从 Surge 配置转换的 Clash / Mihomo YAML |
-| `/AtlasRouter/modules/<name>.sgmodule?token=<token>` | GET | 用户专属 token；输出模块 |
+| `/AtlasRouter/modules/<name>.sgmodule?token=<token>` | GET | 用户专属 token；输出 `modules/` 中的模块；当前未提供模块，请求返回 404 |
 | `/AtlasRouter/rules/rule-<hash>.txt?token=<token>` | GET | 用户专属 token；输出已过滤不兼容规则的 Clash 规则集 |
 | `/AtlasRouter/rules/magicrule/<client>/<name>.<ext>` | GET | 无需 token；`<client>/<ext>` 为 `surge/list` 或 `mihomo/yaml`，只接受已登记的 MagicRule 规则，输出校验后的列表与 ETag |
 
@@ -30,19 +30,19 @@ Dev 开关在当前页面切换环境，不跳转或整页刷新。关闭时生�
 
 ## 自定义订阅
 
-网页提供“启用 DoH”和“Client：Surge（默认）/ Clash”两个订阅选项。选项即时更新待复制的 URL，不修改账号、token 或节点分配；修改后将新链接复制到客户端。刷新分配或重置 token 时保留当前页面上的选项。Tencent OA Compatibility 以 Surge 模块提供，不再修改订阅链接，见下文。
+网页提供“启用 DoH”（默认开启）和“Client：Surge（默认）/ Clash”两个订阅选项。选项即时更新待复制的 URL，不修改账号、token 或节点分配；修改后将新链接复制到客户端。刷新分配或重置 token 时保留当前页面上的选项。腾讯公司内网的系统代理例外已写入默认配置，不需要模块或订阅参数，见下文。
 
 | 参数 | 默认值 | 可选值 |
 | --- | --- | --- |
 | `client` | `surge` | `surge`、`clash`；Clash 以 Mihomo（Clash Meta）为兼容目标 |
-| `doh` | `0` | `0`、`1`；`1` 启用 DoH |
-| `tencent_oa` | `0` | `0`、`1`；仅为兼容旧链接保留，页面不再生成；`1` 追加与 Tencent OA 模块相同的系统代理例外 |
+| `doh` | `1` | `0`、`1`；默认启用 DoH，`0` 关闭 |
+| `tencent_oa` | `0` | `0`、`1`；仅为兼容旧链接保留，页面不再生成；默认配置已包含对应例外，`1` 不再改变配置内容，只保留在托管更新地址中 |
 
-例如 `/AtlasRouter?token=<token>&client=clash&doh=1` 同时启用 Clash 输出和 DoH。这些参数重复、为空或使用其他值时返回 400；无效 token 仍先返回 401。默认选项省略于页面生成的 URL，现有订阅无需调整。
+例如 `/AtlasRouter?token=<token>&client=clash&doh=0` 输出 Clash 并关闭 DoH。这些参数重复、为空或使用其他值时返回 400；无效 token 仍先返回 401。页面生成的 URL 省略默认选项。不带 `doh` 参数的现有订阅会在下次更新时启用 DoH；需要保持关闭时，在页面取消“启用 DoH”后重新复制链接，或在链接中加上 `doh=0`。原有 `doh=1` 链接继续有效。
 
-默认 DoH 上游使用 [Cloudflare](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/) 的 `https://cloudflare-dns.com/dns-query` 和 [Google](https://developers.google.com/speed/public-dns/docs/secure-transports) 的 `https://dns.google/dns-query`，地址维护在 `surge/template.conf`。`doh=1` 同时激活 `encrypted-dns-server` 和 `encrypted-dns-follow-outbound-mode = true`；托管更新地址保留该选项。DoH 仅按上游域名分流：`surge/rules.list` 前部将 `dns.alidns.com`、`doh.pub` 精确匹配到 `DIRECT`，将 `cloudflare-dns.com`、`dns.google` 精确匹配到 IDC 专用组 `DoH Proxy`。Surge 和 Clash 使用相同的域名规则，均先于外部规则集；未列出的上游域名继续匹配其他分流规则。证书校验保持开启，参见 [Surge 加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html)。
+默认 DoH 上游使用 [Cloudflare](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/) 的 `https://cloudflare-dns.com/dns-query` 和 [Google](https://developers.google.com/speed/public-dns/docs/secure-transports) 的 `https://dns.google/dns-query`，地址维护在 `surge/template.conf`。启用 DoH 时同时激活 `encrypted-dns-server` 和 `encrypted-dns-follow-outbound-mode = true`；`doh=0` 时两行保持注释，托管更新地址保留 `doh=0`。DoH 仅按上游域名分流：`surge/rules.list` 前部将 `dns.alidns.com`、`doh.pub` 精确匹配到 `DIRECT`，将 `cloudflare-dns.com`、`dns.google` 精确匹配到 IDC 专用组 `DoH Proxy`。Surge 和 Clash 使用相同的域名规则，均先于外部规则集；未列出的上游域名继续匹配其他分流规则。证书校验保持开启，参见 [Surge 加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html)。
 
-`[Host]` 通过 `RULE-SET:` 引用本仓库的固定直连规则集 [`CustomDirect.list`](../surge/rule-sets/CustomDirect.list)、MagicRule 的 IBKR、Direct、Apple 列表和国内直连名单 MagicRule `China`（均经 Worker 中转，见“订阅内容”），为这五份名单中的域名分配 DNS：`doh=0` 使用 `223.5.5.5, 119.29.29.29`，`doh=1` 使用 `https://dns.alidns.com/dns-query, https://doh.pub/dns-query`。名单中的 IP 规则不参与 DNS 映射。开关由订阅生成器渲染为具体的 `server:` 值；这两个国内 DoH 上游经 `DIRECT` 出站。该映射位于 `zslab.ai` 和国内 DoH 上游的专用映射之后，专用映射优先；名单外域名沿用默认 DNS。MagicRule Direct 和 Apple 列表在 `[Rule]` 中同样直连，但绝大部分域名不在 China 名单内（如 `download.windowsupdate.com`、`apple.com`）；不做映射时，开启 DoH 后这些直连域名经 `DoH Proxy` 由境外 DoH 解析，可能得到按境外位置调度的 CDN 地址，IDC 节点全部不可用时直连也会因解析失败而中断。Apple 列表同时覆盖进入 `GlobalMedia`、`AIProxy` 的 Apple TV+ 和 Apple Intelligence 域名；这些请求由代理端远程解析，不受该映射影响。
+`[Host]` 通过 `RULE-SET:` 引用本仓库的固定直连规则集 [`CustomDirect.list`](../surge/rule-sets/CustomDirect.list)、MagicRule 的 IBKR、Direct、Apple 列表和国内直连名单 MagicRule `China`（均经 Worker 中转，见“订阅内容”），为这五份名单中的域名分配 DNS：`doh=0` 使用 `223.5.5.5, 119.29.29.29`，启用 DoH 时使用 `https://dns.alidns.com/dns-query, https://doh.pub/dns-query`。名单中的 IP 规则不参与 DNS 映射。开关由订阅生成器渲染为具体的 `server:` 值；这两个国内 DoH 上游经 `DIRECT` 出站。该映射位于 `zslab.ai` 和国内 DoH 上游的专用映射之后，专用映射优先；名单外域名沿用默认 DNS。MagicRule Direct 和 Apple 列表在 `[Rule]` 中同样直连，但绝大部分域名不在 China 名单内（如 `download.windowsupdate.com`、`apple.com`）；不做映射时，开启 DoH 后这些直连域名经 `DoH Proxy` 由境外 DoH 解析，可能得到按境外位置调度的 CDN 地址，IDC 节点全部不可用时直连也会因解析失败而中断。Apple 列表同时覆盖进入 `GlobalMedia`、`AIProxy` 的 Apple TV+ 和 Apple Intelligence 域名；这些请求由代理端远程解析，不受该映射影响。
 
 `[Host]` 固定为 `zslab.ai` 和 `*.zslab.ai` 指定 `server:223.5.5.5, 119.29.29.29`，覆盖根域名及所有层级子域名，不受 DoH 开关影响；这是 DNS 服务器分配，不是把域名绑定到这两个 IP。按 [Surge Host 语法](https://manual.nssurge.com/dns/local-dns-mapping.html)，多 DNS 服务器需要 Surge Mac 6.8.0+ / iOS 5.21.0+。节点使用域名时，需要普通 DNS 映射或 IP 地址完成引导解析，避免“连接代理前先通过该代理解析节点”的循环；`zslab.ai` 下的节点由上述映射覆盖，其他节点域名需另配映射。相关行为见 [Surge Mac 版本说明](https://kb.nssurge.com/surge-knowledge-base/release-notes/surge-mac-legacy#version-5.6.0)。
 
@@ -55,7 +55,7 @@ doh.pub = server:223.5.5.5, 119.29.29.29
 
 Clash 将默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则：Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`；节点域名使用普通 `proxy-server-nameserver`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射；五份直连名单复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项；IBKR、Direct、Apple 和 China 名单使用 Worker 中转的 MagicRule Mihomo 产物，CustomDirect 使用 jsDelivr 地址，均不携带订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试，这不表示明文查询被完全禁用。
 
-DNS 劫持固定为以下两个目标，不随 DoH 开关或 Tencent OA 模块变化；DoH 开关只控制加密 DNS 上游：
+DNS 劫持固定为以下两个目标，不随 DoH 开关变化；DoH 开关只控制加密 DNS 上游：
 
 ```ini
 hijack-dns = 8.8.8.8:53, 8.8.4.4:53
@@ -65,15 +65,15 @@ hijack-dns = 8.8.8.8:53, 8.8.4.4:53
 
 ### 腾讯公司内网兼容
 
-适用于腾讯公司内网或公司 VPN 环境下，仅开启 Surge Mac 的“设置为系统代理”、关闭增强模式的用法。兼容配置以 Surge 模块 `tencent-oa.sgmodule` 提供：在页面“Tencent OA Compatibility”处点击“安装到 Surge”（调用 `surge:///install-module`），或复制模块链接后在 Surge 的模块列表中通过 URL 安装；之后在 Surge 中启用或停用模块即可切换，不需要更换订阅链接，启用状态也不会同步到其他设备。模块地址为 `/AtlasRouter/modules/tencent-oa.sgmodule?token=<token>`，与订阅使用同一 token，重置 token 后需重新安装；生成配置开头的“Available modules”注释同样列出该地址。模块声明 `#!system=mac`，Surge iOS 不加载。参见 [Surge 模块](https://manual.nssurge.com/profile/module.html)。
+面向腾讯公司内网或公司 VPN 环境下，仅开启 Surge Mac 的“设置为系统代理”、关闭增强模式的用法。系统代理例外直接写在主配置模板 `surge/template.conf` 的 `skip-proxy` 一行，所有 Surge 订阅（含 Surge iOS）都包含，不需要安装模块、打开选项或更换订阅链接。原 Tencent OA 模块已删除，`/AtlasRouter/modules/tencent-oa.sgmodule` 返回 404，生成配置开头的“Available modules”注释显示 `None`；曾安装该模块的设备需在 Surge 的模块列表中将其移除。
 
-旧链接中的 `tencent_oa=1` 仍被接受：生成配置时用模块中的同一份列表替换 `skip-proxy`，托管更新地址也继续保留该参数，但页面不再生成它。改用模块时从页面重新复制订阅链接，避免模块停用后旧参数仍让例外生效。手动请求 `client=clash&tencent_oa=1` 仍返回 400，避免静默忽略系统代理例外。
+旧链接中的 `tencent_oa=1` 仍被接受，托管更新地址也继续保留该参数，但生成内容与不带该参数时相同；页面不再生成它。手动请求 `client=clash&tencent_oa=1` 仍返回 400，因为 Clash 输出不包含 `skip-proxy`。
 
-默认 `skip-proxy` 包含 `127.0.0.1`、`localhost`、`*.local`、`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`169.254.0.0/16`，以及建行、农行、邮储和上海银行的 4 项域名例外，共 11 项。名单维护在 `modules/tencent-oa.sgmodule` 的 `skip-proxy = …` 一行，由 Worker 打包提供，不依赖外部规则站点。模块不使用 `%APPEND%`，而是整行替换主配置的 `skip-proxy`：先列出默认的 11 项（`10.0.0.0/8` 由模块的 `10.0.0.0/7` 覆盖），再加 6 项公司 IP 网段和 16 项域名匹配，共 33 项。修改默认 `skip-proxy` 时须同步修改模块，测试会检查模块覆盖了默认的每一项。`oa.com` 和 `woa.com` 各自保留根域名与 `*.` 子域名两项，其余 12 个域名使用 `*域名`，例如 `*tencentyun.com`、`*workbuddy.cn`；这种形式也会匹配其他以该字符串结尾的域名。`*qcloud.com` 已覆盖 `myqcloud.com` 及其子域名，因此不另列 `*myqcloud.com`。IP 清单将 `10.0.0.0/8` 与 `11.0.0.0/8` 等价合并为 `10.0.0.0/7`，将 `28.0.0.0/8` 与 `29.0.0.0/8` 等价合并为 `28.0.0.0/7`，其余条目保持原样，IP 整体覆盖范围不变。这些域名包含公网服务，并非全部为内网域名。现有 `exclude-simple-hostnames = true` 仍保留，不含点的简单主机名继续适用该设置。
+`skip-proxy` 共 33 项：先列出 `127.0.0.1`、`localhost`、`*.local`、`10.0.0.0/7`、`172.16.0.0/12`、`192.168.0.0/16`、`169.254.0.0/16`，以及建行、农行、邮储和上海银行的 4 项域名例外，再加 6 项公司 IP 网段和 16 项域名匹配。名单随模板由 Worker 打包提供，不依赖外部规则站点；测试会检查名单内容、顺序和无重复。`oa.com` 和 `woa.com` 各自保留根域名与 `*.` 子域名两项，其余 12 个域名使用 `*域名`，例如 `*tencentyun.com`、`*workbuddy.cn`；这种形式也会匹配其他以该字符串结尾的域名。`*qcloud.com` 已覆盖 `myqcloud.com` 及其子域名，因此不另列 `*myqcloud.com`。IP 清单将 `10.0.0.0/8` 与 `11.0.0.0/8` 等价合并为 `10.0.0.0/7`，将 `28.0.0.0/8` 与 `29.0.0.0/8` 等价合并为 `28.0.0.0/7`，其余条目保持原样，IP 整体覆盖范围不变。这些域名包含公网服务，并非全部为内网域名。现有 `exclude-simple-hostnames = true` 仍保留，不含点的简单主机名继续适用该设置。
 
-模块和旧参数都只替换 `skip-proxy` 这一行，保留上述两个目标的 DNS 劫持配置，不追加 `[Host]`、域名或 IP 直连规则；DoH 是否开启仍由独立开关决定，原有 DNS 上游、SYSTEM、LAN、业务规则和最终兜底保持不变。腾讯专用的规则集和 Host 订阅入口已移除，请求返回 404。原 `skip-proxy-lists.sgmodule` 与默认 `skip-proxy` 内容完全相同，已删除。启用模块或旧参数都不会改变 D1 中的用户、节点和分配关系。
+这些例外只写在 `skip-proxy` 这一行，保留上述两个目标的 DNS 劫持配置，不追加 `[Host]`、域名或 IP 直连规则；DoH 是否开启仍由独立开关决定，原有 DNS 上游、SYSTEM、LAN、业务规则和最终兜底保持不变。腾讯专用的规则集和 Host 订阅入口已移除，请求返回 404。原 `skip-proxy-lists.sgmodule` 与默认 `skip-proxy` 内容完全相同，已删除。名单不会改变 D1 中的用户、节点和分配关系。
 
-遵守系统代理例外的应用，访问匹配目标时由系统直接连接；内网 DNS 和路由需由 macOS 或公司 VPN 提供。模块不会修改 Mac 的系统 DNS，Surge 的 DNS/DoH 设置也不会自动用于这些绕过请求。IP 网段例外只匹配直接以 IP 为目标的请求，不会主动解析域名再匹配网段；开启增强模式后，绕过系统代理的连接仍可能被虚拟网卡接管。参见 [Surge 的 skip-proxy 说明](https://manual.nssurge.com/profile/general.html#skip-proxy)。
+遵守系统代理例外的应用，访问匹配目标时由系统直接连接；内网 DNS 和路由需由 macOS 或公司 VPN 提供。名单对所有设备生效，不在公司网络时访问这些域名或网段同样绕过 Surge 直接连接。例外不会修改 Mac 的系统 DNS，Surge 的 DNS/DoH 设置也不会自动用于这些绕过请求。IP 网段例外只匹配直接以 IP 为目标的请求，不会主动解析域名再匹配网段；开启增强模式后，绕过系统代理的连接仍可能被虚拟网卡接管。参见 [Surge 的 skip-proxy 说明](https://manual.nssurge.com/profile/general.html#skip-proxy)。
 
 ## 返回值与兼容边界
 
@@ -104,7 +104,7 @@ develop 新增独立可见的 `Speedtest` 手动选择组，选项按 IDC → WA
 
 develop 默认提供 `Tailnet = tailscale, section-name=tailnet` 和 `[Tailscale tailnet]`，要求 Surge Mac 6.8.0+ / iOS 5.21.0+。Tailnet 不加入任何策略组，订阅也不再提供 `Tailscale` 入口分组。交互登录需要打开 Tailnet 的策略编辑器，需要时可临时加回 `Tailscale = select, Tailnet`，从策略组列表进入。`interactive-login = true` 只引用当前设备的登录状态，不会自动打开浏览器，也不会继承服务器或其他设备的认证；登录状态按 `tailnet` 段名保存在本机。参见 [Surge Tailscale 官方说明](https://manual.nssurge.com/policies/tailscale.html)。
 
-该策略启用 `auto-add-magic-dns-rule = true`，自动路由控制面下发的可见节点 IPv4/IPv6 地址及 MagicDNS 后缀，无需在仓库硬编码服务器 Tailscale IP、tailnet 域名或登录凭据；未设置子网路由。`exit-node = none`，并从 `Auto` 中排除，避免普通上网流量误选 Tailnet。默认配置及 Tencent OA 模块都不再将 `100.64.0.0/10` 放进 `skip-proxy`，让这些请求有机会交给 Surge；这不等于把整个网段都路由到 Tailnet。
+该策略启用 `auto-add-magic-dns-rule = true`，自动路由控制面下发的可见节点 IPv4/IPv6 地址及 MagicDNS 后缀，无需在仓库硬编码服务器 Tailscale IP、tailnet 域名或登录凭据；未设置子网路由。`exit-node = none`，并从 `Auto` 中排除，避免普通上网流量误选 Tailnet。默认配置不再将 `100.64.0.0/10` 放进 `skip-proxy`，让这些请求有机会交给 Surge；这不等于把整个网段都路由到 Tailnet。
 
 Dev 订阅节点使用测试节点池保存的公网地址、443 端口和原 TLS 设置，节点名称、地区/IP 类型组和出口保持原样。Surge 节点不再添加 `underlying-proxy=Tailnet`，Clash 节点不再添加 `dialer-proxy: Tailnet`，也不再生成 `Tailnet Test` 节点；遗留的 `TAILNET_ENDPOINTS` Secret 不会改变这一行为。`Auto`、各地区组和 `DoH Proxy` 都使用这些公网节点，普通代理流量不依赖 Tailnet 登录。
 

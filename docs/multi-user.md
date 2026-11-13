@@ -6,7 +6,7 @@ Cloudflare Access 负责 Google OAuth 登录，Worker 校验 Access JWT 的签�
 
 首次访问用户 API 自动创建账号和 256 位随机订阅 token。用户在域名根路径 `/` 复制 `/AtlasRouter?token=<token>` 链接，也可重置链接；旧 token 立即失效。管理员停用用户时撤销其链接并释放分配，再启用时生成新凭据。用户 API 只返回本人的邮箱、链接、节点名称及顺序；管理员 API 不返回用户订阅 token。
 
-页面“自定义选项”可启用 DoH 或将 Client 从默认 Surge 切换为 Clash。选项写入订阅 URL 的 `doh=1`、`client=clash` 参数，两种格式共用同一 token 和分配结果。Clash 从完整 Surge 配置派生，省略不兼容内容；具体边界见 [订阅说明](subscription.md)。
+页面“自定义选项”默认启用 DoH，可关闭 DoH 或将 Client 从默认 Surge 切换为 Clash。非默认选项写入订阅 URL 的 `doh=0`、`client=clash` 参数，两种格式共用同一 token 和分配结果。Clash 从完整 Surge 配置派生，省略不兼容内容；具体边界见 [订阅说明](subscription.md)。
 
 普通用户和管理员使用同一个网页 URL `/`。管理员邮箱命中 `ADMIN_EMAILS` 时，页面额外包含节点池和用户管理区域；普通用户收到的 HTML 不包含这些区域及管理脚本。管理 API 使用 `ADMIN_API_SLUG` Secret 组成随机前缀，只注入已核验的管理员 HTML，且每次调用都独立校验权限；角色不能通过查询参数或前端修改获得。网页和所有个人、管理 API 共用一个 Access application。
 

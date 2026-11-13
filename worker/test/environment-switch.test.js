@@ -14,7 +14,7 @@ function element(tagName) {
 
 async function openPage({ respond = () => null, confirm = () => true } = {}) {
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
-  const account = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-dev", "#install-tencent-oa", "#copy-tencent-oa", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const account = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   const pool = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
   account.get("#subscription-client").value = "surge";
   const notice = { hidden: true };
@@ -63,7 +63,7 @@ test("switching waits for both panels and sends later writes only to the selecte
     if (url.pathname.startsWith("/api/AtlasRouter-Dev/") && url.pathname.endsWith("/state")) await pending;
   } });
   page.account.get("#subscription-client").value = "clash";
-  page.account.get("#enable-doh").checked = true;
+  page.account.get("#enable-doh").checked = false;
   const switching = page.change(true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.match(page.account.get("#subscription").value, /PROD_TEST/);
@@ -75,7 +75,7 @@ test("switching waits for both panels and sends later writes only to the selecte
   const subscription = new URL(page.account.get("#subscription").value);
   assert.equal(subscription.searchParams.get("token"), "DEV_TEST");
   assert.equal(subscription.searchParams.get("client"), "clash");
-  assert.equal(subscription.searchParams.get("doh"), "1");
+  assert.equal(subscription.searchParams.get("doh"), "0");
   assert.match(page.pool.get("#inventory").value, /dev-node/);
   assert.equal(page.notice.hidden, false);
   await page.pool.get("#save").onclick();
