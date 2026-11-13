@@ -392,7 +392,7 @@ test("explicit rendering options preserve protocol behavior across visibility an
     { vars: deployment.vars, origin: "https://atlas.example", token: `ar_${"a".repeat(64)}` },
     { vars: { ...deployment.vars, SMART_PRIORITY_SCHEME: "geometric-10", SHOW_ALL_PROXY_GROUPS: "true" }, origin: "https://atlas.example", token: `ar_${"b".repeat(64)}` },
   ];
-  assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME ?? "linear", "linear");
+  assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME, "geometric-10-from-100");
   assert.equal(environments[1].vars.SMART_PRIORITY_SCHEME, "geometric-10");
   assert.equal(environments[0].vars.SHOW_ALL_PROXY_GROUPS, undefined);
   assert.equal(environments[1].vars.SHOW_ALL_PROXY_GROUPS, "true");
@@ -582,6 +582,25 @@ test("geometric-10 starts ISP backups at 100 while WARP and IDC keep tenfold ste
   const { config } = await convertSurgeToClash(source, context);
   for (const name of ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇺🇸USA-IDC"]) {
     assert.equal(config["proxy-groups"].find((group) => group.name === name)?.type, "fallback", name);
+  }
+});
+
+test("production and development start every regional Smart backup at 100", async () => {
+  const state = { nodes: parsePoolNodes(["ISP", "WARP", "IDC"].flatMap((type) => [1, 2, 3].map((number) => ({
+    id: `${type}-${number}`, line: `🇺🇸 US ${type} ${number} = ${vmess}`,
+  })))), users: [{ id: "user", enabled: true }] };
+  allocateNodes(state, "2026-01-01T00:00:00Z");
+  const groups = userGroups(state, "user");
+  for (const file of ["wrangler.jsonc", "wrangler.development.jsonc"]) {
+    const { vars } = JSON.parse(await readFile(new URL(`../${file}`, import.meta.url), "utf8"));
+    const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), smartPriorityScheme: vars.SMART_PRIORITY_SCHEME });
+    const { config } = await convertSurgeToClash(source, context);
+    for (const name of ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇺🇸USA-IDC"]) {
+      const weights = source.split("\n").find((line) => line.startsWith(`${name} = smart, `))
+        .match(/policy-priority="([^"]*)"/)[1].split(";").map((entry) => Number(entry.split(":").at(-1)));
+      assert.deepEqual(weights, [1, 100, 1000], `${file} ${name}`);
+      assert.equal(config["proxy-groups"].find((group) => group.name === name)?.type, "fallback", `${file} ${name}`);
+    }
   }
 });
 
