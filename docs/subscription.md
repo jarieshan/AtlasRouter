@@ -94,7 +94,7 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 生成内容中的 `#!MANAGED-CONFIG` 和模块 URL 使用正式域名及 `/AtlasRouter` 路径。它们只接受订阅 `token`，不能用浏览器登录身份代替。修改模板不会改变个人 token；用户重置后，旧 token 同时失去订阅和模块访问权。
 
-master 与 develop 按地区/IP 类型生成带 `policy-priority` 的 Smart 组，成员依照每位用户的主节点、备用节点排列。正式未配置 `SMART_PRIORITY_SCHEME`，使用线性权重 1、2、3…；开发服务配置 geometric-10，ISP 备用节点从 100 起。Clash 将这些组转换为相同主备次序的 fallback，间隔 300 秒。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL` 兜底规则。不生成 `[MITM]` 段。
+master 与 develop 按地区/IP 类型生成带 `policy-priority` 的 Smart 组，成员依照每位用户的主节点、备用节点排列。正式与开发服务均配置 `SMART_PRIORITY_SCHEME=geometric-10-from-100`：主节点权重为 1，备用节点依次为 100、1000、10000…，ISP、WARP、IDC 组相同；受安全整数限制，每组最多 15 个节点，超过后订阅生成会报错。Clash 将这些组转换为相同主备次序的 fallback，间隔 300 秒。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL` 兜底规则。不生成 `[MITM]` 段。
 
 正式和开发订阅的兜底规则指向独立可见的手动选择组：`FINAL,FINAL,dns-failed`。`FINAL` 组选项按 Auto → Proxy → IDC → WARP → ISP → DIRECT 排列，地区/IP 类型分组内部保持现有地区顺序，缺少的类型跳过；不单独加入 `Tailnet Test`。首次使用默认 `Auto`。这里是手动选项顺序，不是故障自动回退顺序；客户端会保留仍有效的手动选择。Clash 对应可见的 `select` 组和 `MATCH,FINAL`。
 
@@ -140,7 +140,7 @@ RedPocket 使用本仓库的 [`RedPocket.list`](../surge/rule-sets/RedPocket.lis
 
 券商规则之后、WeChat 之前是 MagicRule 的 `Direct` 列表。它是 MagicRule 的直连白名单，收录 PT 站、路由器与 NAS 管理域名、私有网段的反向解析域名、学术数据库和 Windows 更新等，另含 36 条 `PROCESS-NAME`（BT 下载工具、其他代理客户端、`cloudflared`、`tailscaled`、远程桌面等，仅在支持进程规则的客户端上生效）。它排在 AI、Apple 等规则集之前，因此这些进程的流量一律直连，例如 `cloudflared` 连接 Cloudflare 时不再按 Cloudflare 列表进入 AIProxy。
 
-正式和开发订阅的地区/IP 类型组均可见，也可作为其他策略组的选项。正式按模板隐藏 `DoH Proxy`；私有开发服务启用 `SHOW_ALL_PROXY_GROUPS`，显示全部策略组。账户网页和管理员节点清单继续展示分配信息。Apple 只保留 `iCloud` 一个可见分组，首项为 `DIRECT`，其余选项先按 IDC → WARP → ISP，再按地区顺序排列；其余 Apple 服务由 Apple 完整规则直接走 `DIRECT`。这里的顺序是手动选择项顺序，不是 DIRECT 失败后的自动切换顺序；客户端已有且仍有效的手动选择可能被保留。
+地区/IP 类型组设置 `hidden=true`，隐藏客户端主面板中的独立分组，仍可作为其他策略组的选项。正式订阅同时隐藏 `DoH Proxy`；私有开发服务启用 `SHOW_ALL_PROXY_GROUPS`，显示全部策略组。账户网页和管理员节点清单继续展示分配信息。Apple 只保留 `iCloud` 一个可见分组，首项为 `DIRECT`，其余选项先按 IDC → WARP → ISP，再按地区顺序排列；其余 Apple 服务由 Apple 完整规则直接走 `DIRECT`。这里的顺序是手动选择项顺序，不是 DIRECT 失败后的自动切换顺序；客户端已有且仍有效的手动选择可能被保留。
 
 模板支持在 `[Rule]` 的 `RULE-SET` / `DOMAIN-SET` 行上追加 `hidden=true` 或 `hidden=false`，作为 AtlasRouter 对所引用策略组的显示设置。生成时会移除规则行的该参数，将其应用到对应 `[Proxy Group]` 定义，再转换为 Clash 的 `hidden` 属性；规则、策略引用和匹配顺序保持有效。`hidden=false` 会移除组上的隐藏参数，使用默认可见行为。源码中的 `SHOW_ALL_PROXY_GROUPS` 可覆盖逐组显示设置，但正式部署未启用此选项。此写法不是 Surge 原生规则参数；原生 `hidden` 属于[策略组参数](https://manual.nssurge.com/policy-groups/parameters.html#hidden)。同一组被多条规则引用时，未标记的规则不覆盖显式设置，多个显式设置必须一致；不能用于 `DIRECT`、`REJECT` 或不存在的组。
 

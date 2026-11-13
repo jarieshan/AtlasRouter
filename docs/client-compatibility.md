@@ -7,8 +7,8 @@
 | 项目 | master / 正式订阅 | develop / Dev 订阅 |
 | --- | --- | --- |
 | 订阅与数据 | `/AtlasRouter`，正式 D1 token | `/AtlasRouter-Dev`，独立测试 D1 token |
-| 地区组权重 | Surge Smart，默认线性 1、2、3…；Clash 同顺序 fallback | Surge Smart，geometric-10；ISP 为 1、100、1000…，其余为 1、10、100…；Clash 同顺序 fallback |
-| 策略组显示 | 地区和业务组可见，按模板隐藏 DoH Proxy | `SHOW_ALL_PROXY_GROUPS=true`，所有组可见 |
+| 地区组权重 | Surge Smart，`geometric-10-from-100`：ISP、WARP、IDC 均为 1、100、1000…；Clash 同顺序 fallback | 同左 |
+| 策略组显示 | 业务组可见，地区组和 DoH Proxy 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有组可见 |
 | 仓库规则资源 | jsDelivr `@master` | jsDelivr `@develop` |
 | MagicRule | 39 类、78 份客户端产物；启用定时检查 | 同一规则基线，不运行 Cron |
 | 发布 | Cloudflare master 构建，`npm run deploy` | Cloudflare develop 构建，`npm run deploy:development` |
@@ -22,7 +22,7 @@
 | 项目 | 当前结果 | 边界 |
 | --- | --- | --- |
 | 规则、业务组顺序 | 两分支依次为 CustomReject、RedPocket、Speedtest、CustomDirect、IBKR / LongBridge、MagicRule Direct、WeChat、AI（含 Cloudflare、AppleIntelligence）、Apple、Telegram / X / Discord / YouTube、OverseasFinance、ISP First（Facebook / Threads / Reddit / Line）、影音独立规则、Alphabet / GitHub / Wikimedia（`Auto`）、国内直连名单；AppleTV、AppleIntelligence、iCloud 在 Apple 完整规则前；YouTube 在 Netflix 等影音规则前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
-| 节点主备 | Surge 带权重 Smart；Clash 同顺序 fallback、300 秒间隔 | 各客户端的测速时机和结果可能不同，不保证同一时刻选中同一节点；环境权重差异见上表 |
+| 节点主备 | Surge 带权重 Smart；Clash 同顺序 fallback、300 秒间隔 | 各客户端的测速时机和结果可能不同，不保证同一时刻选中同一节点；权重见上表 |
 | Auto | 两端都包含本订阅的可转换代理节点 | Surge 是 Smart；Clash 是 300 秒、容差 50 ms 的 url-test。不能复现真实连接评分、站点记忆或重试顺序 |
 | DoH Proxy | 正式按模板隐藏，开发两端均可见，仅含 IDC 节点；Surge Smart，Clash url-test；Cloudflare / Google 使用该组，阿里 / 腾讯直连 | 无 IDC 或 Clash 过滤后无兼容 IDC 时省略该组，国外 DoH 规则改为 REJECT，其他订阅内容保留 |
 | UDP | VMess / Trojan 显式输出 `udp: true`；SS / SOCKS5 需显式开启 | VMess / Trojan 的显式 `udp-relay=false` 在转换器中保留为关闭；Surge 官方将此开关列为其他协议的可选能力，不能依赖它在这两类 Surge 节点上关闭 UDP。服务器可用性另需实测 |
