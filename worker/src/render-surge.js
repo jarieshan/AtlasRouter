@@ -46,8 +46,9 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
 
 function renderPoolTemplate(groups, smartPriorityScheme, idcNames, tailnetNodes) {
   const orderedGroups = [...groups].sort(compareNodeGroups);
-  const groupNamesByIpType = (order) => [...orderedGroups].sort((a, b) =>
-    order[a.nodes[0].ipType] - order[b.nodes[0].ipType]
+  const groupNamesByIpType = (order, preferredRegion) => [...orderedGroups].sort((a, b) =>
+    (a.nodes[0].region !== preferredRegion) - (b.nodes[0].region !== preferredRegion)
+    || order[a.nodes[0].ipType] - order[b.nodes[0].ipType]
     || compareNodeGroups(a, b)).map(({ group }) => group).join(", ");
   const section = replaceTemplate(ASSETS.poolGroups, {
     POOL_GROUP_LINES: orderedGroups.map(({ group, nodes }) => {
@@ -63,6 +64,7 @@ function renderPoolTemplate(groups, smartPriorityScheme, idcNames, tailnetNodes)
     POOL_GROUPS: groupNamesByIpType(IP_TYPE_ORDER),
     IDC_FIRST_POOL_GROUPS: groupNamesByIpType(IDC_FIRST_IP_TYPE_ORDER),
     WARP_FIRST_POOL_GROUPS: groupNamesByIpType(WARP_FIRST_IP_TYPE_ORDER),
+    HK_FIRST_POOL_GROUPS: groupNamesByIpType(IP_TYPE_ORDER, "HK"),
   });
   return ASSETS.template.replace(/^\[Proxy Group\]\n[\s\S]*?(?=^\[Rule\]$)/m, () => `${section}\n`);
 }
