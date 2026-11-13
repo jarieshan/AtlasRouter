@@ -58,18 +58,8 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   }
   assert.doesNotMatch(plain, /jsdelivr\.net\/gh\/Loyalsoldier\/surge-rules/);
   for (const config of [plain, encrypted]) {
-    assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${iconBase}Auto.png`));
-    assert.match(config, /^Tailnet = tailscale, section-name=tailnet$/m);
-    assert.doesNotMatch(config, /^Tailscale = /m);
-    assert.match(config, /\[Tailscale tailnet\]\ninteractive-login = true\nauto-add-magic-dns-rule = true\nexit-node = none\n/);
-    const ruleLines = config.split("[Rule]\n")[1].split("\n");
-    for (const tailnetRule of ["DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]) {
-      assert.ok(ruleLines.includes(tailnetRule));
-      for (const lanRule of ["RULE-SET,LAN,DIRECT,no-resolve", "RULE-SET,LAN,DIRECT"]) {
-        assert.ok(ruleLines.indexOf(tailnetRule) < ruleLines.indexOf(lanRule));
-      }
-    }
-    assert.doesNotMatch(config, /^auth-key\s*=/m);
+    assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${iconBase}Auto.png`));
+    assert.doesNotMatch(config, /tailnet|tailscale/i);
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
     assert.ok(config.split("\n").includes(`DoH Proxy = smart, 🇭🇰 HK IDC, icon-url=${iconBase}Server.png, hidden=true`));
@@ -130,18 +120,14 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const surge = renderSurgeProfile({ ...input, options: { doh } });
     const output = await renderClashProfile(surge, context);
     const config = parse(output);
-    assert.deepEqual(config.proxies.at(-1), { name: "Tailnet", type: "tailscale", udp: true });
-    assert.ok(config["proxy-groups"].every(({ proxies }) => !proxies?.includes("Tailnet")));
-    assert.deepEqual(config.rules.slice(0, 4), ["IP-CIDR,100.64.0.0/10,Tailnet,no-resolve", "IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve",
-      "DOMAIN-SUFFIX,tailscale.atlasrouter.zslab.ai,Tailnet", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
-    assert.doesNotMatch(output, /auth-key|interactive-login|Section tailscale/);
+    assert.doesNotMatch(output, /tailnet|tailscale/i);
     assert.equal(config["x-clash-block-quic"], "all-proxy");
     for (const hostname of ["atlasrouter.zslab.ai"]) {
       const index = config.rules.indexOf(`DOMAIN,${hostname},DIRECT`);
       assert.ok(index >= 0);
       assert.ok(index < config.rules.findIndex((rule) => rule.startsWith("RULE-SET,")));
     }
-    assert.deepEqual(config.proxies.map((node) => node.name), ["🇺🇸 US ISP 1", "🇺🇸 US ISP 2", "🇺🇸 US WARP", "🇭🇰 HK IDC", "Tailnet"]);
+    assert.deepEqual(config.proxies.map((node) => node.name), ["🇺🇸 US ISP 1", "🇺🇸 US ISP 2", "🇺🇸 US WARP", "🇭🇰 HK IDC"]);
     for (const group of input.groups) {
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).type, "fallback");
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).interval, 300);
@@ -243,7 +229,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     const auto = config["proxy-groups"].find((group) => group.name === "Auto");
     assert.equal(auto.type, "url-test");
     assert.equal(auto.icon, `${iconBase}Auto.png`);
-    assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name).filter((name) => name !== "Tailnet"));
+    assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
     assert.equal(auto.interval, 300);
     assert.equal(auto.tolerance, 50);
     assert.ok(!auto.hidden);
@@ -780,39 +766,6 @@ test("LAN expansion includes local domains and special networks without changing
   }
 });
 
-test("Tailscale policies become Mihomo tailscale proxies with their section and route the tailnet ahead of LAN", async () => {
-  const source = (settings, line = "Tailnet = tailscale, section-name=tailnet") => `[Proxy]\nnode = ${vmess}\n${line}\n[Proxy Group]\nTailscale = select, Tailnet\n[Rule]\nDOMAIN-SUFFIX,ts.net,Tailnet\nRULE-SET,LAN,DIRECT,no-resolve\nFINAL,node\n[Tailscale tailnet]\n${settings.join("\n")}\n`;
-  const interactive = await convertSurgeToClash(source(["interactive-login = true", "auto-add-magic-dns-rule = true", "exit-node = none"]), context);
-  assert.deepEqual(interactive.config.proxies[1], { name: "Tailnet", type: "tailscale", udp: true });
-  assert.deepEqual(interactive.config["proxy-groups"], [{ name: "Tailscale", type: "select", proxies: ["Tailnet"] }]);
-  assert.deepEqual(interactive.config.rules.slice(0, 3), ["IP-CIDR,100.64.0.0/10,Tailnet,no-resolve", "IP-CIDR6,fd7a:115c:a1e0::/48,Tailnet,no-resolve", "DOMAIN-SUFFIX,ts.net,Tailnet"]);
-  assert.ok(interactive.config.rules.includes("IP-CIDR,100.64.0.0/10,DIRECT,no-resolve"));
-  assert.deepEqual(interactive.warnings, [
-    "Proxy entry 2: tailscale requires Mihomo 1.19.25+ with Tailscale support; control-plane connections bypass rules; interactive login prints its URL to the info log",
-    "Proxy entry 2: auto-add-magic-dns-rule approximated by 100.64.0.0/10 and fd7a:115c:a1e0::/48 ahead of all rules",
-  ]);
-  const keyed = await convertSurgeToClash(source(["auth-key = tskey-auth-TEST_ONLY", "hostname = atlas-mac", "auto-add-magic-dns-rule = false"]), context);
-  assert.deepEqual(keyed.config.proxies[1], { name: "Tailnet", type: "tailscale", udp: true, "auth-key": "tskey-auth-TEST_ONLY", hostname: "atlas-mac" });
-  assert.equal(keyed.config.rules[0], "DOMAIN-SUFFIX,ts.net,Tailnet");
-  assert.doesNotMatch(keyed.warnings.join("\n"), /TEST_ONLY|interactive login|approximated/);
-  const unsupported = [
-    source([]), source(["interactive-login = false"]), source(["interactive-login = true", "auth-key = tskey-auth-NEVER_LOG_THIS"]),
-    source(["interactive-login = true", "exit-node = auto"]), source(["interactive-login = true", "derp-only = true"]),
-    source(["interactive-login = true", "control-url = https://NEVER_LOG_THIS.example"]),
-    source(["interactive-login = true"], "Tailnet = tailscale, section-name=missing"), source(["interactive-login = true"], "Tailnet = tailscale"),
-    source(["interactive-login = true"], "Tailnet = tailscale, section-name=tailnet, underlying-proxy=node"),
-  ];
-  for (const profile of unsupported) {
-    const { config, warnings } = await convertSurgeToClash(profile, context);
-    assert.deepEqual(config.proxies.map(({ name }) => name), ["node"]);
-    assert.deepEqual(config["proxy-groups"], []);
-    assert.ok(!config.rules.some((rule) => rule.includes("Tailnet")));
-    assert.ok(warnings.includes("Proxy entry 2: unsupported protocol, parameter or invalid value; node omitted"));
-    assert.ok(warnings.includes("Section tailscale tailnet: omitted"));
-    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS/);
-  }
-});
-
 test("underlying-proxy becomes dialer-proxy only through a converted node that dials directly", async () => {
   const source = `[Proxy]\nhop = ${vmess}\nvia-hop = ${vmess}, underlying-proxy=hop\nvia-group = ${vmess}, underlying-proxy=Group\nvia-missing = ${vmess}, underlying-proxy=NEVER_LOG_THIS\nvia-chain = ${vmess}, underlying-proxy=via-hop\n[Proxy Group]\nGroup = select, hop, via-group\n[Rule]\nFINAL,Group\n`;
   const { config, warnings } = await convertSurgeToClash(source, context);
@@ -825,21 +778,21 @@ test("underlying-proxy becomes dialer-proxy only through a converted node that d
 
 test("policy-regex-filter only filters included proxies and invalid expressions are omitted safely", async () => {
   const source = `[Proxy]
-Tailnet = ${vmess}
-Tailnet backup = ${vmess}
+Excluded = ${vmess}
+Excluded backup = ${vmess}
 Internet = ${vmess}
 [Proxy Group]
-Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*
-Manual = select, Tailnet, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*
-Explicit = select, Tailnet, policy-regex-filter=^(?!Tailnet$).*
+Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Excluded$).*
+Manual = select, Excluded, include-all-proxies=true, policy-regex-filter=^(?!Excluded$).*
+Explicit = select, Excluded, policy-regex-filter=^(?!Excluded$).*
 [Rule]
 FINAL,Manual
 `;
   const { config } = await convertSurgeToClash(source, context);
   assert.deepEqual(config["proxy-groups"].map(({ name, proxies }) => ({ name, proxies })), [
-    { name: "Auto", proxies: ["Tailnet backup", "Internet"] },
-    { name: "Manual", proxies: ["Tailnet", "Tailnet backup", "Internet"] },
-    { name: "Explicit", proxies: ["Tailnet"] },
+    { name: "Auto", proxies: ["Excluded backup", "Internet"] },
+    { name: "Manual", proxies: ["Excluded", "Excluded backup", "Internet"] },
+    { name: "Explicit", proxies: ["Excluded"] },
   ]);
   const invalid = await convertSurgeToClash(source.replace("[Rule]", "Invalid = select, Internet, include-all-proxies=true, policy-regex-filter=[NEVER_LOG_THIS\n[Rule]"), context);
   assert.deepEqual(invalid.config, config);

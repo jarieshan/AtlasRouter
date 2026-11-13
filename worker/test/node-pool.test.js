@@ -208,7 +208,7 @@ test("renders ordered smart groups with valid references and literal credential 
   assert.match(config, /^FINAL,FINAL,dns-failed$/m);
   assert.match(config, /^# Available modules:\n# - None$/m);
   assert.doesNotMatch(config, /{{|💎 Select/);
-  assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, policy-regex-filter=^(?!Tailnet$).*, icon-url=${ICON_BASE}Auto.png`));
+  assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
   assert.doesNotMatch(config, /^\[MITM\]$/m);
   assert.doesNotMatch(config, /ca-p12|ca-passphrase/);
   const policyNames = new Set(["DIRECT", "REJECT"]);
@@ -242,7 +242,7 @@ test("orders selection options by IP type while preserving regional definitions 
     const expectedProxyLines = ["US", "HK", "SG", "JP", "AU", "DE"]
       .flatMap((region) => ["ISP", "WARP", "IDC"].flatMap((type) =>
         nodes.filter((node) => node.region === region && node.ipType === type).map((node) => node.line)));
-    assert.deepEqual(proxyLines, [...expectedProxyLines, "Tailnet = tailscale, section-name=tailnet"]);
+    assert.deepEqual(proxyLines, expectedProxyLines);
     assert.deepEqual(nodes.map((node) => node.id), nodeIds);
     const expectedGroups = expectedRegions.flatMap((region) => ["ISP", "WARP", "IDC"].map((type) => `${region}-${type}`))
       .filter((group) => hasUsIsp || group !== "🇺🇸USA-ISP");

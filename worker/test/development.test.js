@@ -5,8 +5,6 @@ import { uiEnvironment } from "../src/ui-environment.js";
 import { deployDevelopment } from "../scripts/deploy-development.js";
 import { readFile } from "node:fs/promises";
 
-const tailnetEndpoints = JSON.stringify([{ server: "node.example.com", port: 443, hostname: "node.example-tailnet.ts.net" }]);
-
 test("Dev selects only its own database and generates a subscription using its path", () => {
   const env = { DB: {}, DEV_DB: {}, DEV_SUBSCRIPTION_SERVICE: { fetch() {} } };
   const target = uiEnvironment("https://atlas.example/?environment=development&client=clash", env);
@@ -66,19 +64,17 @@ test("private development deployment cannot expose a public route or use product
   }
 });
 
-test("public development deployment does not require or upload a Tailnet mapping", async () => {
+test("development deployment migrates the test database before deploying and dry runs only build", async () => {
   const config = JSON.parse(await readFile(new URL("../wrangler.development.jsonc", import.meta.url), "utf8"));
   const production = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
-  for (const mapping of [undefined, tailnetEndpoints, "[]", "INVALID_SECRET"]) {
-    const calls = [];
-    await deployDevelopment({ config, production, ci: "1", branch: "develop", commit: "a".repeat(40), tailnetEndpoints: mapping,
-      async run(args) { calls.push(args); } });
-    assert.deepEqual(calls, [
-      ["d1", "migrations", "apply", "DB", "--remote", "--config", "wrangler.development.jsonc"],
-      ["deploy", "--config", "wrangler.development.jsonc"],
-    ]);
-  }
   const calls = [];
-  await deployDevelopment({ config, production, dryRun: true, async run(args) { calls.push(args); } });
-  assert.deepEqual(calls, [["deploy", "--config", "wrangler.development.jsonc", "--dry-run"]]);
+  await deployDevelopment({ config, production, ci: "1", branch: "develop", commit: "a".repeat(40),
+    async run(args) { calls.push(args); } });
+  assert.deepEqual(calls, [
+    ["d1", "migrations", "apply", "DB", "--remote", "--config", "wrangler.development.jsonc"],
+    ["deploy", "--config", "wrangler.development.jsonc"],
+  ]);
+  const dryRunCalls = [];
+  await deployDevelopment({ config, production, dryRun: true, async run(args) { dryRunCalls.push(args); } });
+  assert.deepEqual(dryRunCalls, [["deploy", "--config", "wrangler.development.jsonc", "--dry-run"]]);
 });
