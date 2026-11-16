@@ -13,7 +13,7 @@ import { allocateNodes, parsePoolNodes, userGroups } from "../src/node-pool.js";
 import { readSubscriptionState } from "../src/subscription-db.js";
 import { splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
 import {
-  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
+  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, INTERNAL_ACCOUNT_PAGE_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
 } from "../src/routes.js";
 
 const ADMIN_API_SLUG = "0123456789abcdef0123456789abcdef";
@@ -200,18 +200,22 @@ test("unconfigured Dev cannot change production accounts or the retained test da
   assert.deepEqual(await readSubscriptionState({ DB: testDb }), testBefore);
 });
 
-test("Dev portal and private service isolate data, tokens, module links and token rotation", async (t) => {
+test("Dev serves its own page code and isolates data, tokens, module links and token rotation", async (t) => {
   const productionConfig = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   const developmentConfig = JSON.parse(await readFile(new URL("../wrangler.development.jsonc", import.meta.url), "utf8"));
+  const developmentCode = (await readFile(".wrangler/test-development/index.js", "utf8"))
+    .replace("Wi-Fi Assist", "Development-only control");
+  assert.match(developmentCode, /Development-only control/);
   const devNodes = nodes(3).map((node) => ({ ...node, line: node.line.replace("Example", "Development")
     .replace("trojan,", "vmess,").replace("password=TEST_ONLY", "username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true") }));
-  const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
+  const common = { modules: true, compatibilityDate: "2026-05-12" };
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
-    { ...common, name: "portal", d1Databases: { DB: "production", DEV_DB: "development" },
+    { ...common, name: "portal", scriptPath: ".wrangler/test-dist/index.js", d1Databases: { DB: "production", DEV_DB: "development" },
       serviceBindings: { DEV_SUBSCRIPTION_SERVICE: "development" },
       bindings: { ...productionConfig.vars, ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
-        ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG } },
-    { ...common, name: "development", scriptPath: ".wrangler/test-development/index.js", d1Databases: { DB: "development" },
+        ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG,
+        PREVIEW_EMAIL_HASHES: createHash("sha256").update("preview@example.com").digest("hex") } },
+    { ...common, name: "development", script: developmentCode, d1Databases: { DB: "development" },
       bindings: developmentConfig.vars },
   ] }));
   t.after(() => mf.dispose());
@@ -234,9 +238,44 @@ test("Dev portal and private service isolate data, tokens, module links and toke
   assert.equal((await request(mf, "/AtlasRouter-Dev/modules/missing")).status, 404);
   assert.equal((await json(await request(mf, devApi(ACCOUNT_PROFILE_PATH) + "?environment=production", { subject: "alice" }))).subscriptionUrl, dev.subscriptionUrl);
   assert.notEqual(new URL(dev.subscriptionUrl).searchParams.get("token"), new URL(production.subscriptionUrl).searchParams.get("token"));
-  const page = await request(mf, "/" + query, { subject: "admin" });
-  assert.match(await page.text(), /id="enable-dev" type="checkbox" role="switch" checked/);
   const devBefore = await readSubscriptionState({ DB: devDb });
+  const productionPage = await request(mf, "/", { subject: "admin" });
+  assert.equal(productionPage.headers.get("x-atlasrouter-page-environment"), "production");
+  const productionHtml = await productionPage.text();
+  assert.match(productionHtml, /Wi-Fi Assist/);
+  assert.doesNotMatch(productionHtml, /Development-only control/);
+  for (const subject of ["admin", "alice", "preview"]) {
+    const page = await request(mf, "/" + query + "&role=admin", { subject,
+      headers: { "x-role": "admin", "cf-access-authenticated-user-email": "admin@example.com" } });
+    assert.equal(page.status, 200);
+    assert.equal(page.headers.get("x-atlasrouter-page-environment"), "development");
+    assert.equal(page.headers.get("cache-control"), "no-store");
+    assert.equal(page.headers.get("x-frame-options"), "DENY");
+    assert.match(page.headers.get("content-security-policy"), /frame-ancestors 'none'/);
+    const body = await page.text();
+    assert.match(body, /Development-only control/);
+    assert.equal(body.includes('id="pool-panel"'), subject === "admin");
+    assert.equal(body.includes(ADMIN_API_SLUG), subject === "admin");
+    if (subject === "preview") {
+      assert.match(body, /页面预览|Development/);
+      assert.doesNotMatch(body, /Production|TEST_ONLY|id="enable-dev"/);
+    } else assert.match(body, /id="enable-dev" type="checkbox" role="switch" checked/);
+  }
+  const previewPage = await request(mf, "/" + query + "&preview=1", { subject: "admin" });
+  const previewHtml = await previewPage.text();
+  assert.match(previewHtml, /Development-only control/);
+  assert.doesNotMatch(previewHtml, /id="pool-panel"|id="enable-dev"/);
+  assert.ok(!previewHtml.includes(ADMIN_API_SLUG));
+  assert.deepEqual(await readSubscriptionState({ DB: devDb }), devBefore);
+  assert.equal((await request(mf, "/" + query)).status, 403);
+  assert.equal((await request(mf, "/" + query, { subject: "admin", claims: { aud: "wrong-app" } })).status, 403);
+  assert.equal((await request(mf, "/" + query, { subject: "admin", method: "POST", body: {} })).status, 405);
+  assert.equal((await request(mf, "/?environment=development&environment=production", { subject: "admin" })).status, 400);
+  for (const route of [INTERNAL_ACCOUNT_PAGE_PATH, INTERNAL_ACCOUNT_PAGE_PATH + "?dev=1", "/AtlasRouter-Dev" + INTERNAL_ACCOUNT_PAGE_PATH]) {
+    assert.equal((await request(mf, route, { subject: "admin" })).status, 404);
+  }
+  assert.equal((await request(mf, INTERNAL_ACCOUNT_PAGE_PATH, { subject: "admin", method: "POST",
+    body: { adminApiSlug: ADMIN_API_SLUG, preview: false, previewIdentity: false } })).status, 404);
   for (const client of ["surge", "clash"]) for (const doh of [0, 1]) for (const wifiAssist of [0, 1]) {
     const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&doh=" + doh + "&wifi_assist=" + wifiAssist);
     assert.equal(response.status, 200);
@@ -311,7 +350,13 @@ test("Dev portal and private service isolate data, tokens, module links and toke
   assert.equal((await request(mf, rotated.subscriptionUrl)).status, 200);
   assert.equal((await request(mf, production.subscriptionUrl)).status, 200);
   assert.deepEqual(await readSubscriptionState({ DB: prodDb }), before);
-  assert.equal((await (await mf.getWorker("development")).fetch(ORIGIN + "/")).status, 404);
+  const privateWorker = await mf.getWorker("development");
+  assert.equal((await privateWorker.fetch(ORIGIN + "/")).status, 404);
+  assert.equal((await privateWorker.fetch(ORIGIN + INTERNAL_ACCOUNT_PAGE_PATH)).status, 405);
+  assert.equal((await privateWorker.fetch(ORIGIN + INTERNAL_ACCOUNT_PAGE_PATH, {
+    method: "POST", headers: { origin: "https://foreign.example", "content-type": "application/json" },
+    body: JSON.stringify({ adminApiSlug: '"</script>', preview: false, previewIdentity: false }),
+  })).status, 403);
 });
 
 test("Access guards member and admin pages, validates claims, methods and paths", async (t) => {

@@ -248,7 +248,7 @@ const clientHelpers = String.raw`
     status.textContent = text;
     status.className = error ? "status error" : "status";
   }
-  async function api(path, method = "GET", body, targetDevelopment) {
+  async function api(path, method = "GET", body) {
     if (previewData) {
       if (path === ${JSON.stringify(ACCOUNT_PROFILE_PATH)} && method === "GET") return previewData;
       if (path === ${JSON.stringify(ACCOUNT_TOKEN_PATH)} && method === "POST") {
@@ -257,9 +257,9 @@ const clientHelpers = String.raw`
       }
       throw new Error("页面预览不调用正式数据接口。");
     }
-    if (pageState.changing && targetDevelopment === undefined) throw new Error("正在切换环境，请稍候。");
+    if (pageState.changing) throw new Error("正在切换环境，请稍候。");
     const url = new URL(path, location.href);
-    if (targetDevelopment ?? pageState.development) url.pathname = ${JSON.stringify(DEV_API_PATH)} + url.pathname.slice(${API_PATH.length});
+    if (pageState.development) url.pathname = ${JSON.stringify(DEV_API_PATH)} + url.pathname.slice(${API_PATH.length});
     pageState.pending += 1;
     try {
       const response = await fetch(url.pathname + url.search, {
@@ -323,7 +323,7 @@ function accountPanel(preview, { development, developmentAvailable }) {
             <input id="enable-tencent-oa" type="checkbox" role="switch" aria-describedby="tencent-oa-help">
           </label>
           ${developmentAvailable ? `<label class="setting" for="enable-dev">
-            <span class="setting-text"><span>Dev</span><span>使用独立测试节点和开发版配置；切换后请更新客户端中的订阅链接。</span></span>
+            <span class="setting-text"><span>Dev</span><span>重新加载开发版页面，使用独立测试节点和配置。切换后请更新客户端中的订阅链接。</span></span>
             <input id="enable-dev" type="checkbox" role="switch"${development ? " checked" : ""}>
           </label>` : ""}
         </div>
@@ -409,9 +409,6 @@ function accountPanel(preview, { development, developmentAvailable }) {
       pageState.panels.forEach((panel) => panel.lock(true));
       message("正在加载" + (selected ? "开发" : "正式") + "环境…");
       try {
-        const results = await Promise.allSettled(pageState.panels.map((panel) => panel.read(selected)));
-        const failed = results.find((result) => result.status === "rejected");
-        if (failed) throw failed.reason;
         const url = new URL(location.href);
         url.searchParams.delete("dev");
         url.searchParams.delete("environment");
@@ -419,19 +416,25 @@ function accountPanel(preview, { development, developmentAvailable }) {
         url.searchParams.delete("doh");
         url.searchParams.delete("tencent_oa");
         url.searchParams.delete("wifi_assist");
+        if (selected) url.searchParams.set("environment", "development");
         if (client.value === "clash") url.searchParams.set("client", "clash");
         if (!doh.checked) url.searchParams.set("doh", "0");
-        if (tencentOa.checked && !tencentOa.disabled) url.searchParams.set("tencent_oa", "1");
+        if (tencentOa.checked) url.searchParams.set("tencent_oa", "1");
         if (wifiAssist.checked) url.searchParams.set("wifi_assist", "1");
-        history.replaceState(null, "", url);
-        pageState.development = selected;
-        development.checked = selected;
-        results.forEach((result, index) => pageState.panels[index].render(result.value));
-        document.getElementById("development-notice").hidden = !selected;
+        const response = await fetch(url.pathname + url.search, {
+          credentials: "same-origin", cache: "no-store", redirect: "error",
+        });
+        if (!response.ok) throw new Error(await response.text());
+        const expected = selected ? "development" : "production";
+        if (!response.headers.get("content-type")?.includes("text/html")
+          || response.headers.get("x-atlasrouter-page-environment") !== expected) {
+          throw new Error("登录已失效或页面版本不可用，请刷新页面后重试。");
+        }
+        await response.body?.cancel();
+        location.replace(url.toString());
       } catch (error) {
         development.checked = previous;
         message("切换失败，仍使用" + (previous ? "开发" : "正式") + "环境：" + error.message, true);
-      } finally {
         pageState.changing = false;
         development.disabled = false;
         pageState.panels.forEach((panel) => panel.lock(false));
@@ -476,10 +479,10 @@ function accountPanel(preview, { development, developmentAvailable }) {
       catch (error) { message(error.message, true); }
     }
     if (!previewData) pageState.panels.push({
-      read: (selected) => api(${JSON.stringify(ACCOUNT_PROFILE_PATH)}, "GET", undefined, selected),
-      render,
       lock: (locked) => {
         copy.disabled = rotate.disabled = locked || !baseSubscriptionUrl;
+        client.disabled = doh.disabled = wifiAssist.disabled = locked;
+        tencentOa.disabled = locked || client.value !== "surge";
       },
     });
     copy.onclick = async () => {
@@ -656,8 +659,6 @@ function poolPanel(adminRoutes) {
       save.disabled = locked || !state; append.disabled = locked || !state;
     }
     pageState.panels.push({
-      read: (selected) => api(${JSON.stringify(adminRoutes.state)}, "GET", undefined, selected),
-      render: (data) => { render(data); importer.value = ""; importNotes.replaceChildren(); message("节点池已加载。"); },
       lock,
       canSwitch: () => {
         if (busy) return false;

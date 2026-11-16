@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { developmentAvailable, developmentRequest } from "../src/development.js";
+import { developmentAvailable, developmentPage, developmentRequest } from "../src/development.js";
+import { INTERNAL_ACCOUNT_PAGE_PATH } from "../src/routes.js";
+import { handleRequest } from "../src/index.js";
 import { uiEnvironment } from "../src/ui-environment.js";
 import { deployDevelopment } from "../scripts/deploy-development.js";
 import { readFile } from "node:fs/promises";
@@ -20,6 +22,63 @@ test("Dev selects only its own database and generates a subscription using its p
   }
 });
 
+test("development page forwarding sends only the verified rendering context", async () => {
+  const context = { adminApiSlug: null, preview: false, previewIdentity: false };
+  let calls = 0;
+  const env = { DEV_SUBSCRIPTION_SERVICE: { async fetch(request) {
+    calls += 1;
+    const url = new URL(request.url);
+    assert.equal(url.pathname, INTERNAL_ACCOUNT_PAGE_PATH);
+    assert.equal(url.search, "");
+    assert.equal(request.method, "POST");
+    assert.equal(request.redirect, "manual");
+    assert.deepEqual([...request.headers], [["content-type", "application/json"], ["origin", url.origin]]);
+    assert.deepEqual(await request.json(), context);
+    return new Response("Development HTML", { headers: {
+      "content-type": "text/html; charset=utf-8", "x-atlasrouter-page-environment": "development",
+    } });
+  } } };
+  const response = await developmentPage(new Request("https://atlas.example/?environment=development&role=admin", {
+    headers: { cookie: "TEST_ONLY", authorization: "TEST_ONLY", "cf-access-jwt-assertion": "TEST_ONLY" },
+  }), env, context);
+  assert.equal(await response.text(), "Development HTML");
+  assert.equal(calls, 1);
+});
+
+test("unavailable or incompatible development pages fail closed", async () => {
+  for (const fetch of [
+    async () => new Response("Not Found", { status: 404 }),
+    async () => new Response("Old page", { headers: { "content-type": "text/html" } }),
+    async () => new Response("Wrong page", { headers: { "content-type": "text/html", "x-atlasrouter-page-environment": "production" } }),
+    async () => Response.json({}),
+    async () => { throw new Error("Service unavailable"); },
+  ]) {
+    await assert.rejects(developmentPage(new Request("https://atlas.example/?environment=development"), {
+      DEV_SUBSCRIPTION_SERVICE: { fetch },
+    }, { adminApiSlug: null, preview: false, previewIdentity: false }), { status: 503 });
+  }
+});
+
+test("private page rendering validates the role context and is disabled on production", async () => {
+  const origin = "https://atlas.example";
+  for (const context of [
+    {},
+    { adminApiSlug: '"</script>', preview: false, previewIdentity: false },
+    { adminApiSlug: null, preview: false, previewIdentity: true },
+    { adminApiSlug: null, preview: "false", previewIdentity: false },
+  ]) {
+    const response = await handleRequest(new Request(origin + INTERNAL_ACCOUNT_PAGE_PATH, {
+      method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(context),
+    }), { SUBSCRIPTION_VARIANT: "development", UI_ENABLED: "false" });
+    assert.equal(response.status, 400);
+  }
+  const response = await handleRequest(new Request(origin + INTERNAL_ACCOUNT_PAGE_PATH, {
+    method: "POST", headers: { origin, "content-type": "application/json" },
+    body: JSON.stringify({ adminApiSlug: null, preview: false, previewIdentity: false }),
+  }), { SUBSCRIPTION_VARIANT: "production" });
+  assert.equal(response.status, 404);
+});
+
 test("private Dev forwarding excludes browser and Access credentials and rejects management requests", async () => {
   let calls = 0;
   const env = { DB: {}, DEV_DB: {}, DEV_SUBSCRIPTION_SERVICE: { async fetch(request) {
@@ -33,7 +92,7 @@ test("private Dev forwarding excludes browser and Access credentials and rejects
     headers: { accept: "text/plain", cookie: "TEST_ONLY", authorization: "TEST_ONLY", "cf-access-jwt-assertion": "TEST_ONLY" },
   }), env);
   assert.equal(await response.text(), "development");
-  for (const path of ["/", "/api/account/profile", "/missing"]) {
+  for (const path of ["/", "/api/account/profile", "/missing", INTERNAL_ACCOUNT_PAGE_PATH]) {
     await assert.rejects(developmentRequest(new Request(`https://atlas.example${path}?dev=1`), env), { status: 404 });
   }
   await assert.rejects(developmentRequest(new Request("https://atlas.example/AtlasRouter?dev=1", { method: "POST" }), env), { status: 405 });

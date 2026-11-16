@@ -10,9 +10,9 @@ import { getModule, renderSurgeProfile } from "./render-surge.js";
 import { callSubscriptionStore } from "./subscription-store.js";
 import { buildSubscriptionUrl, readSubscriptionOptions } from "./subscription-options.js";
 import { uiEnvironment } from "./ui-environment.js";
-import { developmentAvailable, developmentRequest } from "./development.js";
+import { developmentAvailable, developmentPage, developmentRequest } from "./development.js";
 import {
-  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, API_PATH, DEV_API_PATH, DEV_SUBSCRIPTION_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
+  ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, API_PATH, DEV_API_PATH, DEV_SUBSCRIPTION_PATH, INTERNAL_ACCOUNT_PAGE_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
 } from "./routes.js";
 
 const ACCOUNT_ROUTES = new Set([ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH]);
@@ -21,6 +21,17 @@ export async function handlePoolRequest(request, env) {
   const url = new URL(request.url);
   const development = env.SUBSCRIPTION_VARIANT === "development";
   const path = url.pathname.startsWith(`${DEV_API_PATH}/`) ? API_PATH + url.pathname.slice(DEV_API_PATH.length) : url.pathname;
+  // This endpoint is available only through the private Worker's service binding.
+  if (development && path === INTERNAL_ACCOUNT_PAGE_PATH) {
+    requireMethod(request, "POST");
+    const { adminApiSlug, preview, previewIdentity } = await readMutation(request);
+    const adminRoutes = getAdminRoutes({ ADMIN_API_SLUG: adminApiSlug });
+    if (typeof preview !== "boolean" || typeof previewIdentity !== "boolean" || (previewIdentity && !preview)
+      || (adminApiSlug !== null && !adminRoutes)) throw new HttpError(400, "Invalid page context");
+    const previewProfile = previewIdentity ? await readPreviewProfile(env) : null;
+    return html(renderAccountPage({ isAdmin: Boolean(adminRoutes), adminRoutes, preview, previewProfile,
+      development: true, developmentAvailable: true }), "development");
+  }
   if (development && url.searchParams.get("dev") === "1"
     && (path === POOL_SUBSCRIPTION_PATH || path.startsWith(`${POOL_SUBSCRIPTION_PATH}/`))) {
     url.pathname = DEV_SUBSCRIPTION_PATH + path.slice(POOL_SUBSCRIPTION_PATH.length);
@@ -40,6 +51,9 @@ export async function handlePoolRequest(request, env) {
       const isAdmin = !preview && isAdminEmail(identity.email, env);
       const adminRoutes = isAdmin ? getAdminRoutes(env) : null;
       if (isAdmin && !adminRoutes) throw new HttpError(503, "Management API is not configured");
+      if (target.development) return developmentPage(request, env, {
+        adminApiSlug: isAdmin ? env.ADMIN_API_SLUG : null, preview, previewIdentity,
+      });
       const previewProfile = previewIdentity ? await readPreviewProfile(target.env) : null;
       return html(renderAccountPage({ isAdmin, adminRoutes, preview, previewProfile,
         development: target.development, developmentAvailable: developmentAvailable(env) }));
@@ -151,6 +165,8 @@ async function readMutation(request) {
   }
 }
 
-function html(body) {
-  return new Response(body, { headers: { "content-type": "text/html; charset=utf-8" } });
+function html(body, environment = "production") {
+  return new Response(body, { headers: {
+    "content-type": "text/html; charset=utf-8", "x-atlasrouter-page-environment": environment,
+  } });
 }

@@ -1,6 +1,6 @@
 # Cloudflare Deployment
 
-`atlas-router` 提供正式页面与订阅，私有 `atlas-router-development` 提供开发版订阅。自定义选项中的 Dev 开关切换独立测试数据；生产分流行为见 [生产基线](production-baseline.md)。
+`atlas-router` 提供登录入口、正式页面与订阅，私有 `atlas-router-development` 提供开发页面和开发订阅。自定义选项中的 Dev 开关加载 develop 页面及独立测试数据。生产分流行为见 [生产基线](production-baseline.md)。
 
 ## 域名与香港 Tunnel
 
@@ -29,20 +29,24 @@ GitHub Actions 在 `master`、`develop` 和 PR 上运行 `npm test`。该命令�
 
 ## 分支合并与发布
 
-1. 功能分支从 develop 开始，完成后通过 PR 合入 develop。两分支都维护同一套实现、模板、测试和两份部署配置。
-2. develop 的 Cloudflare 构建通过后发布私有开发 Worker。在页面开启 Dev，验证开发订阅的 Surge / Clash 输出及本次改动。
+1. 直接在 develop 开发。两分支都维护同一套实现、模板、测试和两份部署配置。
+2. develop 的 Cloudflare 构建通过后发布私有开发 Worker。在页面开启 Dev，验证开发页面、开发订阅的 Surge / Clash 输出及本次改动。
 3. 该批功能验收通过后，创建 `develop → master` 的整体 PR。建议使用普通合并保留提交历史，环境差异由对应配置表达。
 4. master 的 Cloudflare 构建发布正式 Worker。更新正式订阅，检查正常输出、401/404 和本次功能。如果 master 有独立的紧急修复，通过普通合并同步回 develop。
 
 模板使用 `{{REPOSITORY_RULES_REF}}` 占位符，Worker 从部署变量生成正式的 `@master` 或开发的 `@develop` 规则地址。合并时直接带入两份配置。`SHOW_ALL_PROXY_GROUPS` 同样由各部署读取。
 
-需要独立启用的实验功能可增加专用开关，并测试开启与关闭两条路径。现有 Dev 线上验收覆盖订阅服务，页面和管理 API 由正式 Worker 执行，这些部分的变更需结合本地或 CI 集成测试验证。
+需要独立启用的实验功能可增加专用开关，并测试开启与关闭两条路径。Dev 线上验收覆盖页面和订阅服务。管理 API 由正式 Worker 执行，新增或变更接口需配合正式入口兼容发布，并用本地或 CI 集成测试验证。
+
+首次启用页面分流时，先发布包含私有页面渲染入口的 develop 版本，再将验证通过的页面转发和切换逻辑发布到 master。此后仅发布 develop 的页面改动即可通过 Dev 开关验证。开发页面服务不可用或版本不兼容时，正式入口返回 503。
 
 数据库迁移随代码参与发布。正式发布会先迁移两库，迁移需要兼容当前运行的页面和订阅代码。Worker 回滚后，数据库继续使用已迁移的结构。
 
 ## 数据与凭据
 
 [wrangler.jsonc](../worker/wrangler.jsonc) 绑定正式 `DB`、独立 `DEV_DB` 和 `DEV_SUBSCRIPTION_SERVICE`。开发服务使用 [wrangler.development.jsonc](../worker/wrangler.development.jsonc)，只绑定测试库、不配置公开路由，`workers_dev` 和 `preview_urls` 均关闭。浏览器 API 通过 `/api/AtlasRouter-Dev/*` 选择测试库；`/AtlasRouter-Dev` 及其模块、规则请求通过 Service binding 调用开发服务。
+
+`/?environment=development` 先由正式入口验证 Access 身份并判断角色，再经 Service binding 向开发 Worker 的 `/internal/account-page` 发送渲染参数。开发 Worker 生成该版本的 HTML、CSS 和 JavaScript，浏览器继续通过同域名调用对应环境的 API。私有渲染入口仅在开发 Worker 生效，其 `UI_ENABLED=false` 禁止直接通过开发 Worker 根路径访问页面。
 
 Builds 使用的 Token 需要发布对应 Worker 和迁移其配置中 D1 数据库的权限。运行时的 Access 设置、管理员 Secret 和上游订阅服务令牌见 [环境与存储](env.md)。不要把 Token、个人订阅链接或节点凭据写进构建命令、普通变量或仓库。
 
@@ -54,4 +58,4 @@ Builds 使用的 Token 需要发布对应 Worker 和迁移其配置中 D1 数据
 
 发布前运行 `cd worker && npm test`。发布后验证正式订阅的 Surge / Clash 输出、错误 Token 返回 401、未知路径返回 404，以及香港两个 Tunnel 入口仍受 Access 保护且正常回源。
 
-Dev 开关原地加载订阅和节点池，生成同域名 `/AtlasRouter-Dev` 链接。浏览器管理接口使用 `/api/AtlasRouter-Dev/*`，不能通过订阅 Bypass 绕过 Access。开发服务缺失时返回 503，绝不回退到正式库。验证两库凭据隔离、模块和规则的路径归属、切换失败时保持原环境，以及 Dev 重置凭据不影响正式订阅。旧 `dev=1` 订阅继续可用，并生成新路径的自动更新地址。
+Dev 开关先检查目标页面的可用性和环境标识，再重新加载页面。Client、DoH、Tencent OA 和 Wi-Fi Assist 选项写入页面 URL，刷新后继续生效。检查失败时保留当前页面及未保存内容，切换前会确认未保存的编辑，进行中的操作结束后才允许切换。浏览器管理接口使用 `/api/AtlasRouter-Dev/*`。验证开发专属按钮、两库凭据隔离、模块和规则的路径归属、切换失败恢复，以及 Dev 凭据重置对正式订阅的隔离。旧 `dev=1` 订阅继续可用，并生成新路径的自动更新地址。

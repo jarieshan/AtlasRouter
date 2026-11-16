@@ -3,6 +3,7 @@ import { requestBranch } from "./branch-query.js";
 export const API_PATH = "/api";
 export const DEV_API_PATH = `${API_PATH}/AtlasRouter-Dev`;
 export const ACCOUNT_PATH = "/";
+export const INTERNAL_ACCOUNT_PAGE_PATH = "/internal/account-page";
 export const ACCOUNT_PROFILE_PATH = `${API_PATH}/account/profile`;
 export const ACCOUNT_TOKEN_PATH = `${API_PATH}/account/token`;
 export const POOL_SUBSCRIPTION_PATH = "/AtlasRouter";

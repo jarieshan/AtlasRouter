@@ -12,14 +12,14 @@ function element() {
   };
 }
 
-test("Dev switches in place and preserves client choices without navigating", async () => {
+test("Dev reloads the selected page code and preserves client choices in its URL", async () => {
   for (const active of [false, true]) {
     const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
     fields.get("#subscription-client").value = "surge";
     fields.get("#enable-dev").checked = active;
-    let href = `https://atlas.example/?client=clash&doh=0${active ? "&environment=development" : ""}`;
-    const location = { get href() { return href; }, set href(value) { assert.fail("Unexpected navigation: " + value); } };
-    const history = { replaceState(_state, _title, url) { href = url.toString(); } };
+    const href = `https://atlas.example/?client=clash&doh=0&future_option=1${active ? "&environment=development" : ""}#account-panel`;
+    let destination;
+    const location = { href, replace(value) { destination = value; } };
     const notice = { hidden: !active };
     const calls = [];
     const html = renderAccountPage({ development: active, developmentAvailable: true });
@@ -27,9 +27,17 @@ test("Dev switches in place and preserves client choices without navigating", as
     assert.doesNotMatch(html, /environment-toggle/);
     vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
       document: { getElementById: (id) => id === "development-notice" ? notice : ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
-      URL, location, history, confirm: () => true,
-      fetch: async (path) => {
+      URL, location, confirm: () => true,
+      fetch: async (path, options) => {
         calls.push(path);
+        if (path.startsWith("/?")) {
+          assert.equal(options.cache, "no-store");
+          assert.equal(options.credentials, "same-origin");
+          assert.equal(options.redirect, "error");
+          return new Response("<html>Selected page</html>", { headers: {
+            "content-type": "text/html", "x-atlasrouter-page-environment": active ? "production" : "development",
+          } });
+        }
         return Response.json({ email: "member@example.com", status: "active", groups: [],
           subscriptionUrl: `https://atlas.example/AtlasRouter${path.includes("/api/AtlasRouter-Dev/") ? "-Dev" : ""}?token=TEST_ONLY` });
       },
@@ -43,13 +51,16 @@ test("Dev switches in place and preserves client choices without navigating", as
     assert.equal(subscription.searchParams.get("doh"), "0");
     fields.get("#enable-dev").checked = !active;
     await fields.get("#enable-dev").onchange();
-    const next = new URL(location.href);
-    assert.equal(next.searchParams.get("environment"), null);
+    const next = new URL(destination);
+    assert.equal(next.searchParams.get("environment"), active ? null : "development");
     assert.equal(next.searchParams.get("client"), "clash");
     assert.equal(next.searchParams.get("doh"), "0");
-    assert.equal(calls.length, 2, "switching only reloads the selected account");
-    assert.equal(new URL(fields.get("#subscription").value).pathname, active ? "/AtlasRouter" : "/AtlasRouter-Dev");
-    assert.equal(notice.hidden, active);
+    assert.equal(next.searchParams.get("future_option"), "1");
+    assert.equal(next.hash, "#account-panel");
+    assert.equal(calls.length, 2, "the target HTML is checked before navigating");
+    assert.equal(new URL(fields.get("#subscription").value).pathname, active ? "/AtlasRouter-Dev" : "/AtlasRouter");
+    assert.equal(fields.get("#copy").disabled, true);
+    assert.equal(notice.hidden, !active);
   }
   assert.doesNotMatch(renderAccountPage({ preview: true, developmentAvailable: true }), /id="enable-dev"/);
 });
@@ -57,24 +68,28 @@ test("Dev switches in place and preserves client choices without navigating", as
 test("Tencent OA and Wi-Fi Assist choices load from the page URL and survive the Dev switch", async () => {
   const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
-  let href = "https://atlas.example/?tencent_oa=1&wifi_assist=1";
-  const location = { get href() { return href; }, set href(value) { assert.fail("Unexpected navigation: " + value); } };
-  const history = { replaceState(_state, _title, url) { href = url.toString(); } };
+  let destination;
+  const location = { href: "https://atlas.example/?tencent_oa=1&wifi_assist=1", replace(value) { destination = value; } };
   vm.runInNewContext(renderAccountPage({ developmentAvailable: true }).match(/<script>([\s\S]*?)<\/script>/)[1], {
     document: { getElementById: (id) => id === "development-notice" ? { hidden: true } : ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
-    URL, location, history, confirm: () => true,
-    fetch: async (path) => Response.json({ email: "member@example.com", status: "active", groups: [],
-      subscriptionUrl: `https://atlas.example/AtlasRouter${path.includes("/api/AtlasRouter-Dev/") ? "-Dev" : ""}?token=TEST_ONLY` }),
+    URL, location, confirm: () => true,
+    fetch: async (path) => path.startsWith("/?") ? new Response("<html>Dev</html>", { headers: {
+      "content-type": "text/html", "x-atlasrouter-page-environment": "development",
+    } }) : Response.json({ email: "member@example.com", status: "active", groups: [],
+      subscriptionUrl: "https://atlas.example/AtlasRouter?token=TEST_ONLY" }),
   });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(fields.get("#enable-tencent-oa").checked, true);
   assert.equal(fields.get("#enable-wifi-assist").checked, true);
   assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter?token=TEST_ONLY&tencent_oa=1&wifi_assist=1");
+  fields.get("#subscription-client").value = "clash";
+  fields.get("#subscription-client").onchange();
+  assert.equal(fields.get("#enable-tencent-oa").disabled, true);
   fields.get("#enable-dev").checked = true;
   await fields.get("#enable-dev").onchange();
-  assert.equal(new URL(href).searchParams.get("tencent_oa"), "1");
-  assert.equal(new URL(href).searchParams.get("wifi_assist"), "1");
-  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter-Dev?token=TEST_ONLY&tencent_oa=1&wifi_assist=1");
+  assert.equal(new URL(destination).searchParams.get("tencent_oa"), "1");
+  assert.equal(new URL(destination).searchParams.get("wifi_assist"), "1");
+  assert.equal(new URL(destination).searchParams.get("client"), "clash");
 });
 
 test("subscription controls customize copied URLs and retain choices across token rotation", async () => {
