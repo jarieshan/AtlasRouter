@@ -10,8 +10,9 @@ export async function deployProduction({ config, ci, branch, commit, ciWorkerNam
   }
   if (config.name !== "atlas-router" || config.main !== "src/index.js"
     || (ciWorkerName && ciWorkerName !== config.name)
-    || config.vars?.UI_ENABLED !== "true" || config.vars?.SUBSCRIPTION_PATH !== "/AtlasRouter") {
-    throw new Error("Production must use atlas-router, the current entrypoint, and the production UI and subscription path");
+    || config.vars?.UI_ENABLED !== "true" || config.vars?.SUBSCRIPTION_PATH !== "/AtlasRouter"
+    || config.vars?.SUBSCRIPTION_VARIANT !== "production" || config.vars?.REPOSITORY_RULES_REF !== "master") {
+    throw new Error("Production must use atlas-router, the current entrypoint, and the production UI, subscription path and rule reference");
   }
   const production = config.d1_databases?.find((db) => db.binding === "DB");
   if (!production?.database_id || production.migrations_dir !== "migrations") {

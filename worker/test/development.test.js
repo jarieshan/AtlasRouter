@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { developmentAvailable, developmentRequest } from "../src/development.js";
 import { uiEnvironment } from "../src/ui-environment.js";
 import { deployDevelopment } from "../scripts/deploy-development.js";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 test("Dev selects only its own database and generates a subscription using its path", () => {
   const env = { DB: {}, DEV_DB: {}, DEV_SUBSCRIPTION_SERVICE: { fetch() {} } };
@@ -44,24 +46,36 @@ test("private development deployment cannot expose a public route or use product
   const config = JSON.parse(await readFile(new URL("../wrangler.development.jsonc", import.meta.url), "utf8"));
   const production = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   const calls = [];
-  const context = { config, production, ci: "1", branch: "develop", commit: "a".repeat(40),
+  const context = { config, production, ci: "1", branch: "develop", commit: "a".repeat(40), ciWorkerName: config.name,
     async run(args) { calls.push(args); } };
   await deployDevelopment(context);
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[0], ["d1", "migrations", "apply", "DB", "--remote", "--config", "wrangler.development.jsonc"]);
-  for (const override of [{ ci: undefined }, { branch: "master" }, { commit: "" }]) {
-    await assert.rejects(deployDevelopment({ ...context, ...override, run() { assert.fail("No remote work"); } }));
+  for (const override of [{ ci: undefined }, { branch: "master" }, { commit: "" }, { ciWorkerName: "atlas-router" }, { ciWorkerName: "another-worker" }]) {
+    await assert.rejects(deployDevelopment({ ...context, ...override, run() { assert.fail("No remote work"); } }), /Development/);
   }
   for (const change of [
     (c) => { c.workers_dev = true; },
     (c) => { c.routes = [{ pattern: "*.example.com" }]; },
     (c) => { c.d1_databases[0].database_id = production.d1_databases[0].database_id; },
     (c) => { c.vars.SUBSCRIPTION_VARIANT = "production"; },
+    (c) => { c.vars.REPOSITORY_RULES_REF = "master"; },
+    (c) => { delete c.vars.REPOSITORY_RULES_REF; },
   ]) {
     const invalid = structuredClone(config);
     change(invalid);
-    await assert.rejects(deployDevelopment({ ...context, config: invalid, run() { assert.fail("No remote work"); } }));
+    await assert.rejects(deployDevelopment({ ...context, config: invalid, run() { assert.fail("No remote work"); } }), /Development/);
   }
+});
+
+test("the development entrypoint rejects a mismatched Cloudflare Worker target", () => {
+  const script = fileURLToPath(new URL("../scripts/deploy-development.js", import.meta.url));
+  const result = spawnSync(process.execPath, [script, "--dry-run"], { encoding: "utf8",
+    env: { ...process.env, WORKERS_CI: "1", WORKERS_CI_BRANCH: "develop", WORKERS_CI_COMMIT_SHA: "a".repeat(40),
+      WRANGLER_CI_OVERRIDE_NAME: "atlas-router" } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /private subscription Worker/);
+  assert.equal(result.stdout, "");
 });
 
 test("development deployment migrates the test database before deploying and dry runs only build", async () => {

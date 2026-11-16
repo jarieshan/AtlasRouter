@@ -19,7 +19,7 @@ test("Cloudflare master builds migrate the independent databases before publishi
 
 test("production refuses non-Cloudflare, non-master and invalid build contexts before remote work", async () => {
   for (const override of [{ ci: undefined }, { ci: "true" }, { branch: "develop" }, { commit: "" }, { ciWorkerName: "another-worker" }]) {
-    await assert.rejects(deployProduction({ ...context, ...override, run() { assert.fail("Unexpected remote operation"); } }));
+    await assert.rejects(deployProduction({ ...context, ...override, run() { assert.fail("Unexpected remote operation"); } }), /Production/);
   }
 });
 
@@ -32,12 +32,15 @@ test("invalid production UI configuration stops before migrations", async () => 
     (value) => { value.workers_dev = true; },
     (value) => { value.routes[0].previews_enabled = true; },
     (value) => { value.vars.UI_ENABLED = "false"; },
+    (value) => { value.vars.SUBSCRIPTION_VARIANT = "development"; },
+    (value) => { value.vars.REPOSITORY_RULES_REF = "develop"; },
+    (value) => { delete value.vars.REPOSITORY_RULES_REF; },
     (value) => { value.vars.DEV_SUBSCRIPTION_ORIGIN = "https://atlasrouter.zslab.ai"; },
     (value) => { value.vars.DEV_SUBSCRIPTION_ORIGIN = "https://dev.example/path"; },
   ]) {
     const invalid = structuredClone(config);
     change(invalid);
-    await assert.rejects(deployProduction({ ...context, config: invalid, run() { assert.fail("Unexpected remote operation"); } }));
+    await assert.rejects(deployProduction({ ...context, config: invalid, run() { assert.fail("Unexpected remote operation"); } }), /Production/);
   }
 });
 

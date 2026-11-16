@@ -20,15 +20,15 @@ const ADMIN_API_SLUG = "0123456789abcdef0123456789abcdef";
 const { state: POOL_STATE_PATH, nodes: POOL_NODES_PATH, users: POOL_USERS_PATH, import: POOL_IMPORT_PATH } = getAdminRoutes({ ADMIN_API_SLUG });
 const ORIGIN = "https://atlas.example";
 
-const WECHAT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/WeChat.list";
+const WECHAT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/WeChat.list";
 const WECHAT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${WECHAT_URL}`).digest("hex").slice(0, 32)}`;
-const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomDirect.list";
+const CUSTOM_DIRECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomDirect.list";
 const CUSTOM_DIRECT_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${CUSTOM_DIRECT_URL}`).digest("hex").slice(0, 32)}`;
-const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomReject.list";
-const RED_POCKET_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/RedPocket.list";
+const CUSTOM_REJECT_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomReject.list";
+const RED_POCKET_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/RedPocket.list";
 const RED_POCKET_RULE_ID = `rule-${createHash("sha256").update(`RULE-SET:${RED_POCKET_URL}`).digest("hex").slice(0, 32)}`;
-const COIN_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/Coin.list";
-const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/CustomAI.list";
+const COIN_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/Coin.list";
+const CUSTOM_AI_URL = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/CustomAI.list";
 const REPOSITORY_RULE_SET_URLS = [CUSTOM_REJECT_URL, RED_POCKET_URL, CUSTOM_DIRECT_URL, WECHAT_URL, CUSTOM_AI_URL, COIN_URL];
 const magicRuleRelay = (url, name, client, base = `${ORIGIN}${POOL_SUBSCRIPTION_PATH}`, query = "") =>
   new RegExp(`^${`${base}/rules/magicrule/${client}/`.replace(/\./g, "\\.")}${name}\\.${client === "surge" ? "list" : "yaml"}${query.replace(/\?/g, "\\?")}$`).test(url);
@@ -206,16 +206,18 @@ test("unconfigured Dev cannot change production accounts or the retained test da
 });
 
 test("Dev portal and private service isolate data, tokens, module links and token rotation", async (t) => {
+  const productionConfig = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+  const developmentConfig = JSON.parse(await readFile(new URL("../wrangler.development.jsonc", import.meta.url), "utf8"));
   const devNodes = nodes(3).map((node) => ({ ...node, line: node.line.replace("Example", "Development")
     .replace("trojan,", "vmess,").replace("password=TEST_ONLY", "username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true") }));
   const common = { modules: true, scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12" };
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
     { ...common, name: "portal", d1Databases: { DB: "production", DEV_DB: "development" },
       serviceBindings: { DEV_SUBSCRIPTION_SERVICE: "development" },
-      bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
+      bindings: { ...productionConfig.vars, ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
         ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG } },
-    { ...common, name: "development", d1Databases: { DB: "development" },
-      bindings: { UI_ENABLED: "false", SUBSCRIPTION_VARIANT: "development", SMART_PRIORITY_SCHEME: "geometric-10-from-10000", SHOW_ALL_PROXY_GROUPS: "true" } },
+    { ...common, name: "development", scriptPath: ".wrangler/test-development/index.js", d1Databases: { DB: "development" },
+      bindings: developmentConfig.vars },
   ] }));
   t.after(() => mf.dispose());
   const prodDb = await mf.getD1Database("DB", "portal");
@@ -247,6 +249,8 @@ test("Dev portal and private service isolate data, tokens, module links and toke
     assert.match(text, /Development/);
     assert.doesNotMatch(text, /Production|dialer-proxy/);
     assert.doesNotMatch(text, /tailnet|tailscale/i);
+    assert.match(text, /AtlasRouter@develop\/surge\/rule-sets\//);
+    assert.doesNotMatch(text, /AtlasRouter@master\/|\{\{REPOSITORY_RULES_REF\}\}/);
     if (client === "surge") {
       for (const node of devNodes) assert.ok(text.split("\n").includes(node.line));
     } else {
@@ -257,6 +261,13 @@ test("Dev portal and private service isolate data, tokens, module links and toke
     }
   }
   assert.deepEqual(await readSubscriptionState({ DB: devDb }), devBefore);
+  for (const client of ["surge", "clash"]) {
+    const response = await request(mf, production.subscriptionUrl + "&client=" + client + "&REPOSITORY_RULES_REF=develop");
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    assert.match(text, /AtlasRouter@master\/surge\/rule-sets\//);
+    assert.doesNotMatch(text, /AtlasRouter@develop\/|\{\{REPOSITORY_RULES_REF\}\}/);
+  }
   // URL options cannot redirect Dev subscriptions to production nodes.
   for (const client of ["surge", "clash"]) {
     const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&environment=production");

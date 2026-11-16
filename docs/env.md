@@ -4,12 +4,19 @@
 
 ## 运行时配置
 
-| 配置 | 正式环境 |
-| --- | --- |
-| `DB`（D1 binding） | `atlas-router` 正式库 |
-| `UI_ENABLED`（变量） | `true` |
-| `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` |
-| `SMART_PRIORITY_SCHEME`（变量） | `geometric-10-from-10000`：地区组权重 1、10000、100000…，每组最多 13 个节点 |
+| 配置 | 正式环境 | 开发环境 |
+| --- | --- | --- |
+| `DB`（D1 binding） | `atlas-router` 正式库 | `atlas-router-dev` 测试库 |
+| `UI_ENABLED`（变量） | `true` | `false` |
+| `SUBSCRIPTION_VARIANT`（变量） | `production` | `development` |
+| `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` | `/AtlasRouter-Dev` |
+| `REPOSITORY_RULES_REF`（变量） | `master` | `develop` |
+| `SMART_PRIORITY_SCHEME`（变量） | `geometric-10-from-10000` | `geometric-10-from-10000` |
+| `SHOW_ALL_PROXY_GROUPS`（变量） | `false` | `true` |
+
+两份配置保存在每个分支中，Worker 通过 `env` 读取运行时变量。同一构建产物可以使用任一环境的配置。`REPOSITORY_RULES_REF` 用于替换模板中的仓库规则分支，同时决定 Clash 规则来源登记，只接受 `master` 和 `develop`。已有部署缺省此值时，`SUBSCRIPTION_VARIANT=development` 对应 `develop`，其余情况对应 `master`。发布脚本校验两份配置显式声明的规则分支。
+
+当前权重方案使地区组的主备权重依次为 1、10000、100000…，每组最多 13 个节点。正式配置显示业务组和 ISP 地区组，开发配置显示全部策略组。
 
 正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。开发管理请求使用 `/api/AtlasRouter-Dev/*`，读取测试库并生成 `/AtlasRouter-Dev` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务可设置 `SMART_PRIORITY_SCHEME=geometric-10-from-10000`（与正式相同）、`SHOW_ALL_PROXY_GROUPS=true`；正式分流行为保持独立。旧环境参数仅供已发出链接兼容，新页面不再生成。
 
@@ -58,8 +65,9 @@ MagicRule 定时检查（见 [订阅说明](subscription.md)）用可选 Secret 
 
 本地 `.dev.vars*`、`.env*`、`local-private/`、Wrangler 状态、依赖和生成资源由 [.gitignore](../.gitignore) 排除。可把仅含占位域名的 [env.example](../worker/env.example) 复制为 `worker/.env`，供只读线上检查使用；这不是云端部署前置步骤，不提交真实值。
 
-- `npm test`：单元测试、构建和本地运行时测试。
-- `npm run build`：当前源代码的 Wrangler dry-run，不发布。
+- `npm test` 运行单元测试、两种部署配置的构建和本地运行时测试。
+- `npm run build` 使用正式配置执行 Wrangler dry-run。
+- `npm run build:development` 使用开发配置执行 Wrangler dry-run。
 - `npm run deploy`：只允许 Cloudflare Workers Builds 的 master 构建执行；先迁移正式库与独立测试库，再发布正式页面。
 - `npm run deploy:development`：只允许 develop 构建执行；只迁移测试库并发布私有开发服务。加 `--dry-run` 可在本地校验。
 

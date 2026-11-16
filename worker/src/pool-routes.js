@@ -19,8 +19,9 @@ const ACCOUNT_ROUTES = new Set([ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKE
 
 export async function handlePoolRequest(request, env) {
   const url = new URL(request.url);
+  const development = env.SUBSCRIPTION_VARIANT === "development";
   const path = url.pathname.startsWith(`${DEV_API_PATH}/`) ? API_PATH + url.pathname.slice(DEV_API_PATH.length) : url.pathname;
-  if (env.SUBSCRIPTION_VARIANT === "development" && url.searchParams.get("dev") === "1"
+  if (development && url.searchParams.get("dev") === "1"
     && (path === POOL_SUBSCRIPTION_PATH || path.startsWith(`${POOL_SUBSCRIPTION_PATH}/`))) {
     url.pathname = DEV_SUBSCRIPTION_PATH + path.slice(POOL_SUBSCRIPTION_PATH.length);
     url.searchParams.delete("dev");
@@ -70,7 +71,8 @@ export async function handlePoolRequest(request, env) {
     }
     return Response.json(await callSubscriptionStore(target.env, input));
   }
-  const subscriptionPath = env.SUBSCRIPTION_VARIANT === "development" ? DEV_SUBSCRIPTION_PATH : POOL_SUBSCRIPTION_PATH;
+  const subscriptionPath = development ? DEV_SUBSCRIPTION_PATH : POOL_SUBSCRIPTION_PATH;
+  const repositoryRulesRef = env.REPOSITORY_RULES_REF ?? (development ? "develop" : "master");
   if (env.SUBSCRIPTION_PATH && env.SUBSCRIPTION_PATH !== subscriptionPath) throw new HttpError(503, "Subscription path is not configured correctly");
   const modulePrefix = `${subscriptionPath}/modules/`;
   const rulesPrefix = `${subscriptionPath}/rules/`;
@@ -81,7 +83,7 @@ export async function handlePoolRequest(request, env) {
       requireMethod(request, "GET");
       return serveMagicRuleSet(request, env, magicRule);
     }
-    ruleSource = await findClashRuleSource(path.slice(rulesPrefix.length));
+    ruleSource = await findClashRuleSource(path.slice(rulesPrefix.length), repositoryRulesRef);
     if (!ruleSource) throw new HttpError(404, "Not Found");
   }
   let module = null;
@@ -105,6 +107,7 @@ export async function handlePoolRequest(request, env) {
       requestUrl: request.url, token: tokens[0], groups, nodes: groups.flatMap((group) => group.nodes), options,
       smartPriorityScheme: env.SMART_PRIORITY_SCHEME,
       showAllGroups: env.SHOW_ALL_PROXY_GROUPS === "true",
+      repositoryRulesRef,
     });
     const body = options.client === "clash" ? await renderClashProfile(surge, { requestUrl: request.url, token: tokens[0] }) : surge;
     return new Response(body, { headers: {

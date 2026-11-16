@@ -13,7 +13,10 @@
   "vars": {
     "UI_ENABLED": "true",
     "SUBSCRIPTION_PATH": "/AtlasRouter",
-    "SMART_PRIORITY_SCHEME": "geometric-10-from-10000"
+    "SUBSCRIPTION_VARIANT": "production",
+    "REPOSITORY_RULES_REF": "master",
+    "SMART_PRIORITY_SCHEME": "geometric-10-from-10000",
+    "SHOW_ALL_PROXY_GROUPS": "false"
   },
   "routes": [
     {

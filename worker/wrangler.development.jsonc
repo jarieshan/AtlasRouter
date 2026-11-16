@@ -11,6 +11,7 @@
     "UI_ENABLED": "false",
     "SUBSCRIPTION_PATH": "/AtlasRouter-Dev",
     "SUBSCRIPTION_VARIANT": "development",
+    "REPOSITORY_RULES_REF": "develop",
     "SMART_PRIORITY_SCHEME": "geometric-10-from-10000",
     "SHOW_ALL_PROXY_GROUPS": "true"
   },

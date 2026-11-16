@@ -4,12 +4,13 @@ import { subscriptionPath } from "./routes.js";
 import { positiveInteger, splitSurgeList, surgeValue } from "./surge-format.js";
 import { nativeMagicRuleSource } from "./magic-rules.js";
 import { inheritBranch } from "./branch-query.js";
+import { repositoryTemplate } from "./repository-rules.js";
 
 const RULE_TYPES = new Set(["DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "DOMAIN-WILDCARD", "DOMAIN-REGEX", "IP-CIDR", "IP-CIDR6", "IP-ASN", "GEOIP", "SRC-IP-CIDR", "SRC-PORT", "DST-PORT", "PROCESS-NAME", "PROCESS-PATH"]);
 const ALIASES = new Map([["DEST-PORT", "DST-PORT"]]);
 // Public lists in this repository; Mihomo reads them as classical text and skips unsupported lines itself.
 const REPOSITORY_RULE_SET = /^https:\/\/cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@[A-Za-z0-9._-]+\/surge\/rule-sets\/[A-Za-z0-9-]+\.list$/;
-let registeredSources;
+const registeredSources = new Map();
 
 export async function ruleSource(parts) {
   if (!["RULE-SET", "DOMAIN-SET"].includes(parts[0])) return null;
@@ -24,21 +25,24 @@ export async function ruleSource(parts) {
   return { id, url: url.toString(), kind };
 }
 
-export async function findClashRuleSource(filename) {
+export async function findClashRuleSource(filename, repositoryRulesRef = "master") {
   if (!/^rule-[a-f0-9]{32}\.txt$/.test(filename)) return null;
+  const template = repositoryTemplate(repositoryRulesRef);
   // Only sources declared in the deployed Surge configuration are fetchable.
-  registeredSources ??= (async () => {
-    const sources = new Map();
-    for (const line of `${ASSETS.template}\n${ASSETS.rules}`.split(/\r?\n/)) {
-      if (!/^\s*(?:RULE-SET|DOMAIN-SET),/.test(line)) continue;
-      try {
-        const source = await ruleSource(splitSurgeList(line.trim()));
-        if (source) sources.set(`${source.id}.txt`, source);
-      } catch { /* Unsupported source lines are omitted by the converter. */ }
-    }
-    return sources;
-  })();
-  return (await registeredSources).get(filename) ?? null;
+  if (!registeredSources.has(repositoryRulesRef)) {
+    registeredSources.set(repositoryRulesRef, (async () => {
+      const sources = new Map();
+      for (const line of `${template}\n${ASSETS.rules}`.split(/\r?\n/)) {
+        if (!/^\s*(?:RULE-SET|DOMAIN-SET),/.test(line)) continue;
+        try {
+          const source = await ruleSource(splitSurgeList(line.trim()));
+          if (source) sources.set(`${source.id}.txt`, source);
+        } catch { /* Unsupported source lines are omitted by the converter. */ }
+      }
+      return sources;
+    })());
+  }
+  return (await registeredSources.get(repositoryRulesRef)).get(filename) ?? null;
 }
 
 function simpleRule(parts) {

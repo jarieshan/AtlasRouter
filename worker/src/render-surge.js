@@ -6,13 +6,14 @@ import { magicRuleUrl } from "./magic-rules.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority } from "./surge-format.js";
 import { inheritBranch } from "./branch-query.js";
+import { repositoryTemplate } from "./repository-rules.js";
 
 const REGION_ORDER = { US: 0, HK: 1, SG: 2, JP: 3 };
 const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
 const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
 const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
-export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false }) {
+export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false, repositoryRulesRef = "master" }) {
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const doh = options.doh ?? true;
   const replacements = {
@@ -28,7 +29,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
       `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl),
     ])),
   };
-  const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
+  const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames, repositoryRulesRef).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${doh ? "" : "# "}${setting}`);
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => ASSETS.tencentOa.match(/^skip-proxy[ \t]*=.*$/m)[0]);
     return heading + general;
@@ -36,7 +37,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   return applyRuleSetVisibility(replaceTemplate(template, replacements), { showAllGroups });
 }
 
-function renderPoolTemplate(groups, smartPriorityScheme, idcNames) {
+function renderPoolTemplate(groups, smartPriorityScheme, idcNames, repositoryRulesRef) {
   const orderedGroups = [...groups].sort(compareNodeGroups);
   const groupNamesByIpType = (order, preferredRegion) => [...orderedGroups].sort((a, b) =>
     (a.nodes[0].region !== preferredRegion) - (b.nodes[0].region !== preferredRegion)
@@ -55,7 +56,7 @@ function renderPoolTemplate(groups, smartPriorityScheme, idcNames) {
     WARP_FIRST_POOL_GROUPS: groupNamesByIpType(WARP_FIRST_IP_TYPE_ORDER),
     HK_FIRST_POOL_GROUPS: groupNamesByIpType(IP_TYPE_ORDER, "HK"),
   });
-  return ASSETS.template.replace(/^\[Proxy Group\]\n[\s\S]*?(?=^\[Rule\]$)/m, () => `${section}\n`);
+  return repositoryTemplate(repositoryRulesRef).replace(/^\[Proxy Group\]\n[\s\S]*?(?=^\[Rule\]$)/m, () => `${section}\n`);
 }
 
 function compareNodes(left, right) {
