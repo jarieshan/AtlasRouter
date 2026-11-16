@@ -17,6 +17,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   const doh = options.doh ?? true;
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
+    WIFI_ASSIST: String(options.wifiAssist ?? false),
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
     RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT"),

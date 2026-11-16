@@ -39,9 +39,9 @@ function profile() {
 }
 
 test("subscription options default to Surge, validate duplicates, and preserve only supported options in managed URLs", () => {
-  assert.deepEqual(readSubscriptionOptions(new URLSearchParams()), { client: "surge", doh: true, tencentOa: false });
-  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("client=clash&doh=1")), { client: "clash", doh: true, tencentOa: false });
-  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("doh=0")), { client: "surge", doh: false, tencentOa: false });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams()), { client: "surge", doh: true, tencentOa: false, wifiAssist: false });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("client=clash&doh=1")), { client: "clash", doh: true, tencentOa: false, wifiAssist: false });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("doh=0")), { client: "surge", doh: false, tencentOa: false, wifiAssist: false });
   for (const query of ["client=", "client=other", "client=clash&client=surge", "doh=true", "doh=", "doh=1&doh=0"]) {
     assert.throws(() => readSubscriptionOptions(new URLSearchParams(query)), (error) => error.status === 400);
   }
@@ -85,15 +85,15 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     const redPocketRule = `RULE-SET,${redPocketUrl},🇺🇸USA-ISP,no-resolve`;
     assert.ok(rules.includes(redPocketRule));
     assert.ok(rules.indexOf(redPocketRule) < rules.indexOf(`RULE-SET,${customDirectUrl},DIRECT,no-resolve`));
-    const speedtestRule = `RULE-SET,${magicRuleUrl("Speedtest", "surge", context.requestUrl)},Speedtest,no-resolve,update-interval=21600`;
+    const speedtestRule = `RULE-SET,${magicRuleUrl("Speedtest", "surge", context.requestUrl)},Speedtest,no-resolve`;
     assert.ok(rules.includes(speedtestRule));
     assert.ok(rules.indexOf(speedtestRule) < rules.indexOf(`RULE-SET,${customDirectUrl},DIRECT,no-resolve`));
     for (const [name, policy] of [["Direct", "DIRECT"], ["Cloudflare", "AIProxy"], ["Netflix", "GlobalMedia"], ["China", "DIRECT"]]) {
-      assert.ok(rules.indexOf(speedtestRule) < rules.indexOf(`RULE-SET,${magicRuleUrl(name, "surge", context.requestUrl)},${policy},no-resolve,update-interval=21600`));
+      assert.ok(rules.indexOf(speedtestRule) < rules.indexOf(`RULE-SET,${magicRuleUrl(name, "surge", context.requestUrl)},${policy},no-resolve`));
     }
     assert.deepEqual(rules.slice(-7), [
-      ...generalSiteRules.map((name) => `RULE-SET,${magicRuleUrl(name, "surge", context.requestUrl)},GeneralSite,no-resolve,update-interval=21600`),
-      "RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve,update-interval=21600`, "GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
+      ...generalSiteRules.map((name) => `RULE-SET,${magicRuleUrl(name, "surge", context.requestUrl)},GeneralSite,no-resolve`),
+      "RULE-SET,LAN,DIRECT", `RULE-SET,${directUrl},DIRECT,no-resolve`, "GEOIP,CN,DIRECT", "FINAL,FINAL,dns-failed"]);
   }
   assert.deepEqual(encrypted.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.equal(encrypted.match(/^#!MANAGED-CONFIG (\S+)/)[1], `${context.requestUrl}?token=${context.token}`);
@@ -101,6 +101,42 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   assert.doesNotMatch(encrypted, /unknown=|#fragment/);
   assert.equal(buildSubscriptionUrl(context.requestUrl, context.token, { client: "clash", doh: true }), `${context.requestUrl}?token=${context.token}&client=clash`);
   assert.equal(buildSubscriptionUrl(context.requestUrl, context.token, { client: "clash", doh: false }), `${context.requestUrl}?token=${context.token}&client=clash&doh=0`);
+});
+
+test("Wi-Fi Assist defaults off, persists in managed URLs and maps to ProjectClash cellular fallback", async () => {
+  const input = profile();
+  const plain = renderSurgeProfile(input);
+  assert.match(plain, /^wifi-assist = false$/m);
+  const baseline = await convertSurgeToClash(plain, context);
+  assert.equal(baseline.config["network-strategy"], undefined);
+  assert.equal(baseline.config["fallback-network-type"], undefined);
+  assert.ok(baseline.warnings.every((warning) => !warning.includes("wifi-assist")));
+  for (const client of ["surge", "clash"]) {
+    for (const value of ["0", "1"]) {
+      const options = readSubscriptionOptions(new URLSearchParams({ client, wifi_assist: value }));
+      assert.equal(options.wifiAssist, value === "1");
+      const source = renderSurgeProfile({ ...input, options });
+      assert.ok(source.split("\n").includes(`wifi-assist = ${value === "1"}`));
+      const managed = new URL(source.match(/^#!MANAGED-CONFIG (\S+)/)[1]);
+      assert.equal(managed.searchParams.get("wifi_assist"), value === "1" ? "1" : null);
+      assert.equal(managed.href, buildSubscriptionUrl(context.requestUrl, context.token, options));
+      const { config, warnings } = await convertSurgeToClash(source, context);
+      assert.equal(config["network-strategy"], value === "1" ? "fallback" : undefined);
+      assert.deepEqual(config["fallback-network-type"], value === "1" ? ["cellular"] : undefined);
+      assert.equal(config["network-type"], undefined);
+      assert.equal(config["wifi-assist"], undefined);
+      assert.equal(warnings.some((warning) => warning.includes("wifi-assist") && warning.includes("ProjectClash")), value === "1");
+      delete config["network-strategy"];
+      delete config["fallback-network-type"];
+      assert.deepEqual(config, baseline.config);
+    }
+  }
+  for (const query of ["wifi_assist=", "wifi_assist=true", "wifi_assist=2", "wifi_assist=1&wifi_assist=1", "wifi_assist=0&wifi_assist=1"]) {
+    assert.throws(() => readSubscriptionOptions(new URLSearchParams(query)), (error) => error.status === 400);
+  }
+  const invalid = await convertSurgeToClash(plain.replace("wifi-assist = false", "wifi-assist = invalid"), context);
+  assert.ok(invalid.warnings.includes("General wifi-assist: invalid value omitted"));
+  assert.equal(invalid.config["network-strategy"], undefined);
 });
 
 test("Clash output is derived from the rendered Surge profile and retains sorting, allocation and rules", async () => {
@@ -199,7 +235,6 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.ok(config.rules.indexOf("RULE-SET,TikTok,GlobalMedia,no-resolve") < generalSiteIndexes[0] && generalSiteIndexes.at(-1) < resolvedLan);
     assert.ok(config.rules.includes(`RULE-SET,${customRejectSource.id},REJECT,no-resolve`));
     assert.ok(config.rules.includes(`RULE-SET,${redPocketSource.id},🇺🇸USA-ISP,no-resolve`));
-    assert.equal(config["proxy-groups"][0].timeout, 5000);
     assert.deepEqual(config.dns.nameserver, doh ? ["https://cloudflare-dns.com/dns-query#RULES", "https://dns.google/dns-query#RULES"] : ["223.5.5.5", "119.29.29.29", "system"]);
     // Node bootstrap must not depend on the proxy used by encrypted DNS.
     assert.deepEqual(config.dns["proxy-server-nameserver"], ["223.5.5.5", "119.29.29.29", "system"]);
@@ -216,7 +251,12 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       mmdb: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country-without-asn.mmdb",
       asn: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb",
     });
-    for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) assert.equal(group["expected-status"], 204, group.name);
+    for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) {
+      assert.equal(group.url, "http://cp.cloudflare.com/generate_204", group.name);
+      assert.equal(group.timeout, 10000, group.name);
+      assert.equal(group.interval, 300, group.name);
+      assert.equal(group["expected-status"], 204, group.name);
+    }
     // Apple and MagicRule Direct are DIRECT too; foreign DoH would hand them overseas CDN addresses.
     assert.deepEqual(config.dns["nameserver-policy"], {
       ...dohCanary,
@@ -263,7 +303,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       assert.ok(!provider.url.includes(context.token));
       assert.equal(provider.behavior, "classical");
       assert.equal(provider.format, repository.has(name) ? "text" : "yaml");
-      assert.equal(provider.interval, repository.has(name) ? 86400 : 21600);
+      assert.equal(provider.interval, 86400);
     }
     assert.match(output, /General skip-proxy: unsupported setting omitted/);
     assert.doesNotMatch(output, /#!MANAGED-CONFIG|\.sgmodule|{{|💎 Select/);
@@ -385,11 +425,11 @@ test("explicit rendering options preserve protocol behavior across visibility se
   assert.equal(environments[0].vars.SHOW_ALL_PROXY_GROUPS, "false");
   assert.equal(environments[1].vars.SHOW_ALL_PROXY_GROUPS, "true");
   const input = profile();
-  for (const doh of [false, true]) for (const tencentOa of [false, true]) {
+  for (const doh of [false, true]) for (const tencentOa of [false, true]) for (const wifiAssist of [false, true]) {
     const rendered = [];
     for (const { vars, origin, token } of environments) {
       const requestUrl = `${origin}${vars.SUBSCRIPTION_PATH}`;
-      const options = { doh, tencentOa };
+      const options = { doh, tencentOa, wifiAssist };
       const showAllGroups = vars.SHOW_ALL_PROXY_GROUPS === "true";
       const source = renderSurgeProfile({ ...input, requestUrl, token, options, showAllGroups });
       const normalizeAddress = (text) => text.replaceAll(requestUrl, "https://profile.example/SUBSCRIPTION").replaceAll(token, "TEST_TOKEN");
@@ -412,7 +452,7 @@ test("explicit rendering options preserve protocol behavior across visibility se
       }
       rendered.push(result);
     }
-    assert.deepEqual(rendered[0], rendered[1], `environment drift for doh=${doh}, tencentOa=${tencentOa}`);
+    assert.deepEqual(rendered[0], rendered[1], `environment drift for doh=${doh}, tencentOa=${tencentOa}, wifiAssist=${wifiAssist}`);
   }
 });
 
@@ -580,7 +620,12 @@ test("production and development render ordered fallback regions and a url-test 
     const requestUrl = `https://atlas.example${vars.SUBSCRIPTION_PATH}`;
     const source = renderSurgeProfile({ ...context, requestUrl, groups, nodes: groups.flatMap((group) => group.nodes),
       showAllGroups: vars.SHOW_ALL_PROXY_GROUPS === "true", repositoryRulesRef: vars.REPOSITORY_RULES_REF });
+    assert.match(source, /^test-timeout = 10$/m);
+    assert.match(source, /^internet-test-url = http:\/\/bing\.com\/$/m);
+    assert.match(source, /^proxy-test-url = http:\/\/cp\.cloudflare\.com\/generate_204$/m);
+    assert.doesNotMatch(source, /^RULE-SET,.*update-interval=/m);
     const { config } = await convertSurgeToClash(source, { ...context, requestUrl });
+    for (const [name, provider] of Object.entries(config["rule-providers"])) assert.equal(provider.interval, 86400, name);
     for (const name of ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇺🇸USA-IDC"]) {
       const line = source.split("\n").find((line) => line.startsWith(`${name} = fallback, `));
       assert.ok(line, `${file} ${name}`);

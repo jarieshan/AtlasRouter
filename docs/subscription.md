@@ -30,15 +30,20 @@ Dev 开关在当前页面切换环境，不跳转或整页刷新。关闭时生�
 
 ## 自定义订阅
 
-网页提供“启用 DoH”（默认开启）、“Client：Surge（默认）/ Clash”和“Tencent OA Compatibility”（默认关闭，仅 Surge）三个订阅选项。选项即时更新待复制的 URL，不修改账号、token 或节点分配；修改后将新链接复制到客户端。刷新分配或重置 token 时保留当前页面上的选项。Tencent OA Compatibility 见下文。
+网页提供 Client（默认 Surge，可选 Clash）、启用 DoH（默认开启）、Wi-Fi Assist（默认关闭）和 Tencent OA Compatibility（默认关闭，仅 Surge）四个订阅选项。选项即时更新待复制的 URL，不修改账号、token 或节点分配；修改后将新链接复制到客户端。刷新分配或重置 token 时保留当前页面上的选项。Tencent OA Compatibility 见下文。
 
 | 参数 | 默认值 | 可选值 |
 | --- | --- | --- |
 | `client` | `surge` | `surge`、`clash`；Clash 以 Mihomo（Clash Meta）为兼容目标 |
 | `doh` | `1` | `0`、`1`；默认启用 DoH，`0` 关闭 |
 | `tencent_oa` | `0` | `0`、`1`；`1` 在 `skip-proxy` 中加入腾讯公司内网例外，仅适用于 Surge |
+| `wifi_assist` | `0` | `0`、`1`，`1` 开启 Wi-Fi Assist，适用于 Surge iOS 或支持网络回退扩展的 ProjectClash |
 
 例如 `/AtlasRouter?token=<token>&client=clash&doh=0` 输出 Clash 并关闭 DoH。这些参数重复、为空或使用其他值时返回 400；无效 token 仍先返回 401。页面生成的 URL 省略默认选项。不带 `doh` 参数的现有订阅会在下次更新时启用 DoH；需要保持关闭时，在页面取消“启用 DoH”后重新复制链接，或在链接中加上 `doh=0`。原有 `doh=1` 链接继续有效。
+
+Wi-Fi Assist 开关开启时，链接带 `wifi_assist=1`，Surge 的 `[General]` 写入 `wifi-assist = true`，托管更新地址也保留该参数。关闭或省略参数时写入 `wifi-assist = false`。这是 Surge iOS 的功能，Wi-Fi 连接不佳时会尝试使用蜂窝数据。页面切换 Client、切换 Dev、刷新节点和重置 token 时保留当前选择。[Surge Wi-Fi Assist](https://manual.nssurge.com/profile/general.html#wifi-assist)
+
+Clash 输出将开启状态映射为 ProjectClash 扩展 `network-strategy: fallback` 和 `fallback-network-type: [cellular]`，主网络使用系统默认接口。ProjectClash 在 TCP 建连失败或 300 毫秒内尚未成功时尝试蜂窝网络，近期成功回退后有 15 秒的快速回退窗口。该能力要求客户端支持这些扩展及平台网络接口枚举，UDP 在创建套接字时依次尝试接口。关闭时省略两项扩展，采用默认网络策略。这是 ProjectClash 的扩展能力，页面在选择 Clash 时会显示对应的客户端要求。[ProjectClash 网络策略](https://github.com/ProjectClash/Clash/blob/main/component/dialer/network_strategy.go) · [Mihomo 配置定义](https://github.com/MetaCubeX/mihomo/blob/Meta/config/config.go)
 
 默认 DoH 上游使用 [Cloudflare](https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/) 的 `https://cloudflare-dns.com/dns-query` 和 [Google](https://developers.google.com/speed/public-dns/docs/secure-transports) 的 `https://dns.google/dns-query`，地址维护在 `surge/template.conf`。启用 DoH 时同时激活 `encrypted-dns-server` 和 `encrypted-dns-follow-outbound-mode = true`；`doh=0` 时两行保持注释，托管更新地址保留 `doh=0`。DoH 仅按上游域名分流：`surge/rules.list` 前部将 `dns.alidns.com`、`doh.pub` 精确匹配到 `DIRECT`，将 `cloudflare-dns.com`、`dns.google` 精确匹配到 IDC 专用组 `DoH Proxy`。Surge 和 Clash 使用相同的域名规则，均先于外部规则集；未列出的上游域名继续匹配其他分流规则。证书校验保持开启，参见 [Surge 加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html)。
 
@@ -98,9 +103,11 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 正式与开发配置均按地区/IP 类型生成 `fallback` 组，ISP、WARP、IDC 组的成员依照每位用户的主节点、备用节点排列，选择首个可用节点。Surge 与 Clash 均配置 `interval=300`，Surge 将该值作为测速结果有效期，Clash 按自身健康检查调度执行。节点不足时允许共享主节点。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则，最终保留 `FINAL` 兜底规则。订阅省略 `[MITM]` 段。分配规则见 [multi-user.md](multi-user.md)。
 
+Surge 的直连测速地址为 `http://bing.com/`，代理测速地址为 `http://cp.cloudflare.com/generate_204`，全局 `test-timeout=10`，DIRECT 测速也使用客户端内置的 10 秒超时。Clash 自动代理组使用同一代理测速地址，配置 `timeout: 10000`、`interval: 300` 和 `expected-status: 204`。Clash 界面中的 DIRECT 单节点测速通过客户端请求传入地址与超时，使用 Bing 和 10 秒超时需要客户端传入对应参数。[ProjectClash 测速接口](https://github.com/ProjectClash/Clash/blob/master/hub/route/proxies.go)
+
 正式和开发订阅的兜底规则指向独立可见的手动选择组：`FINAL,FINAL,dns-failed`。`FINAL` 组选项按 Auto → Proxy → IDC → WARP → ISP → DIRECT 排列，地区/IP 类型分组内部保持现有地区顺序，缺少的类型跳过。首次使用默认 `Auto`。这里是手动选项顺序，不是故障自动回退顺序；客户端会保留仍有效的手动选择。Clash 对应可见的 `select` 组和 `MATCH,FINAL`。
 
-正式和开发订阅均提供独立可见的 `Speedtest` 手动选择组，选项按 IDC → WARP → ISP → DIRECT 排列，各类型内保持现有地区顺序，缺少的类型跳过；首次默认第一项（有 IDC 时选第一个 IDC 地区组）。使用 MagicRule 的 Speedtest 完整规则集，Surge 和 Clash 分别通过现有中转取得 Surge / Mihomo 原生列表，每 6 小时更新。规则位于 CustomDirect、Direct、Cloudflare、Netflix 和 China 之前，让已收录的测速域名及服务器统一进入 `Speedtest`。测速时使用规则模式并在此组选择出口；[全局代理模式不使用规则列表](https://manual.nssurge.com/rules/overview.html)，仍由全局选中的策略决定出口。
+正式和开发订阅均提供独立可见的 `Speedtest` 手动选择组，选项按 IDC → WARP → ISP → DIRECT 排列，各类型内保持现有地区顺序，缺少的类型跳过；首次默认第一项（有 IDC 时选第一个 IDC 地区组）。使用 MagicRule 的 Speedtest 完整规则集，Surge 和 Clash 分别通过现有中转取得 Surge / Mihomo 原生列表，Surge 和 Clash 均每 24 小时更新。规则位于 CustomDirect、Direct、Cloudflare、Netflix 和 China 之前，让已收录的测速域名及服务器统一进入 `Speedtest`。测速时使用规则模式并在此组选择出口；[全局代理模式不使用规则列表](https://manual.nssurge.com/rules/overview.html)，仍由全局选中的策略决定出口。
 
 可见的 `Auto` 使用 `url-test, include-all-proxies=true, interval=300, tolerance=50`，仅包含当前订阅 `[Proxy]` 中的所有节点，在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留。从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge 与 Clash 的 `Auto` 均按测速延迟选择节点，并设置 50 毫秒的切换容差，减少延迟相近时的频繁切换。Clash 会过滤不兼容的节点。Surge 的 `interval=300` 表示测速结果有效期为 300 秒。[Surge url-test 组](https://manual.nssurge.com/policy-groups/url-test.html)
 
@@ -150,7 +157,7 @@ WeChat 使用本仓库维护的 [`surge/rule-sets/WeChat.list`](../surge/rule-se
 
 模板中的 `{{RULESET_<name>}}` 渲染为本部署的 `<订阅路径>/rules/magicrule/surge/<name>.list`，转换为 Clash 时换成同一规则的 `.../mihomo/<name>.yaml`；地址不含订阅 token，也不需要鉴权。Worker 收到请求时读取清单，只取同一站点下以规则名开头、`role=full` 的非空文本产物，并逐行校验：Surge 列表的每条非注释行、Mihomo 文件 `payload:` 下的每一项都必须是 `类型,值` 形式的规则，且至少有一条。通过校验的内容写入 D1，作为最后有效副本；清单或产物不可用、超出大小限制或未通过校验时返回该副本，没有副本时返回 502，不会把网页或空列表当作规则下发。Mihomo 遇到非 2xx 响应时保留原有规则（v1.19.33 实测）；Surge 的外部规则集也有本地缓存，下载失败时的表现尚未在设备上验证。
 
-模板为 MagicRule 规则设置 `update-interval=21600`，客户端每 6 小时检查一次，转换为 Clash 时对应规则提供器的 `interval: 21600`；本仓库规则集沿用默认的 24 小时。中转响应带内容 SHA-256 的 ETag 和 `cache-control: no-cache`，客户端用 `If-None-Match` 检查，内容未变时得到 304，不重新下载。Surge 自 iOS 5.14.0 / Mac 5.8.1 起支持；Mihomo 与 ProjectClash 的 `etag-support` 默认开启。Worker 读取的清单和产物在 Cloudflare 边缘最多缓存一小时，上游更新最多约一小时后出现在中转结果中，客户端在下次更新规则时取得。某条规则在 MagicRule 改名或下线时，从官方索引取新的清单地址更新 `surge/magicrule.json` 并重新部署。
+Surge 模板省略规则集的 `update-interval`，按客户端默认的 24 小时检查更新。Clash 转换器为 MagicRule 和本仓库规则集统一设置 `interval: 86400`（24 小时）。中转响应带内容 SHA-256 的 ETag 和 `cache-control: no-cache`，客户端用 `If-None-Match` 检查，内容未变时得到 304，不重新下载。Surge 自 iOS 5.14.0 / Mac 5.8.1 起支持；Mihomo 与 ProjectClash 的 `etag-support` 默认开启。Worker 读取的清单和产物在 Cloudflare 边缘最多缓存一小时，上游更新最多约一小时后出现在中转结果中，客户端在下次更新规则时取得。某条规则在 MagicRule 改名或下线时，从官方索引取新的清单地址更新 `surge/magicrule.json` 并重新部署。
 
 生产 Worker 的 Cron Trigger（`*/5 * * * *`）每 5 分钟按登记顺序检查一个列表，当前登记的 78 个列表约 6 小时 30 分钟轮完一遍；每次只下载一份清单和产物，以符合 Workers 免费计划每次 10 ms CPU 的限制。检查使用与中转相同的校验，通过的内容同时更新 D1 中的最后有效副本。同一列表连续 2 次检查失败时，通过 [Bark](https://bark.day.app/) 推送一次提醒，恢复后再推送一次；推送失败时，下一次运行会重试。检查状态记在 D1 `magic_rule_checks` 表，设置见 [环境与存储](env.md)。Cron Trigger 只在生产环境运行，因此只检查 master 的登记，私有开发订阅服务不运行定时任务。定时检查不读取官方索引（每份约 860 KB，超出免费计划的 CPU 限制）；修改登记时在 `worker/` 运行 `npm run check:magic-rules`，它会对照索引检查全部清单，并列出应改用的清单地址。
 
@@ -176,7 +183,7 @@ AppleIntelligence 列表放在 AI 规则末尾；其余 Apple 规则位于 AI �
 
 Hulu、IMDB 及其他未保留的影音服务不再单独登记，继续匹配通用规则。平台清单可能包含同品牌其他业务，规则内容由上游维护。
 
-AppleTV 仍在 Apple 完整规则之前，其余 5 项位于 ISP First 之后、LAN / China / GEOIP / FINAL 之前，全部引用仍带 `no-resolve`，每 6 小时更新。正式和开发订阅现均登记 39 种规则、78 份客户端产物；私有开发 Worker 不运行 Cron。
+AppleTV 仍在 Apple 完整规则之前，其余 5 项位于 ISP First 之后、LAN / China / GEOIP / FINAL 之前，全部引用仍带 `no-resolve`，Surge 和 Clash 均每 24 小时更新。正式和开发订阅现均登记 39 种规则、78 份客户端产物；私有开发 Worker 不运行 Cron。
 
 运行时使用 D1 的 `users`、`nodes`、`assignments`、`store_versions`，不读取历史手动订阅表。
 
@@ -214,7 +221,7 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 | `fallback` / `url-test` 间隔 | 省略时 600 秒，当前地区组与 Auto 显式设置 300 | 保留显式值，省略时输出 600，由 Smart 转换的组使用 300 |
 | 地区/IP 类型组 | fallback，保留个人主备次序，显式设置 interval=300 | 同顺序 fallback，显式间隔 300 秒 |
 | `url-test` 容差 | 省略时 100 毫秒，Auto 显式设置 50 | 保留显式值（含 0），省略时输出 100，由 Smart 转换的组使用 50 |
-| 代理测速 URL / 超时 | `proxy-test-url` / `test-timeout`；缺省 `http://bing.com/` / 5 秒 | 用于组级健康检查；超时转换为毫秒 |
+| 代理测速 URL / 超时 | `proxy-test-url` / `test-timeout`，缺省 `http://bing.com/` / 5 秒，当前显式配置 Cloudflare 的 `/generate_204` / 10 秒 | 用于组级健康检查，当前输出 Cloudflare 地址及 `timeout: 10000` |
 | 多地址域名的 TCP 连接 | 同时向全部地址握手，后续优先使用最快的地址 | `tcp-concurrent: true`，每次连接同时尝试全部地址 |
 | GeoIP 库更新 | 默认定期更新；`disable-geoip-db-auto-update = true` 时停止 | `geo-auto-update: true`、`geo-update-interval: 168`；关闭时省略 |
 | ASN 库 | 内置于 App，随版本更新，无配置项 | `geox-url.asn` 指向 jsDelivr 上的 Loyalsoldier `GeoLite2-ASN.mmdb` |
@@ -237,6 +244,6 @@ Mihomo 检测默认值见 [代理组公共参数](https://wiki.metacubex.one/en/
 
 Worker 规则入口只允许已部署模板 / 规则清单中的来源，不接受用户传入任意下载地址。规则最多 4 MiB（MagicRule 清单最多 256 KiB），整次获取限时 10 秒。不转发用户 Cookie、token 或 Access Header，不跟随上游跳转；上游公共内容可缓存一小时。重置 token 或停用用户会同时撤销两种订阅、模块和受 token 保护的 Worker 规则入口。MagicRule 中转入口只提供已登记的公开规则，不需要 token，也不读取用户数据；本仓库规则集由客户端直接从公开地址下载。
 
-新增 MagicRule 规则集时，在 `surge/magicrule.json` 登记同名规则在官方索引中的 Surge 与 Mihomo `manifest.json` 地址，在主模板加入 `RULE-SET,{{RULESET_<name>}},<策略>,no-resolve,update-interval=21600`，并运行 `npm run check:magic-rules` 验证两种产物可用。无需维护第二套规则内容或提交上游规则快照。
+新增 MagicRule 规则集时，在 `surge/magicrule.json` 登记同名规则在官方索引中的 Surge 与 Mihomo `manifest.json` 地址，在主模板加入 `RULE-SET,{{RULESET_<name>}},<策略>,no-resolve`，并运行 `npm run check:magic-rules` 验证两种产物可用。无需维护第二套规则内容或提交上游规则快照。
 
 新增无法转换的功能可以继续只服务 Surge；需要 Clash 支持时，再补转换映射与测试。格式参考 [Mihomo 规则](https://wiki.metacubex.one/en/config/rules/)、[规则提供器](https://wiki.metacubex.one/en/config/rule-providers/)、[DNS](https://wiki.metacubex.one/en/config/dns/)。

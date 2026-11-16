@@ -237,8 +237,8 @@ test("Dev portal and private service isolate data, tokens, module links and toke
   const page = await request(mf, "/" + query, { subject: "admin" });
   assert.match(await page.text(), /id="enable-dev" type="checkbox" role="switch" checked/);
   const devBefore = await readSubscriptionState({ DB: devDb });
-  for (const client of ["surge", "clash"]) for (const doh of [0, 1]) {
-    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&doh=" + doh);
+  for (const client of ["surge", "clash"]) for (const doh of [0, 1]) for (const wifiAssist of [0, 1]) {
+    const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&doh=" + doh + "&wifi_assist=" + wifiAssist);
     assert.equal(response.status, 200);
     const text = await response.text();
     assert.match(text, /Development/);
@@ -248,14 +248,28 @@ test("Dev portal and private service isolate data, tokens, module links and toke
     assert.doesNotMatch(text, /AtlasRouter@master\/|\{\{REPOSITORY_RULES_REF\}\}/);
     if (client === "surge") {
       for (const node of devNodes) assert.ok(text.split("\n").includes(node.line));
+      assert.ok(text.split("\n").includes(`wifi-assist = ${wifiAssist === 1}`));
+      assert.equal(new URL(text.match(/^#!MANAGED-CONFIG (\S+)/)[1]).searchParams.get("wifi_assist"), wifiAssist === 1 ? "1" : null);
+      assert.match(text, /^test-timeout = 10$/m);
+      assert.match(text, /^internet-test-url = http:\/\/bing\.com\/$/m);
+      assert.match(text, /^proxy-test-url = http:\/\/cp\.cloudflare\.com\/generate_204$/m);
       assert.match(text, /^🇺🇸USA-ISP = fallback, .+, interval=300$/m);
       assert.match(text, /^Auto = url-test, include-all-proxies=true, interval=300, tolerance=50,/m);
       assert.doesNotMatch(text, /policy-priority=/);
     } else {
-      const { proxies, "proxy-groups": groups } = parseYaml(text);
+      const config = parseYaml(text);
+      const { proxies, "proxy-groups": groups } = config;
+      assert.equal(config["network-strategy"], wifiAssist === 1 ? "fallback" : undefined);
+      assert.deepEqual(config["fallback-network-type"], wifiAssist === 1 ? ["cellular"] : undefined);
       assert.equal(proxies.length, 3);
       assert.deepEqual(proxies.map((node) => node.server).sort(), ["node-1.example.com", "node-2.example.com", "node-3.example.com"]);
       assert.ok(proxies.every((node) => node.port === 443 && node.tls === true && node["dialer-proxy"] === undefined));
+      for (const group of groups.filter(({ type }) => type !== "select")) {
+        assert.equal(group.url, "http://cp.cloudflare.com/generate_204");
+        assert.equal(group.timeout, 10000);
+        assert.equal(group.interval, 300);
+        assert.equal(group["expected-status"], 204);
+      }
       assert.equal(groups.find(({ name }) => name === "🇺🇸USA-ISP").type, "fallback");
       const auto = groups.find(({ name }) => name === "Auto");
       assert.equal(auto.type, "url-test");
@@ -589,16 +603,19 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
   const profile = await account(mf);
   const before = await json(await request(mf, POOL_STATE_PATH, { subject: "admin" }));
   for (const client of ["surge", "clash"]) {
-    for (const doh of [null, "0", "1"]) {
-      const response = await request(mf, `${profile.subscriptionUrl}&client=${client}${doh === null ? "" : `&doh=${doh}`}`);
+    for (const doh of [null, "0", "1"]) for (const wifiAssist of [null, "0", "1"]) {
+      const response = await request(mf, `${profile.subscriptionUrl}&client=${client}${doh === null ? "" : `&doh=${doh}`}${wifiAssist === null ? "" : `&wifi_assist=${wifiAssist}`}`);
       assert.equal(response.status, 200);
       const text = await response.text();
       const encrypted = doh !== "0";
       if (client === "clash") {
         assert.match(response.headers.get("content-type"), /application\/yaml/);
         const config = parseYaml(text);
+        assert.equal(config["network-strategy"], wifiAssist === "1" ? "fallback" : undefined);
+        assert.deepEqual(config["fallback-network-type"], wifiAssist === "1" ? ["cellular"] : undefined);
         assert.equal(config["x-clash-block-quic"], "all-proxy");
         assert.equal(config["rule-providers"].GlobalMedia, undefined);
+        for (const [name, provider] of Object.entries(config["rule-providers"])) assert.equal(provider.interval, 86400, name);
         assert.deepEqual(config.rules.filter((rule) => rule.endsWith(",GlobalMedia,no-resolve")),
           ["AppleTV", ...MEDIA_RULE_NAMES].map((name) => `RULE-SET,${name},GlobalMedia,no-resolve`));
         assert.equal(config.proxies.length, 4);
@@ -626,7 +643,12 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
         assert.equal(auto.interval, 300);
         assert.equal(auto.tolerance, 50);
-        for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) assert.equal(group["expected-status"], 204, group.name);
+        for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) {
+          assert.equal(group.url, "http://cp.cloudflare.com/generate_204", group.name);
+          assert.equal(group.timeout, 10000, group.name);
+          assert.equal(group.interval, 300, group.name);
+          assert.equal(group["expected-status"], 204, group.name);
+        }
         assert.equal(config["geo-auto-update"], true);
         assert.equal(config["geo-update-interval"], 168);
         assert.equal(config["tcp-concurrent"], true);
@@ -667,8 +689,12 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(Object.values(config["rule-providers"]).every(({ url }) => !url.includes(new URL(profile.subscriptionUrl).searchParams.get("token"))));
       } else {
         assert.match(response.headers.get("content-type"), /text\/plain/);
+        assert.ok(text.split("\n").includes(`wifi-assist = ${wifiAssist === "1"}`));
         assert.equal(/^encrypted-dns-server =/m.test(text), encrypted);
         assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), encrypted);
+        assert.match(text, /^test-timeout = 10$/m);
+        assert.match(text, /^internet-test-url = http:\/\/bing\.com\/$/m);
+        assert.match(text, /^proxy-test-url = http:\/\/cp\.cloudflare\.com\/generate_204$/m);
         assert.ok(text.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${ICON_BASE}Auto.png`));
         assert.doesNotMatch(text, /tailnet|tailscale/i);
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
@@ -693,6 +719,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         }
         assert.deepEqual(text.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
         const managed = new URL(text.match(/^#!MANAGED-CONFIG (\S+)/)[1]);
+        assert.equal(managed.searchParams.get("wifi_assist"), wifiAssist === "1" ? "1" : null);
         assert.equal(managed.searchParams.get("doh"), doh === "0" ? "0" : null);
         assert.ok(text.split("\n").includes(`iCloud = select, DIRECT, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}iCloud.png`));
         assert.ok(text.split("\n").includes(`WeChat = select, DIRECT, 🇭🇰HK-IDC, 🇺🇸USA-ISP, icon-url=${ICON_BASE}WeChat.png`));
@@ -702,7 +729,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.doesNotMatch(text, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
         assert.doesNotMatch(text, /^AppleDirect = /m);
         assert.doesNotMatch(text.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
-        const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve(?:,update-interval=21600)?$/gm)];
+        assert.doesNotMatch(text, /^RULE-SET,.*update-interval=/m);
+        const sources = [...text.matchAll(/^RULE-SET,(https:\/\/[^,]+),([^,]+),no-resolve$/gm)];
         for (const [, value] of sources) {
           if (!REPOSITORY_RULE_SET_URLS.includes(value)) assert.ok(magicRuleRelay(value, "[A-Za-z]+", "surge"), value);
         }
@@ -721,13 +749,13 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
       }
     }
   }
-  for (const query of ["client=other", "client=clash&client=surge", "doh=true", "doh=1&doh=0"]) {
+  for (const query of ["client=other", "client=clash&client=surge", "doh=true", "doh=1&doh=0", "wifi_assist=", "wifi_assist=true", "wifi_assist=1&wifi_assist=0"]) {
     assert.equal((await request(mf, `${profile.subscriptionUrl}&${query}`)).status, 400);
   }
-  assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?token=invalid&client=clash&doh=1`)).status, 401);
+  assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?token=invalid&client=clash&doh=1&wifi_assist=1`)).status, 401);
   assert.deepEqual(await json(await request(mf, POOL_STATE_PATH, { subject: "admin" })), before);
   await json(await request(mf, ACCOUNT_TOKEN_PATH, { subject: "alice", method: "POST", body: {} }));
-  assert.equal((await request(mf, `${profile.subscriptionUrl}&client=clash&doh=1`)).status, 401);
+  assert.equal((await request(mf, `${profile.subscriptionUrl}&client=clash&doh=1&wifi_assist=1`)).status, 401);
 });
 
 test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token checks", async (t) => {

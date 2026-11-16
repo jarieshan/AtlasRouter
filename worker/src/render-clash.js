@@ -84,6 +84,13 @@ function convertGeneral(general, warn) {
     config["log-level"] = level;
   });
   read("ipv6", (value) => { config.ipv6 = dns.ipv6 = surgeBoolean(value); });
+  read("wifi-assist", (value) => {
+    if (!surgeBoolean(value)) return;
+    // Keep the system's default interface primary and restrict fallback to cellular.
+    config["network-strategy"] = "fallback";
+    config["fallback-network-type"] = ["cellular"];
+    warn("General wifi-assist: requires ProjectClash network-strategy support; other cores may ignore it");
+  });
   read("block-quic", (value) => {
     if (!["per-policy", "all-proxy", "all", "always-allow"].includes(value)) throw new Error();
     // ProjectClash checks the detected protocol and the selected terminal outbound.

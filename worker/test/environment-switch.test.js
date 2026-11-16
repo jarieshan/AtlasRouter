@@ -14,7 +14,7 @@ function element(tagName) {
 
 async function openPage({ respond = () => null, confirm = () => true } = {}) {
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
-  const account = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const account = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   const pool = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
   account.get("#subscription-client").value = "surge";
   const notice = { hidden: true };
@@ -64,6 +64,7 @@ test("switching waits for both panels and sends later writes only to the selecte
   } });
   page.account.get("#subscription-client").value = "clash";
   page.account.get("#enable-doh").checked = false;
+  page.account.get("#enable-wifi-assist").checked = true;
   const switching = page.change(true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.match(page.account.get("#subscription").value, /PROD_TEST/);
@@ -76,6 +77,7 @@ test("switching waits for both panels and sends later writes only to the selecte
   assert.equal(subscription.searchParams.get("token"), "DEV_TEST");
   assert.equal(subscription.searchParams.get("client"), "clash");
   assert.equal(subscription.searchParams.get("doh"), "0");
+  assert.equal(subscription.searchParams.get("wifi_assist"), "1");
   assert.match(page.pool.get("#inventory").value, /dev-node/);
   assert.equal(page.notice.hidden, false);
   await page.pool.get("#save").onclick();

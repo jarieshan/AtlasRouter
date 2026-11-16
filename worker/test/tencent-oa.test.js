@@ -52,7 +52,7 @@ test("Tencent OA list repeats the default entries and adds company exceptions", 
 });
 
 test("tencent_oa=1 replaces only skip-proxy and survives managed subscription updates", () => {
-  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("tencent_oa=1")), { client: "surge", doh: true, tencentOa: true });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("tencent_oa=1")), { client: "surge", doh: true, tencentOa: true, wifiAssist: false });
   assert.equal(readSubscriptionOptions(new URLSearchParams("client=clash&tencent_oa=0")).tencentOa, false);
   for (const query of ["tencent_oa=", "tencent_oa=true", "tencent_oa=1&tencent_oa=1", "tencent_oa=0&tencent_oa=1", "client=clash&tencent_oa=1"]) {
     assert.throws(() => readSubscriptionOptions(new URLSearchParams(query)), (error) => error.status === 400);

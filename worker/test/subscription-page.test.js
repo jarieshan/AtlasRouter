@@ -14,7 +14,7 @@ function element() {
 
 test("Dev switches in place and preserves client choices without navigating", async () => {
   for (const active of [false, true]) {
-    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
     fields.get("#subscription-client").value = "surge";
     fields.get("#enable-dev").checked = active;
     let href = `https://atlas.example/?client=clash&doh=0${active ? "&environment=development" : ""}`;
@@ -54,10 +54,10 @@ test("Dev switches in place and preserves client choices without navigating", as
   assert.doesNotMatch(renderAccountPage({ preview: true, developmentAvailable: true }), /id="enable-dev"/);
 });
 
-test("Tencent OA choice loads from the page URL and survives the Dev switch", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+test("Tencent OA and Wi-Fi Assist choices load from the page URL and survive the Dev switch", async () => {
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
-  let href = "https://atlas.example/?tencent_oa=1";
+  let href = "https://atlas.example/?tencent_oa=1&wifi_assist=1";
   const location = { get href() { return href; }, set href(value) { assert.fail("Unexpected navigation: " + value); } };
   const history = { replaceState(_state, _title, url) { href = url.toString(); } };
   vm.runInNewContext(renderAccountPage({ developmentAvailable: true }).match(/<script>([\s\S]*?)<\/script>/)[1], {
@@ -68,15 +68,17 @@ test("Tencent OA choice loads from the page URL and survives the Dev switch", as
   });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(fields.get("#enable-tencent-oa").checked, true);
-  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter?token=TEST_ONLY&tencent_oa=1");
+  assert.equal(fields.get("#enable-wifi-assist").checked, true);
+  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter?token=TEST_ONLY&tencent_oa=1&wifi_assist=1");
   fields.get("#enable-dev").checked = true;
   await fields.get("#enable-dev").onchange();
   assert.equal(new URL(href).searchParams.get("tencent_oa"), "1");
-  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter-Dev?token=TEST_ONLY&tencent_oa=1");
+  assert.equal(new URL(href).searchParams.get("wifi_assist"), "1");
+  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter-Dev?token=TEST_ONLY&tencent_oa=1&wifi_assist=1");
 });
 
 test("subscription controls customize copied URLs and retain choices across token rotation", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   let token = "ar_TEST_ONLY";
   let copied;
@@ -87,6 +89,7 @@ test("subscription controls customize copied URLs and retain choices across toke
   assert.match(html, /id="enable-doh" type="checkbox" role="switch" checked>/);
   assert.match(html, /<span>Tencent OA Compatibility<\/span>/);
   assert.match(html, /id="enable-tencent-oa" type="checkbox" role="switch" aria-describedby="tencent-oa-help">/);
+  assert.match(html, /id="enable-wifi-assist" type="checkbox" role="switch" aria-describedby="wifi-assist-help">/);
   assert.doesNotMatch(html, /install-module|tencent-oa\.sgmodule/);
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
     document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
@@ -104,37 +107,47 @@ test("subscription controls customize copied URLs and retain choices across toke
   const client = fields.get("#subscription-client");
   const doh = fields.get("#enable-doh");
   const tencentOa = fields.get("#enable-tencent-oa");
+  const wifiAssist = fields.get("#enable-wifi-assist");
   assert.equal(doh.checked, true);
   assert.equal(tencentOa.checked, false);
+  assert.equal(wifiAssist.checked, false);
   tencentOa.checked = true;
   tencentOa.onchange();
   assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&tencent_oa=1`);
+  wifiAssist.checked = true;
+  wifiAssist.onchange();
+  assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&tencent_oa=1&wifi_assist=1`);
   client.value = "clash";
   client.onchange();
   assert.equal(tencentOa.disabled, true);
+  assert.equal(wifiAssist.disabled, false);
+  assert.match(fields.get("#wifi-assist-help").textContent, /ProjectClash/);
   assert.match(fields.get("#tencent-oa-help").textContent, /仅适用于 Surge/);
   doh.checked = false;
   doh.onchange();
   assert.equal(calls.length, 1, "customizing a URL must not change the stored account or token");
   await fields.get("#copy").onclick();
-  assert.equal(copied, `https://atlas.example/AtlasRouter?token=${token}&client=clash&doh=0`);
+  assert.equal(copied, `https://atlas.example/AtlasRouter?token=${token}&client=clash&doh=0&wifi_assist=1`);
   await fields.get("#rotate").onclick();
-  assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&client=clash&doh=0`);
+  assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&client=clash&doh=0&wifi_assist=1`);
   assert.match(fields.get("#client-help").textContent, /Mihomo/);
   client.value = "surge";
   client.onchange();
   assert.equal(tencentOa.disabled, false);
   assert.match(fields.get("#tencent-oa-help").textContent, /iOA/);
-  assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&doh=0&tencent_oa=1`);
+  assert.match(fields.get("#wifi-assist-help").textContent, /Surge iOS/);
+  assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&doh=0&tencent_oa=1&wifi_assist=1`);
   doh.checked = true;
   doh.onchange();
   tencentOa.checked = false;
   tencentOa.onchange();
+  wifiAssist.checked = false;
+  wifiAssist.onchange();
   assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}`);
 });
 
 test("production account calls and copied links retain token rotation", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   let copied;
   let calls = 0;
@@ -171,7 +184,7 @@ test("page previews keep all interactions in memory and reset on a new page load
   let storageAccesses = 0;
   let copied;
   async function openPage() {
-    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
     fields.get("#subscription-client").value = "surge";
     fields.get("#enable-doh").checked = true;
     const storage = new Proxy({}, { get() { storageAccesses += 1; throw new Error("Preview must not use browser storage"); } });
@@ -192,16 +205,20 @@ test("page previews keep all interactions in memory and reset on a new page load
   assert.equal(fields.get("#identity").textContent, "preview@example.invalid");
   assert.equal(fields.get("#groups").children.length, 4);
   assert.equal(new URL(initial).searchParams.get("doh"), null);
+  assert.equal(fields.get("#enable-wifi-assist").checked, false);
+  fields.get("#enable-wifi-assist").checked = true;
+  fields.get("#enable-wifi-assist").onchange();
   fields.get("#subscription-client").value = "clash";
   fields.get("#subscription-client").onchange();
   fields.get("#enable-doh").checked = false;
   fields.get("#enable-doh").onchange();
   await fields.get("#copy").onclick();
-  assert.equal(copied, `${initial}&client=clash&doh=0`);
+  assert.equal(copied, `${initial}&client=clash&doh=0&wifi_assist=1`);
   await fields.get("#rotate").onclick();
   const rotated = fields.get("#subscription").value;
   assert.notEqual(rotated, copied);
   assert.equal(new URL(rotated).searchParams.get("token"), "preview-test-only-new-preview");
+  assert.equal(new URL(rotated).searchParams.get("wifi_assist"), "1");
   assert.equal((await openPage()).get("#subscription").value, initial);
   assert.equal(fetches, 0);
   assert.equal(storageAccesses, 0);
@@ -219,7 +236,7 @@ test("database node labels render as text and preview interactions stay in the p
   assert.match(html, /只读展示当前启用的真实节点/);
   assert.equal(html.match(/<script>/g).length, 1);
   assert.ok(!html.includes(name));
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
     document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
@@ -237,7 +254,7 @@ test("database node labels render as text and preview interactions stay in the p
 
 
 test("inventory updates refresh the account without rotating its token or resetting options", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   const listeners = new Map();
   let requests = 0;
@@ -257,8 +274,9 @@ test("inventory updates refresh the account without rotating its token or resett
   assert.match(fields.get(".status").textContent, /等待管理员/);
   fields.get("#subscription-client").value = "clash";
   fields.get("#enable-doh").checked = false;
+  fields.get("#enable-wifi-assist").checked = true;
   await listeners.get("atlasrouter:inventory")();
   assert.equal(requests, 2);
   assert.match(fields.get(".status").textContent, /配置已就绪/);
-  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter?token=TEST_ONLY&client=clash&doh=0");
+  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter?token=TEST_ONLY&client=clash&doh=0&wifi_assist=1");
 });
