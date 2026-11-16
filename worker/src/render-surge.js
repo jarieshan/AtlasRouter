@@ -4,7 +4,6 @@ import { subscriptionPath } from "./routes.js";
 import { buildSubscriptionUrl } from "./subscription-options.js";
 import { magicRuleUrl } from "./magic-rules.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
-import { orderedSmartPriority } from "./surge-format.js";
 import { inheritBranch } from "./branch-query.js";
 import { repositoryTemplate } from "./repository-rules.js";
 
@@ -13,7 +12,7 @@ const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
 const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
 const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
-export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, smartPriorityScheme, showAllGroups = false, repositoryRulesRef = "master" }) {
+export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, showAllGroups = false, repositoryRulesRef = "master" }) {
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const doh = options.doh ?? true;
   const replacements = {
@@ -29,7 +28,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
       `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl),
     ])),
   };
-  const template = renderPoolTemplate(groups, smartPriorityScheme, idcNames, repositoryRulesRef).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
+  const template = renderPoolTemplate(groups, idcNames, repositoryRulesRef).replace(/(^\[General\]\n)([\s\S]*?)(?=^\[)/m, (_, heading, body) => {
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${doh ? "" : "# "}${setting}`);
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => ASSETS.tencentOa.match(/^skip-proxy[ \t]*=.*$/m)[0]);
     return heading + general;
@@ -37,7 +36,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   return applyRuleSetVisibility(replaceTemplate(template, replacements), { showAllGroups });
 }
 
-function renderPoolTemplate(groups, smartPriorityScheme, idcNames, repositoryRulesRef) {
+function renderPoolTemplate(groups, idcNames, repositoryRulesRef) {
   const orderedGroups = [...groups].sort(compareNodeGroups);
   const groupNamesByIpType = (order, preferredRegion) => [...orderedGroups].sort((a, b) =>
     (a.nodes[0].region !== preferredRegion) - (b.nodes[0].region !== preferredRegion)
@@ -46,8 +45,7 @@ function renderPoolTemplate(groups, smartPriorityScheme, idcNames, repositoryRul
   const section = replaceTemplate(ASSETS.poolGroups, {
     POOL_GROUP_LINES: orderedGroups.map(({ group, nodes }) => {
       const names = nodes.map((node) => node.name);
-      const scheme = smartPriorityScheme === "geometric-10" && nodes[0].ipType === "ISP" ? "geometric-10-from-100" : smartPriorityScheme;
-      return `${group} = smart, ${names.join(", ")}, policy-priority=${JSON.stringify(orderedSmartPriority(names, scheme))}${nodes[0].ipType === "ISP" ? "" : ", hidden=true"}`;
+      return `${group} = fallback, ${names.join(", ")}, interval=300${nodes[0].ipType === "ISP" ? "" : ", hidden=true"}`;
     }).join("\n"),
     // An empty Surge Smart group substitutes DIRECT, so omit it and reject its traffic instead.
     DOH_PROXY_GROUP_LINE: idcNames.length ? `DoH Proxy = smart, ${idcNames.join(", ")}, icon-url=https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Server.png, hidden=true` : "",

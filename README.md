@@ -38,7 +38,7 @@ flowchart LR
   B --> D
   E["Surge 携带个人 token"] --> F["Worker 校验订阅凭据"]
   F --> D
-  D --> G["渲染 Smart 主备组，Clash 转为 fallback"]
+  D --> G["渲染 Surge / Clash fallback 主备组"]
   G --> H["Surge 导入 / 更新；客户端检测故障"]
 ```
 
@@ -79,7 +79,7 @@ npm run check:live-security -- https://<worker-domain>
 
 正式 `atlas-router` Worker 提供页面及正式订阅，私有 `atlas-router-development` Worker 提供开发订阅。两者使用同一套实现和模板，分别由 Cloudflare Builds 的 master 构建和 develop 构建发布。
 
-两分支都保存完整的正式与开发部署配置。`REPOSITORY_RULES_REF` 决定仓库规则引用的分支，正式配置为 `master`，开发配置为 `develop`。权重与策略组显示使用各自的运行时参数。功能先进入 develop 并完成开发订阅验收，再通过保留历史的普通合并整体进入 master。具体流程见 [部署说明](docs/deployment-cloudflare.md#分支合并与发布)。
+两分支都保存完整的正式与开发部署配置。`REPOSITORY_RULES_REF` 决定仓库规则引用的分支，正式配置为 `master`，开发配置为 `develop`。策略组显示使用各自的运行时参数。功能先进入 develop 并完成开发订阅验收，再通过保留历史的普通合并整体进入 master。具体流程见 [部署说明](docs/deployment-cloudflare.md#分支合并与发布)。
 
 页面默认读写正式 `DB`，开启 Dev 后仅管理独立 `DEV_DB`，生成同域名 `/AtlasRouter-Dev` 订阅。两套用户、凭据和节点独立；香港和洛杉矶的 Access + Tunnel 入口不参与环境切换。
 
@@ -97,7 +97,7 @@ npm run check:live-security -- https://<worker-domain>
 
 ## Surge 配置约定
 
-- master 已合入 develop 的订阅实现。`surge/pool-groups.conf` 按个人主备次序生成地区/IP 类型 Smart 组，Clash 转为同顺序 fallback、间隔 300 秒；正式与开发服务均配置 `geometric-10-from-10000`，各组权重为 1、10000、100000…，详见 [生产基线](docs/production-baseline.md)。
+- master 已合入 develop 的订阅实现。`surge/pool-groups.conf` 按个人主备次序生成地区/IP 类型 `fallback` 组，Surge 与 Clash 均使用 `interval=300`。`Auto` 使用 `url-test`、`interval=300`、`tolerance=50`。详见 [生产基线](docs/production-baseline.md)。
 - `[Rule]` 负责流量匹配，规则按文件顺序从上到下匹配，并以 `FINAL` 规则兜底。
 - 外部策略可通过 `policy-path` 引入，区域筛选可用 `policy-regex-filter`。
 - 模块文件用于对主配置做局部覆盖或追加，不应承担主配置无法解释的大段逻辑。

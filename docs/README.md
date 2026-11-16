@@ -11,7 +11,7 @@
 
 当前文档：
 
-- [生产基线](production-baseline.md)：当前生产行为与地区组权重、正式入口与 Cloudflare 自动发布。
+- [生产基线](production-baseline.md)记录当前源码行为、地区组主备顺序、正式入口与 Cloudflare 自动发布。
 
 - [部署说明](deployment-cloudflare.md) 记录 develop 验收、整体合并 master、两种 Cloudflare Builds 配置和香港 Tunnel 边界。
 - [预览下线记录](native-previews.md)：原生预览下线、Dev 开关恢复与 Tunnel 边界。

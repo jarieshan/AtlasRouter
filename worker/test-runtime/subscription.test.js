@@ -39,20 +39,15 @@ const TEAM = "https://test.cloudflareaccess.com";
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const jwk = { ...publicKey.export({ format: "jwk" }), kid: "test", alg: "RS256", use: "sig" };
 
-function orderedSmartMembers(profile, name, expectedWeights) {
-  const line = profile.split("\n").find((line) => line.startsWith(`${name} = smart, `));
+function fallbackMembers(profile, name) {
+  const line = profile.split("\n").find((line) => line.startsWith(`${name} = fallback, `));
   assert.ok(line);
   const parts = splitSurgeList(surgeAssignment(line)[1]).slice(1);
   const members = parts.filter((part) => !part.includes("="));
   const options = surgeOptions(parts.filter((part) => part.includes("=")));
   assert.equal(options.get("hidden"), name.endsWith("-ISP") ? undefined : "true");
-  const weights = options.get("policy-priority").split(";").map((entry) => entry.split(":"));
-  assert.equal(weights.length, members.length);
-  for (const [index, member] of members.entries()) {
-    const matches = weights.filter(([pattern]) => new RegExp(pattern).test(member));
-    assert.equal(matches.length, 1);
-    assert.equal(Number(matches[0][1]), expectedWeights?.[index] ?? index + 1);
-  }
+  assert.equal(options.get("interval"), "300");
+  assert.equal(options.get("policy-priority"), undefined);
   return members;
 }
 
@@ -130,9 +125,9 @@ async function account(mf, subject = "alice", claims) {
   return json(await request(mf, ACCOUNT_PROFILE_PATH, { subject, claims }));
 }
 
-test("development uses independent identities, tokens and node data with geometric Smart weights", async (t) => {
+test("development uses independent identities, tokens and node data with ordered fallback groups", async (t) => {
   const production = await createRuntime(t);
-  const development = await createRuntime(t, { ACCESS_AUD: "development-app", SMART_PRIORITY_SCHEME: "geometric-10-from-10000" });
+  const development = await createRuntime(t, { ACCESS_AUD: "development-app" });
   await save(production);
   const productionAccount = await account(production);
   const before = await readSubscriptionState({ DB: await production.getD1Database("DB") });
@@ -151,7 +146,7 @@ test("development uses independent identities, tokens and node data with geometr
   const surgeResponse = await request(development, developmentAccount.subscriptionUrl);
   assert.equal(surgeResponse.status, 200);
   const surge = await surgeResponse.text();
-  const members = orderedSmartMembers(surge, "🇺🇸USA-ISP", [1, 10000, 100000, 1000000, 10000000]);
+  const members = fallbackMembers(surge, "🇺🇸USA-ISP");
   const clashResponse = await request(development, `${developmentAccount.subscriptionUrl}&client=clash`);
   assert.equal(clashResponse.status, 200);
   const clash = parseYaml(await clashResponse.text());
@@ -159,7 +154,7 @@ test("development uses independent identities, tokens and node data with geometr
   assert.equal(group.type, "fallback");
   assert.deepEqual(group.proxies, members);
   assert.equal(group["policy-priority"], undefined);
-  const productionMembers = orderedSmartMembers(await (await request(production, productionAccount.subscriptionUrl)).text(), "🇺🇸USA-ISP");
+  const productionMembers = fallbackMembers(await (await request(production, productionAccount.subscriptionUrl)).text(), "🇺🇸USA-ISP");
   assert.equal(productionMembers.length, 3);
   assert.deepEqual(await readSubscriptionState({ DB: await production.getD1Database("DB") }), before);
 });
@@ -253,11 +248,19 @@ test("Dev portal and private service isolate data, tokens, module links and toke
     assert.doesNotMatch(text, /AtlasRouter@master\/|\{\{REPOSITORY_RULES_REF\}\}/);
     if (client === "surge") {
       for (const node of devNodes) assert.ok(text.split("\n").includes(node.line));
+      assert.match(text, /^🇺🇸USA-ISP = fallback, .+, interval=300$/m);
+      assert.match(text, /^Auto = url-test, include-all-proxies=true, interval=300, tolerance=50,/m);
+      assert.doesNotMatch(text, /policy-priority=/);
     } else {
-      const { proxies } = parseYaml(text);
+      const { proxies, "proxy-groups": groups } = parseYaml(text);
       assert.equal(proxies.length, 3);
       assert.deepEqual(proxies.map((node) => node.server).sort(), ["node-1.example.com", "node-2.example.com", "node-3.example.com"]);
       assert.ok(proxies.every((node) => node.port === 443 && node.tls === true && node["dialer-proxy"] === undefined));
+      assert.equal(groups.find(({ name }) => name === "🇺🇸USA-ISP").type, "fallback");
+      const auto = groups.find(({ name }) => name === "Auto");
+      assert.equal(auto.type, "url-test");
+      assert.equal(auto.interval, 300);
+      assert.equal(auto.tolerance, 50);
     }
   }
   assert.deepEqual(await readSubscriptionState({ DB: devDb }), devBefore);
@@ -446,7 +449,7 @@ test("simultaneous first logins receive stable unique accounts and exclusive pri
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("referrer-policy"), "no-referrer");
     const config = await response.text();
-    assert.deepEqual(orderedSmartMembers(config, "🇺🇸USA-ISP"), profile.groups[0].nodes.map((node) => node.name));
+    assert.deepEqual(fallbackMembers(config, "🇺🇸USA-ISP"), profile.groups[0].nodes.map((node) => node.name));
     assert.match(config, /^#!MANAGED-CONFIG https:\/\/atlas.example\/AtlasRouter\?token=/);
     assert.match(config, /^FINAL,FINAL,dns-failed$/m);
     assert.match(config, /^# Available modules:\n# - None$/m);
@@ -466,7 +469,7 @@ test("portal, inventory and both subscription formats share balanced backup prio
     const response = await request(mf, profile.subscriptionUrl);
     assert.equal(response.status, 200);
     const config = await response.text();
-    const members = orderedSmartMembers(config, group.group);
+    const members = fallbackMembers(config, group.group);
     assert.deepEqual(members, group.nodes.map((node) => node.name));
     const clashResponse = await request(mf, `${profile.subscriptionUrl}&client=clash`);
     assert.equal(clashResponse.status, 200);
@@ -621,6 +624,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(auto.type, "url-test");
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
         assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
+        assert.equal(auto.interval, 300);
         assert.equal(auto.tolerance, 50);
         for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) assert.equal(group["expected-status"], 204, group.name);
         assert.equal(config["geo-auto-update"], true);
@@ -665,7 +669,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(response.headers.get("content-type"), /text\/plain/);
         assert.equal(/^encrypted-dns-server =/m.test(text), encrypted);
         assert.equal(/^encrypted-dns-follow-outbound-mode = true$/m.test(text), encrypted);
-        assert.ok(text.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
+        assert.ok(text.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${ICON_BASE}Auto.png`));
         assert.doesNotMatch(text, /tailnet|tailscale/i);
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
         assert.ok(text.split("\n").includes(`FINAL = select, Auto, Proxy, 🇭🇰HK-IDC, 🇺🇸USA-ISP, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
@@ -794,7 +798,7 @@ test("inventory updates allocate all groups and reduce sharing when capacity gro
   assert.equal((await account(mf, "bob")).status, "active");
   assert.equal((await account(mf, "bob")).groups.find((group) => group.group === "🇭🇰HK-IDC").primaryId, "IDC-2");
   const config = await (await request(mf, bob.subscriptionUrl)).text();
-  assert.match(config, /^🇭🇰HK-IDC = smart,/m);
+  assert.match(config, /^🇭🇰HK-IDC = fallback,/m);
   assert.doesNotMatch(config, /{{/);
 });
 
@@ -835,7 +839,7 @@ test("removing an assigned node reassigns users and removes it from stored inven
         assert.equal(config.proxies.length, 3);
         assert.deepEqual(config["proxy-groups"].find((group) => group.name === removed.group).proxies, isp.nodes.map((node) => node.name));
       } else {
-        assert.deepEqual(orderedSmartMembers(body, isp.group), isp.nodes.map((node) => node.name));
+        assert.deepEqual(fallbackMembers(body, isp.group), isp.nodes.map((node) => node.name));
         assert.match(body, /^FINAL,FINAL,dns-failed$/m);
       }
     }
@@ -1029,7 +1033,7 @@ test("D1 migrates populated snapshots to relational rows and keeps existing toke
     assert.deepEqual(profile.groups[0].nodes.map((node) => node.name), expected);
     const response = await request(mf, profile.subscriptionUrl);
     assert.equal(response.status, 200);
-    assert.deepEqual(orderedSmartMembers(await response.text(), "🇺🇸USA-ISP"), expected);
+    assert.deepEqual(fallbackMembers(await response.text(), "🇺🇸USA-ISP"), expected);
   }
   assert.equal((await request(mf, "/AtlasRouter?token=legacy-seed-token")).status, 401);
 });

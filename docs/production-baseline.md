@@ -10,10 +10,10 @@
 
 本地用同一组合成节点、用户和独立 D1 分别运行原生产 bundle 与候选代码，比较默认 Surge、DoH、Tencent OA、两者组合、默认 Clash、Clash + DoH 六种输出，结果逐字一致；401/404 检查也通过。真实节点、用户 token、下载的生产 bundle 和私有备份不进入仓库。 该逐字比较针对恢复提交 `f957447`。随后为修复开启 Surge 后无法访问订阅入口的问题，两分支补充了生产与开发订阅域名的精确 `DIRECT` 规则；这两条入口规则是相对于原生产输出的有意差异，全局 QUIC 策略与节点分组方式保持不变。
 
-## 当前生产行为
+## 当前源码行为
 
-- 地区/IP 类型组在 Surge 中使用 Smart 和 `policy-priority`，保留个人主备次序；Clash 按相同次序转换为 300 秒的 fallback。正式与开发服务均配置 `SMART_PRIORITY_SCHEME=geometric-10-from-10000`，ISP、WARP、IDC 组的权重都是 1、10000、100000…；每组最多 13 个节点，超过后订阅生成失败。
-- Auto 为全节点 Smart；Clash 近似为容差 50 ms 的 url-test。FINAL 为可见的 select：Auto → Proxy → IDC → WARP → ISP → DIRECT。Speedtest 使用 MagicRule，select 顺序为 IDC → WARP → ISP → DIRECT。
+- 正式与开发配置的 ISP、WARP、IDC 地区组在 Surge / Clash 中均使用 `fallback`，按个人主备次序选择首个可用节点，配置 `interval=300`。
+- Auto 为全节点 `url-test`，两种客户端均配置 `interval=300`、`tolerance=50`。FINAL 为可见的 select，顺序为 Auto → Proxy → IDC → WARP → ISP → DIRECT。Speedtest 使用 MagicRule，select 顺序为 IDC → WARP → ISP → DIRECT。
 - 合入 OverseasFinance、ISP First、RedPocket、Apple/AI/影音独立规则、IDC 专用 DoH 组及 Clash DNS、测速和多地址连接适配。正式配置显示业务组和 ISP 地区组，隐藏 WARP / IDC 地区组及 DoH Proxy。开发服务的 `SHOW_ALL_PROXY_GROUPS=true` 显示全部组。
 - 仓库规则集由 `REPOSITORY_RULES_REF` 生成分支地址，正式配置引用 `@master`，开发配置引用 `@develop`。MagicRule 的 39 类规则使用各客户端原生产物及最后有效副本。正式 Cron 每 5 分钟检查一份，共 78 份约 6 小时 30 分钟一轮。
 - 两个 Worker 使用各自节点池保存的公网节点和个人 token。正式页面通过 Service binding 访问私有开发订阅。

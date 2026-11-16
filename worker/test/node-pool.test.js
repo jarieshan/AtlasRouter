@@ -197,18 +197,19 @@ test("disabling nodes excludes them from all fallbacks and reassigns to unused c
   assert.equal(state.nodes[1].assignmentCount, 1);
 });
 
-test("renders ordered smart groups with valid references and literal credential characters", () => {
+test("renders ordered fallback groups with valid references and literal credential characters", () => {
   const state = createState();
   state.nodes = parsePoolNodes(inventory().map((entry) => ({ ...entry, line: entry.line.replace("REPLACE_ME", () => "$&$1$$") })));
   allocateNodes(state, NOW);
   const groups = userGroups(state, "user-1");
   const config = renderSurgeProfile({ requestUrl: "https://atlas.example/AtlasRouter", token: "test-token", groups, nodes: groups.flatMap((group) => group.nodes) });
-  assert.match(config, /^🇺🇸USA-ISP = smart, 🇺🇸 LosAngeles - ISP 2, 🇺🇸 LosAngeles - ISP 3, 🇺🇸 LosAngeles - ISP 1, policy-priority=/m);
+  assert.match(config, /^🇺🇸USA-ISP = fallback, 🇺🇸 LosAngeles - ISP 2, 🇺🇸 LosAngeles - ISP 3, 🇺🇸 LosAngeles - ISP 1, interval=300$/m);
+  assert.doesNotMatch(config, /policy-priority=/);
   assert.match(config, /password=\$&\$1\$\$/);
   assert.match(config, /^FINAL,FINAL,dns-failed$/m);
   assert.match(config, /^# Available modules:\n# - None$/m);
   assert.doesNotMatch(config, /{{|💎 Select/);
-  assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${ICON_BASE}Auto.png`));
+  assert.ok(config.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${ICON_BASE}Auto.png`));
   assert.doesNotMatch(config, /^\[MITM\]$/m);
   assert.doesNotMatch(config, /ca-p12|ca-passphrase/);
   const policyNames = new Set(["DIRECT", "REJECT"]);
@@ -284,13 +285,13 @@ test("orders selection options by IP type while preserving regional definitions 
       ["AppleIntelligence", "AIProxy"], ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
     ]);
     assert.doesNotMatch(config.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
-    const definitions = [...config.matchAll(/^(.+) = smart, .+, policy-priority=/gm)].map((match) => match[1]);
+    const definitions = [...config.matchAll(/^(.+) = fallback, .+, interval=300/gm)].map((match) => match[1]);
     assert.deepEqual(definitions, expectedGroups);
-    for (const line of config.split("\n").filter((line) => line.includes("policy-priority="))) {
+    for (const line of config.split("\n").filter((line) => line.includes(" = fallback, "))) {
       assert.equal(line.endsWith(", hidden=true"), !line.split(" = ")[0].endsWith("-ISP"), line.split(" = ")[0]);
     }
     assert.deepEqual(groups, before);
-    for (const group of groups) assert.ok(config.includes(`${group.group} = smart, ${group.nodes.map((node) => node.name).join(", ")}, policy-priority=`));
+    for (const group of groups) assert.ok(config.includes(`${group.group} = fallback, ${group.nodes.map((node) => node.name).join(", ")}, interval=300`));
     assert.match(config, /^FINAL,FINAL,dns-failed$/m);
   }
 });

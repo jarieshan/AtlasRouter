@@ -105,7 +105,6 @@ export async function handlePoolRequest(request, env) {
     const options = readSubscriptionOptions(url.searchParams);
     const surge = renderSurgeProfile({
       requestUrl: request.url, token: tokens[0], groups, nodes: groups.flatMap((group) => group.nodes), options,
-      smartPriorityScheme: env.SMART_PRIORITY_SCHEME,
       showAllGroups: env.SHOW_ALL_PROXY_GROUPS === "true",
       repositoryRulesRef,
     });

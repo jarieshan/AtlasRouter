@@ -11,14 +11,13 @@
 | `SUBSCRIPTION_VARIANT`（变量） | `production` | `development` |
 | `SUBSCRIPTION_PATH`（变量） | `/AtlasRouter` | `/AtlasRouter-Dev` |
 | `REPOSITORY_RULES_REF`（变量） | `master` | `develop` |
-| `SMART_PRIORITY_SCHEME`（变量） | `geometric-10-from-10000` | `geometric-10-from-10000` |
 | `SHOW_ALL_PROXY_GROUPS`（变量） | `false` | `true` |
 
 两份配置保存在每个分支中，Worker 通过 `env` 读取运行时变量。同一构建产物可以使用任一环境的配置。`REPOSITORY_RULES_REF` 用于替换模板中的仓库规则分支，同时决定 Clash 规则来源登记，只接受 `master` 和 `develop`。已有部署缺省此值时，`SUBSCRIPTION_VARIANT=development` 对应 `develop`，其余情况对应 `master`。发布脚本校验两份配置显式声明的规则分支。
 
-当前权重方案使地区组的主备权重依次为 1、10000、100000…，每组最多 13 个节点。正式配置显示业务组和 ISP 地区组，开发配置显示全部策略组。
+地区/IP 类型组使用按个人主备顺序排列的 `fallback`，`Auto` 使用 `url-test`。两种客户端均配置 `interval=300`，`Auto` 另设 `tolerance=50`。正式配置显示业务组和 ISP 地区组，开发配置显示全部策略组。
 
-正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。开发管理请求使用 `/api/AtlasRouter-Dev/*`，读取测试库并生成 `/AtlasRouter-Dev` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务可设置 `SMART_PRIORITY_SCHEME=geometric-10-from-10000`（与正式相同）、`SHOW_ALL_PROXY_GROUPS=true`；正式分流行为保持独立。旧环境参数仅供已发出链接兼容，新页面不再生成。
+正式页面绑定 `DEV_DB`（独立测试库）和 `DEV_SUBSCRIPTION_SERVICE`（私有开发 Worker）。开发管理请求使用 `/api/AtlasRouter-Dev/*`，读取测试库并生成 `/AtlasRouter-Dev` 链接；开发服务只绑定测试库，并设置 `SUBSCRIPTION_VARIANT=development`、`SUBSCRIPTION_PATH=/AtlasRouter-Dev`。服务或数据库缺失时拒绝请求，不回退到正式库。`DEV_SUBSCRIPTION_ORIGIN` 与原生 `previews` 不再使用。开发服务设置 `SHOW_ALL_PROXY_GROUPS=true`。旧环境参数仅供已发出链接兼容，新页面不再生成。
 
 开发服务直接使用测试节点池保存的公网地址、端口和 TLS 设置。`SUBSCRIPTION_VARIANT=development` 只用于隔离开发服务和数据，节点名称、用户分配及出口保持原样。
 

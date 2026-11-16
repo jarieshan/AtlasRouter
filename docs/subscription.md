@@ -94,15 +94,15 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 生成内容中的 `#!MANAGED-CONFIG` 和模块 URL 使用统一域名，正式路径为 `/AtlasRouter`，开发路径为 `/AtlasRouter-Dev`。这些入口校验对应数据库的订阅 `token`。修改模板保留个人 token，用户重置后旧 token 失效。
 
-两种订阅使用同一套模板。`REPOSITORY_RULES_REF` 在运行时生成仓库规则地址，正式配置为 `master`，开发配置为 `develop`，规则来源登记使用相同参数。权重和策略组显示也从对应部署配置读取，具体值见 [环境与存储](env.md#运行时配置)。
+两种订阅使用同一套模板。`REPOSITORY_RULES_REF` 在运行时生成仓库规则地址，正式配置为 `master`，开发配置为 `develop`，规则来源登记使用相同参数。策略组显示也从对应部署配置读取，具体值见 [环境与存储](env.md#运行时配置)。
 
-master 与 develop 按地区/IP 类型生成带 `policy-priority` 的 Smart 组，成员依照每位用户的主节点、备用节点排列。正式与开发服务均配置 `SMART_PRIORITY_SCHEME=geometric-10-from-10000`：主节点权重为 1，备用节点依次为 10000、100000、1000000…，ISP、WARP、IDC 组相同；受安全整数限制，每组最多 13 个节点，超过后订阅生成会报错。Clash 将这些组转换为相同主备次序的 fallback，间隔 300 秒。节点不足时允许共享主节点；规则见 [multi-user.md](multi-user.md)。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则；最终保留 `FINAL` 兜底规则。不生成 `[MITM]` 段。
+正式与开发配置均按地区/IP 类型生成 `fallback` 组，ISP、WARP、IDC 组的成员依照每位用户的主节点、备用节点排列，选择首个可用节点。Surge 与 Clash 均配置 `interval=300`，Surge 将该值作为测速结果有效期，Clash 按自身健康检查调度执行。节点不足时允许共享主节点。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则，最终保留 `FINAL` 兜底规则。订阅省略 `[MITM]` 段。分配规则见 [multi-user.md](multi-user.md)。
 
 正式和开发订阅的兜底规则指向独立可见的手动选择组：`FINAL,FINAL,dns-failed`。`FINAL` 组选项按 Auto → Proxy → IDC → WARP → ISP → DIRECT 排列，地区/IP 类型分组内部保持现有地区顺序，缺少的类型跳过。首次使用默认 `Auto`。这里是手动选项顺序，不是故障自动回退顺序；客户端会保留仍有效的手动选择。Clash 对应可见的 `select` 组和 `MATCH,FINAL`。
 
 正式和开发订阅均提供独立可见的 `Speedtest` 手动选择组，选项按 IDC → WARP → ISP → DIRECT 排列，各类型内保持现有地区顺序，缺少的类型跳过；首次默认第一项（有 IDC 时选第一个 IDC 地区组）。使用 MagicRule 的 Speedtest 完整规则集，Surge 和 Clash 分别通过现有中转取得 Surge / Mihomo 原生列表，每 6 小时更新。规则位于 CustomDirect、Direct、Cloudflare、Netflix 和 China 之前，让已收录的测速域名及服务器统一进入 `Speedtest`。测速时使用规则模式并在此组选择出口；[全局代理模式不使用规则列表](https://manual.nssurge.com/rules/overview.html)，仍由全局选中的策略决定出口。
 
-可见的 `Auto` 使用 `smart, include-all-proxies=true`，包含当前订阅 `[Proxy]` 中的所有节点，不包含 `DIRECT` 或其他策略组；在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留；从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge [smart 组](https://manual.nssurge.com/policy-groups/smart.html)结合测速延迟、真实连接响应和丢包择优，并自动重试；它不是始终固定选择单次测速最低的节点。Clash 无等价 smart 类型，转换为每 300 秒测速、容差 50 毫秒的 `url-test`，输出注释说明差异：其他节点比当前节点快 50 毫秒以上才切换，避免延迟相近的节点随测速波动来回切换；当前节点测速失败时不受容差限制。地区/IP 类型组的主备顺序保持原样。
+可见的 `Auto` 使用 `url-test, include-all-proxies=true, interval=300, tolerance=50`，仅包含当前订阅 `[Proxy]` 中的所有节点，在 `Proxy` 中排在所有地区/IP 类型组之后、`DIRECT` 之前。`Proxy` 默认选择排在首项的地区/IP 类型组，已有且仍有效的客户端手动选择可能被保留。从旧名称 `auto` 更新后，如需继续自动选择，可重新选中 `Auto`。Surge 与 Clash 的 `Auto` 均按测速延迟选择节点，并设置 50 毫秒的切换容差，减少延迟相近时的频繁切换。Clash 会过滤不兼容的节点。Surge 的 `interval=300` 表示测速结果有效期为 300 秒。[Surge url-test 组](https://manual.nssurge.com/policy-groups/url-test.html)
 
 `DoH Proxy` 组仅列出当前订阅中已启用的 IDC 节点，跨地区汇集，不包含 ISP、WARP、`DIRECT`、`REJECT` 或其他策略组。Surge 使用不带权重的 `smart`，Clash 使用 `url-test`（间隔 300 秒、容差 50 毫秒）。没有 IDC 节点时不输出空组，将原本指向该组的国外 DoH 规则改为 `REJECT`，国内 DNS 和其余订阅照常生成，避免 [Surge 空组自动替换为直连](https://manual.nssurge.com/policy-groups/overview.html)。Clash 过滤掉全部不兼容 IDC 节点时同样保留这些拒绝规则；只过滤部分节点时继续使用剩余 IDC。
 
@@ -134,7 +134,7 @@ WARP、IDC 地区组设置 `hidden=true`，隐藏客户端主面板中的独立�
 
 `WeChat`、`Telegram` 和 `X` 是可见的独立策略组，分别接收 WeChat、Telegram 和 Twitter 规则集的流量。WeChat 按 `DIRECT` → IDC → WARP → ISP 排列，默认直连。Telegram 按 IDC → WARP → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 IDC 组，缺少某类节点时跳过。X、AIProxy 按 ISP → WARP → IDC → `Proxy` → `DIRECT` 排列，默认选择首个可用的 ISP 组。GlobalMedia（含 Apple TV+）按 WARP → IDC → ISP → `Proxy` → `DIRECT` 排列，默认选择首个可用的 WARP 组；部分流媒体可能限制 WARP 或机房出口，此时可手动切换到 ISP 组。上述地区/IP 类型选项先按 IP 类型、再按美国 → 香港 → 新加坡 → 日本 → 其他地区排序；其他地区按两位地区代码的字母升序排列。`Proxy` 自身不包含自引用，选项采用 ISP → WARP → IDC → `Auto` → `DIRECT` 顺序。所有可选策略组均不提供 `REJECT` 选项。`💎 Select` 已移除。
 
-`YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组；没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 Netflix 等影音规则之前。这是手动选择项顺序；地区/IP 类型组内，Surge 使用 Smart，Clash 转为同顺序的 `fallback`。
+`YouTube` 是可见的独立策略组，选项按 WARP → IDC → ISP 排列，仅列出可用的地区/IP 类型组，默认选择首个 WARP 组。没有 WARP 时依次选择首个 IDC 或 ISP 组。它使用 MagicRule 的原生 Surge / Mihomo YouTube 完整规则，放在 Netflix 等影音规则之前。这是手动选择项顺序。地区/IP 类型组内，Surge 与 Clash 均使用同顺序的 `fallback`。
 
 `OverseasFinance`（原 `Coin`）是可见的独立策略组，接收 Binance、OKX、Coinbase、Bybit、Bitget 以及 PayPal、eBay、Stripe、Wise 的流量，选项按 ISP → WARP → IDC → `DIRECT` 排列，默认选择首个可用的 ISP 组；客户端为原 `Coin` 组保存的手动选择不会沿用。除 Coinbase、Bitget 外均使用 MagicRule 的独立规则；MagicRule 没有这两家的独立规则，其域名维护在本仓库的 [`surge/rule-sets/Coin.list`](../surge/rule-sets/Coin.list)，经 jsDelivr 引用，文件名不随组名改变。这些规则排在 Telegram、X、Discord、YouTube 之后、Netflix 等影音规则之前，也先于国内直连名单，因此 PayPal 列表中的 `paypal.com.cn`、贝宝等 `.cn` 域名和 eBay 列表中的 `ebay.cn` 等 `.cn` 域名同样进入 OverseasFinance；PayPal 列表另含 `DOMAIN-KEYWORD,paypal`。排在前面的 OpenAI 列表也收录了 `stripe.com`，所以 `stripe.com` 及其子域名仍进入 `AIProxy`，OverseasFinance 只接收 Stripe 的 `stripe.network`、`stripecdn.com`、`link.com` 等其余域名。`[Host]` 不为这些域名单独指定 DNS，按默认 DNS 设置解析。
 
@@ -188,7 +188,7 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 
 - 支持 VMess AEAD（TCP / WebSocket）、Trojan、常用 Shadowsocks、HTTP / HTTPS、SOCKS5 / SOCKS5-TLS。保留可映射的认证、TLS 校验、证书指纹、ALPN、WebSocket、UDP 和 TCP Fast Open 参数；未知连接参数或不支持的协议会移除整个节点，并清理无效成员、空组和相关规则。`sni=off` 无等价映射时移除节点，不能把 `off` 当成服务器名称。
 - VMess、Trojan 按 [Surge 的协议默认能力](https://manual.nssurge.com/policies/udp.html)输出 `udp: true`；转换器将显式 `udp-relay=false` 保留为关闭，但不能依赖该开关在 Surge 的 VMess / Trojan 上禁用 UDP；Surge 官方将它列为其他协议的可选能力。Shadowsocks、SOCKS5 / SOCKS5-TLS 仍需显式启用。缺少 UDP 支持时，[Mihomo 跳过指向该代理的 UDP 规则](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)继续匹配，没有规则可用时直连；Surge 按 [`udp-policy-not-supported-behaviour`](https://manual.nssurge.com/policies/udp.html) 处理，默认 REJECT。因此规则的策略可能选中不支持 UDP 的节点时（含经策略组间接选中），转换器在该规则后追加只匹配 UDP 的 `AND,((NETWORK,UDP),(<原条件>)),REJECT`，`MATCH` 后追加 `NETWORK,UDP,REJECT`。只有当前选中节点不支持 UDP、原规则被跳过时才会命中，TCP 和支持 UDP 的选择不受影响；条件含括号时改用同条件的普通规则，效果相同。Surge 显式设为 `DIRECT` 时改用 DIRECT。全部节点支持 UDP 时不追加；YAML 注释记录追加数量。
-- 保留节点与策略组的排列、用户主备顺序、`select` / `fallback` / `url-test`。带有 `policy-priority` 的 Smart 地区组按权重排序后转换为 `fallback`；不带权重的 `smart`（如 `Auto`）近似为仅含代理节点的 `url-test`，不复现真实连接评分。转换不复现 Surge 的 Smart 评分，输出注释说明近似行为。`FINAL` 转为 `MATCH`，省略 Surge 专有的 `dns-failed`；缺少可用兜底策略时不生成配置。
+- 保留节点与策略组的排列、用户主备顺序、`select` / `fallback` / `url-test`。当前地区/IP 类型组直接转换为同顺序的 `fallback`，`Auto` 直接转换为 `url-test`。转换器兼容旧格式的 Smart 组，将受支持的 `policy-priority` 主备顺序映射为 `fallback`，无权重的 Smart（如 `DoH Proxy`）近似为仅含代理节点的 `url-test`，并输出注释说明评分差异。`FINAL` 转为 `MATCH`，省略 Surge 专有的 `dns-failed`，缺少可用兜底策略时拒绝生成配置。
 - 映射普通 / 加密 DNS、系统 hosts、IPv6、GeoIP 数据库、全局代理测试地址和测试超时。`tun.dns-hijack` 劫持全部 53 端口 DNS，对应 Surge 接管系统 DNS，并追加 `hijack-dns` 中非 53 端口的目标；TUN 是否启用由客户端决定。
 - GeoIP 库的自动更新沿用 Surge 设置：Surge 默认定期更新，`disable-geoip-db-auto-update = true` 时停止；Mihomo 默认不自动更新，开启后的默认间隔为 24 小时。转换默认输出 `geo-auto-update: true` 和 `geo-update-interval: 168`，Surge 关闭更新时两项均省略。168 小时对应 Loyalsoldier GeoIP 每周一次的定时构建。Mihomo 只更新规则实际使用的数据库；ProjectClash 由 App 按该间隔重新完整下载 `geox-url` 中的全部 4 个文件，不发条件请求，任一文件失败时下次整组重试。Surge 的 IP-ASN 规则使用 App 内置、随版本更新的 ASN 库，没有对应配置（见 [Surge IP 规则](https://manual.nssurge.com/rules/ip.html)）；Mihomo 遇到 OpenAI、Anthropic、Telegram 列表中的 `IP-ASN` 规则时需另行下载，因此 `geox-url.asn` 指向 jsDelivr 上的 Loyalsoldier `GeoLite2-ASN.mmdb`，与模板的 GeoIP 库同源。规则不读取 `GeoIP.dat` 和 `GeoSite.dat`，`geox-url.geoip` / `geosite` 指向 jsDelivr 上 MetaCubeX 的精简版文件（合计约 0.4 MB），ProjectClash 每次同步约 18 MB，且不依赖 GitHub。
 - 组级健康检查的测试地址路径为 `/generate_204` 时输出 `expected-status: 204`。Mihomo 默认把任何 HTTP 响应都算作可用，返回认证页、跳转或错误页的节点也会显示为正常；其他测试地址（如返回 200 的页面）保持默认。`unified-delay: true` 让测速结果去掉握手等额外耗时，TLS 与非 TLS 节点按同一标准比较；ProjectClash 本身强制开启，此项让其他 Mihomo 客户端得到一致的结果。
@@ -211,9 +211,9 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 | VMess 握手 / 加密 | `vmess-aead=false`、`aes-128-gcm` | 仅转换显式 AEAD；不推测旧握手的 `alterId`，加密保持 AES-128-GCM |
 | VMess TLS / WebSocket | 都默认关闭；WS 路径 `/` | 保留相同默认值；Trojan / HTTPS / SOCKS5-TLS 强制 TLS |
 | TLS 证书校验 / TFO | 校验开启；TFO 默认关闭 | 保持校验，映射显式 `tfo=true/false` |
-| `fallback` / `url-test` 间隔 | 省略时 600 秒 | 显式输出 600；由 Smart 转换的组使用 300 |
-| 地区/IP 类型组 | 带权重的 Smart，保留个人主备次序 | 同顺序 fallback，显式间隔 300 秒 |
-| `url-test` 容差 | 省略时 100 毫秒 | 显式输出 100，保留显式 0；由 Smart 转换的组使用 50 |
+| `fallback` / `url-test` 间隔 | 省略时 600 秒，当前地区组与 Auto 显式设置 300 | 保留显式值，省略时输出 600，由 Smart 转换的组使用 300 |
+| 地区/IP 类型组 | fallback，保留个人主备次序，显式设置 interval=300 | 同顺序 fallback，显式间隔 300 秒 |
+| `url-test` 容差 | 省略时 100 毫秒，Auto 显式设置 50 | 保留显式值（含 0），省略时输出 100，由 Smart 转换的组使用 50 |
 | 代理测速 URL / 超时 | `proxy-test-url` / `test-timeout`；缺省 `http://bing.com/` / 5 秒 | 用于组级健康检查；超时转换为毫秒 |
 | 多地址域名的 TCP 连接 | 同时向全部地址握手，后续优先使用最快的地址 | `tcp-concurrent: true`，每次连接同时尝试全部地址 |
 | GeoIP 库更新 | 默认定期更新；`disable-geoip-db-auto-update = true` 时停止 | `geo-auto-update: true`、`geo-update-interval: 168`；关闭时省略 |
@@ -229,7 +229,7 @@ Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析�
 - Surge 的 `adaptive` 只属于[节点参数](https://manual.nssurge.com/policies/parameters.html)，不是合法的 [General 值](https://manual.nssurge.com/profile/general.html)。当前的全局 `per-policy` 加节点默认 `auto`，在 Surge iOS 6.0.0+ / Mac 6.11.0+ 已对支持 UDP 的代理启用自适应；不支持 UDP 的代理仍阻止 QUIC，DIRECT 放行。无需给所有节点追加 `block-quic=adaptive`；当前 Clash 转换器会将带该未支持参数的节点移除。
 - ProjectClash 的[配置解析器](https://github.com/ProjectClash/Clash/blob/main/config/clash_modules_parse.go)不接受 `x-clash-block-quic: adaptive`。若需要放行只用 QUIC 的应用，可在 Clash 客户端的最终配置中覆盖为 `x-clash-block-quic: always-allow`；这会关闭该扩展的 QUIC 拦截，不提供先阻止、再按 TCP 回退情况放行的自适应行为，且仍需节点与服务端支持 UDP。客户端覆盖应在订阅更新后继续生效；仓库默认仍为 `all-proxy`。
 - 不支持 UDP 的节点按上文追加规则，对齐 Surge 的 `udp-policy-not-supported-behaviour`；转换只能依据节点声明的 UDP 能力，VMess / Trojan 默认开启也不保证服务端 UDP 实际可用。
-- 健康检查调度不能等价：Surge Smart 固定每 5 分钟重测，Clash 未显式设置 `lazy`，按 Mihomo 默认 `true`，未选中的组不测试。Surge 原生 fallback / url-test 的 `interval` 是结果有效期，并非固定轮询时钟。Mihomo 的 `max-failed-times` 默认 5 是触发强制健康检查的失败阈值，不是“健康检查连续失败 5 次才换节点”，当前没有配置可保证单次测速失败后保持原 IP。
+- 健康检查调度由客户端决定。Surge 地区组与 Auto 的 `interval=300` 是测速结果有效期，DoH Proxy 的 Smart 固定每 5 分钟重测。Clash 使用 Mihomo 默认的 `lazy=true`，按组的使用状态调度测试，`max-failed-times` 默认 5，用于触发强制健康检查。
 - MagicRule 使用各客户端各自的完整产物，规则名与引用顺序一致不代表条目逐条相同；其他远程规则中的不支持条目会被省略。客户端图标、隐藏属性和保存的手动选择也取决于客户端版本及本地状态。
 - 规则匹配中本地解析失败时，Mihomo 跳过 IP 条件继续向下匹配，通常落到 `MATCH`；Surge 的 `FINAL,dns-failed` 直接改走 `FINAL`，因此解析失败后仍可能命中不同的域名规则。`SYSTEM`、`skip-proxy`、模块、脚本和 MitM 等仍按上述限制处理。
 

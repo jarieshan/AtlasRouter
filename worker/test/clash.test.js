@@ -58,7 +58,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   }
   assert.doesNotMatch(plain, /jsdelivr\.net\/gh\/Loyalsoldier\/surge-rules/);
   for (const config of [plain, encrypted]) {
-    assert.ok(config.split("\n").includes(`Auto = smart, include-all-proxies=true, icon-url=${iconBase}Auto.png`));
+    assert.ok(config.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${iconBase}Auto.png`));
     assert.doesNotMatch(config, /tailnet|tailscale/i);
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
@@ -244,7 +244,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
     assert.ok(config.rules.every((rule) => !rule.startsWith("PROTOCOL,")));
     assert.match(output, /smart approximated by url-test/);
-    assert.match(output, /ordered smart converted to fallback/);
+    assert.doesNotMatch(output, /ordered smart converted to fallback/);
     assert.doesNotMatch(output, /Host entry|Section host|encrypted-dns-follow-outbound-mode: unsupported/);
     assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
@@ -319,7 +319,7 @@ test("hidden DoH Proxy contains only enabled IDC nodes across regions for each u
   allocateNodes(state, "2026-01-01T00:00:00Z");
   for (const [index, user] of state.users.entries()) for (const doh of [false, true]) {
     const groups = userGroups(state, user.id);
-    const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), options: { doh }, smartPriorityScheme: "geometric-10" });
+    const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), options: { doh } });
     const members = ["🇺🇸 US IDC", ...["🇭🇰 HK IDC 1", "🇭🇰 HK IDC 2"].slice(index), ...["🇭🇰 HK IDC 1", "🇭🇰 HK IDC 2"].slice(0, index)];
     const line = source.split("\n").find((line) => line.startsWith("DoH Proxy = "));
     assert.deepEqual(splitSurgeList(surgeAssignment(line)[1]), ["smart", ...members, `icon-url=${iconBase}Server.png`, "hidden=true"]);
@@ -375,15 +375,13 @@ test("Clash rejects foreign DoH if all IDC nodes are unsupported and retains any
   }
 });
 
-test("explicit rendering options preserve protocol behavior across visibility and priority settings", async () => {
+test("explicit rendering options preserve protocol behavior across visibility settings", async () => {
   // Exercise optional rendering settings without creating another deployment.
   const deployment = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   const environments = [
     { vars: deployment.vars, origin: "https://atlas.example", token: `ar_${"a".repeat(64)}` },
-    { vars: { ...deployment.vars, SMART_PRIORITY_SCHEME: "geometric-10", SHOW_ALL_PROXY_GROUPS: "true" }, origin: "https://atlas.example", token: `ar_${"b".repeat(64)}` },
+    { vars: { ...deployment.vars, SHOW_ALL_PROXY_GROUPS: "true" }, origin: "https://atlas.example", token: `ar_${"b".repeat(64)}` },
   ];
-  assert.equal(environments[0].vars.SMART_PRIORITY_SCHEME, "geometric-10-from-10000");
-  assert.equal(environments[1].vars.SMART_PRIORITY_SCHEME, "geometric-10");
   assert.equal(environments[0].vars.SHOW_ALL_PROXY_GROUPS, "false");
   assert.equal(environments[1].vars.SHOW_ALL_PROXY_GROUPS, "true");
   const input = profile();
@@ -393,14 +391,15 @@ test("explicit rendering options preserve protocol behavior across visibility an
       const requestUrl = `${origin}${vars.SUBSCRIPTION_PATH}`;
       const options = { doh, tencentOa };
       const showAllGroups = vars.SHOW_ALL_PROXY_GROUPS === "true";
-      const source = renderSurgeProfile({ ...input, requestUrl, token, options, smartPriorityScheme: vars.SMART_PRIORITY_SCHEME, showAllGroups });
+      const source = renderSurgeProfile({ ...input, requestUrl, token, options, showAllGroups });
       const normalizeAddress = (text) => text.replaceAll(requestUrl, "https://profile.example/SUBSCRIPTION").replaceAll(token, "TEST_TOKEN");
       assert.equal(source.match(/^#!MANAGED-CONFIG (\S+)/)[1], buildSubscriptionUrl(requestUrl, token, options));
       assert.match(source, /^block-quic = per-policy$/m);
       assert.match(source, /^FINAL,FINAL,dns-failed$/m);
       const groupSection = source.split("[Proxy Group]\n")[1].split("[Rule]\n")[0];
       assert.equal(/hidden\s*=/i.test(groupSection), !showAllGroups);
-      const result = { surge: normalizeAddress(source).replace(/policy-priority="(?:\\.|[^"\\])*"/g, 'policy-priority="CHECKED_SEPARATELY"').replace(/, hidden=true$/gm, "") };
+      assert.doesNotMatch(source, /policy-priority=/);
+      const result = { surge: normalizeAddress(source).replace(/, hidden=true$/gm, "") };
       if (!tencentOa) {
         const { config, warnings } = await convertSurgeToClash(source, { requestUrl, token });
         assert.equal(config["x-clash-block-quic"], "all-proxy");
@@ -526,56 +525,50 @@ test("smart conversion includes only proxy nodes and retains automatic selection
   assert.ok(warnings.some((warning) => warning.includes("smart approximated")));
 });
 
-test("ordered smart weights match exact node names and each user's primary while Clash retains fallback order", async () => {
+test("fallback groups retain exact node names and each user's primary in both clients", async () => {
   const names = ["🇺🇸 US ISP a.b", "🇺🇸 US ISP axb", '🇺🇸 US ISP (a+b)?|^$ "quote":x;y\\z'];
   const state = { nodes: parsePoolNodes(names.map((name, index) => ({ id: `node-${index}`, line: `${name} = ${vmess}` }))),
     users: names.map((_, index) => ({ id: `user-${index}`, enabled: true })) };
   allocateNodes(state, "2026-01-01T00:00:00Z");
-  const schemes = { linear: [1, 2, 3], "geometric-3": [1, 3, 9], "geometric-10": [1, 100, 1000] };
-  for (const [smartPriorityScheme, expectedWeights] of Object.entries(schemes)) for (const user of state.users) {
+  for (const user of state.users) {
     const groups = userGroups(state, user.id);
-    const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), smartPriorityScheme });
-    const line = source.split("\n").find((line) => line.startsWith("🇺🇸USA-ISP = smart, "));
+    const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes) });
+    const line = source.split("\n").find((line) => line.startsWith("🇺🇸USA-ISP = fallback, "));
     const parts = splitSurgeList(surgeAssignment(line)[1]).slice(1);
     const options = surgeOptions(parts.filter((part) => part.includes("=")));
     const members = parts.filter((part) => !part.includes("="));
     assert.deepEqual(members, groups[0].nodes.map((node) => node.name));
-    const weights = options.get("policy-priority").split(";").map((entry) => entry.split(":"));
-    assert.equal(weights.length, names.length);
-    for (const [index, member] of members.entries()) {
-      const matches = weights.filter(([pattern]) => new RegExp(pattern).test(member));
-      assert.equal(matches.length, 1);
-      assert.equal(Number(matches[0][1]), expectedWeights[index]);
-    }
+    assert.equal(options.get("interval"), "300");
+    assert.equal(options.get("policy-priority"), undefined);
     const { config, warnings } = await convertSurgeToClash(source, context);
     const group = config["proxy-groups"].find(({ name }) => name === "🇺🇸USA-ISP");
     assert.equal(group.type, "fallback");
     assert.deepEqual(group.proxies, members);
     assert.equal(group["policy-priority"], undefined);
     assert.equal(group.tolerance, undefined);
-    assert.ok(warnings.some((warning) => warning.includes("weighted scoring unavailable")));
+    assert.equal(group.interval, 300);
+    assert.ok(warnings.every((warning) => !warning.includes("weighted scoring unavailable")));
     assert.deepEqual(warnings.filter((warning) => /unavailable members|invalid group|cyclic|empty group/.test(warning)), []);
   }
 });
 
-test("geometric-10 starts ISP backups at 100 while WARP and IDC keep tenfold steps", async () => {
-  const state = { nodes: parsePoolNodes(["ISP", "WARP", "IDC"].flatMap((type) => [1, 2, 3].map((number) => ({
+test("fallback groups support more nodes than the previous Smart weight limit", async () => {
+  const numbers = Array.from({ length: 17 }, (_, index) => index + 1);
+  const state = { nodes: parsePoolNodes(["ISP", "WARP", "IDC"].flatMap((type) => numbers.map((number) => ({
     id: `${type}-${number}`, line: `🇺🇸 US ${type} ${number} = ${vmess}`,
   })))), users: [{ id: "user", enabled: true }] };
   allocateNodes(state, "2026-01-01T00:00:00Z");
   const groups = userGroups(state, "user");
-  const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), smartPriorityScheme: "geometric-10" });
-  const weights = (name) => source.split("\n").find((line) => line.startsWith(`${name} = smart, `))
-    .match(/policy-priority="([^"]*)"/)[1].split(";").map((entry) => Number(entry.split(":").at(-1)));
-  assert.deepEqual(weights("🇺🇸USA-ISP"), [1, 100, 1000]);
-  for (const name of ["🇺🇸USA-WARP", "🇺🇸USA-IDC"]) assert.deepEqual(weights(name), [1, 10, 100], name);
+  const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), smartPriorityScheme: "geometric-10-from-10000" });
+  assert.doesNotMatch(source, /policy-priority=/);
   const { config } = await convertSurgeToClash(source, context);
   for (const name of ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇺🇸USA-IDC"]) {
     assert.equal(config["proxy-groups"].find((group) => group.name === name)?.type, "fallback", name);
+    assert.equal(config["proxy-groups"].find((group) => group.name === name)?.proxies.length, 17, name);
   }
 });
 
-test("production and development start every regional Smart backup at 10000", async () => {
+test("production and development render ordered fallback regions and a url-test Auto", async () => {
   const state = { nodes: parsePoolNodes(["ISP", "WARP", "IDC"].flatMap((type) => [1, 2, 3].map((number) => ({
     id: `${type}-${number}`, line: `🇺🇸 US ${type} ${number} = ${vmess}`,
   })))), users: [{ id: "user", enabled: true }] };
@@ -583,14 +576,26 @@ test("production and development start every regional Smart backup at 10000", as
   const groups = userGroups(state, "user");
   for (const file of ["wrangler.jsonc", "wrangler.development.jsonc"]) {
     const { vars } = JSON.parse(await readFile(new URL(`../${file}`, import.meta.url), "utf8"));
-    const source = renderSurgeProfile({ ...context, groups, nodes: groups.flatMap((group) => group.nodes), smartPriorityScheme: vars.SMART_PRIORITY_SCHEME });
-    const { config } = await convertSurgeToClash(source, context);
+    assert.equal(vars.SMART_PRIORITY_SCHEME, undefined);
+    const requestUrl = `https://atlas.example${vars.SUBSCRIPTION_PATH}`;
+    const source = renderSurgeProfile({ ...context, requestUrl, groups, nodes: groups.flatMap((group) => group.nodes),
+      showAllGroups: vars.SHOW_ALL_PROXY_GROUPS === "true", repositoryRulesRef: vars.REPOSITORY_RULES_REF });
+    const { config } = await convertSurgeToClash(source, { ...context, requestUrl });
     for (const name of ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇺🇸USA-IDC"]) {
-      const weights = source.split("\n").find((line) => line.startsWith(`${name} = smart, `))
-        .match(/policy-priority="([^"]*)"/)[1].split(";").map((entry) => Number(entry.split(":").at(-1)));
-      assert.deepEqual(weights, [1, 10000, 100000], `${file} ${name}`);
-      assert.equal(config["proxy-groups"].find((group) => group.name === name)?.type, "fallback", `${file} ${name}`);
+      const line = source.split("\n").find((line) => line.startsWith(`${name} = fallback, `));
+      assert.ok(line, `${file} ${name}`);
+      const members = splitSurgeList(surgeAssignment(line)[1]).slice(1).filter((part) => !part.includes("="));
+      const group = config["proxy-groups"].find((group) => group.name === name);
+      assert.equal(group?.type, "fallback", `${file} ${name}`);
+      assert.equal(group.interval, 300);
+      assert.deepEqual(group.proxies, members);
     }
+    assert.doesNotMatch(source, /policy-priority=/);
+    assert.match(source, /^Auto = url-test, include-all-proxies=true, interval=300, tolerance=50,/m);
+    const auto = config["proxy-groups"].find((group) => group.name === "Auto");
+    assert.equal(auto.type, "url-test");
+    assert.equal(auto.interval, 300);
+    assert.equal(auto.tolerance, 50);
   }
 });
 

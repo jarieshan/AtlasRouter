@@ -34,7 +34,7 @@ GitHub Actions 在 `master`、`develop` 和 PR 上运行 `npm test`。该命令�
 3. 该批功能验收通过后，创建 `develop → master` 的整体 PR。建议使用普通合并保留提交历史，环境差异由对应配置表达。
 4. master 的 Cloudflare 构建发布正式 Worker。更新正式订阅，检查正常输出、401/404 和本次功能。如果 master 有独立的紧急修复，通过普通合并同步回 develop。
 
-模板使用 `{{REPOSITORY_RULES_REF}}` 占位符，Worker 从部署变量生成正式的 `@master` 或开发的 `@develop` 规则地址。合并时直接带入两份配置。`SMART_PRIORITY_SCHEME` 和 `SHOW_ALL_PROXY_GROUPS` 同样由各部署读取。
+模板使用 `{{REPOSITORY_RULES_REF}}` 占位符，Worker 从部署变量生成正式的 `@master` 或开发的 `@develop` 规则地址。合并时直接带入两份配置。`SHOW_ALL_PROXY_GROUPS` 同样由各部署读取。
 
 需要独立启用的实验功能可增加专用开关，并测试开启与关闭两条路径。现有 Dev 线上验收覆盖订阅服务，页面和管理 API 由正式 Worker 执行，这些部分的变更需结合本地或 CI 集成测试验证。
 
