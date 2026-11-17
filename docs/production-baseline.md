@@ -15,7 +15,7 @@
 - 正式与开发配置的 ISP、WARP、IDC 地区组在 Surge / Clash 中均使用 `fallback`，按个人主备次序选择首个可用节点，配置 `interval=300`。
 - Auto 为全节点 `url-test`，两种客户端均配置 `interval=300`、`tolerance=50`。FINAL 为可见的 select，顺序为 Auto → Proxy → IDC → WARP → ISP → DIRECT。Speedtest 使用 MagicRule，select 顺序为 IDC → WARP → ISP → DIRECT。
 - 合入 OverseasFinance、ISP First、RedPocket、Apple/AI/影音独立规则、IDC 专用 DoH 组及 Clash DNS、测速和多地址连接适配。正式配置显示业务组和 ISP 地区组，隐藏 WARP / IDC 地区组及 DoH Proxy。开发服务的 `SHOW_ALL_PROXY_GROUPS=true` 显示全部组。
-- 仓库规则集由 `REPOSITORY_RULES_REF` 生成分支地址，正式配置引用 `@master`，开发配置引用 `@develop`。MagicRule 的 39 类规则使用各客户端原生产物及最后有效副本。正式 Cron 每 5 分钟检查一份，共 78 份约 6 小时 30 分钟一轮。
+- 仓库规则集由 `REPOSITORY_RULES_REF` 生成分支地址，正式配置引用 `@master`，开发配置引用 `@develop`。本版本的 MagicRule 共 40 类规则，使用各客户端原生产物及最后有效副本。正式 Cron 每 5 分钟检查一份，按 80 份产物计算约 6 小时 40 分钟一轮。
 - 两个 Worker 使用各自节点池保存的公网节点和个人 token。正式页面通过 Service binding 访问私有开发订阅。
 
 ## 正式入口

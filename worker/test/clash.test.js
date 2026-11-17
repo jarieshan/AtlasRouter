@@ -204,7 +204,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     for (const name of ["Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise"]) assert.ok(config.rules.includes(`RULE-SET,${name},OverseasFinance,no-resolve`), name);
     assert.ok(config.rules.includes(`RULE-SET,${coinSource.id},OverseasFinance,no-resolve`));
     assert.deepEqual(config["proxy-groups"].find((group) => group.name === "ISP First").proxies, ["🇺🇸USA-ISP", "🇺🇸USA-WARP", "🇭🇰HK-IDC"]);
-    for (const name of ["Facebook", "Threads", "Reddit", "Line"]) assert.ok(config.rules.includes(`RULE-SET,${name},ISP First,no-resolve`), name);
+    for (const name of ["AppleProxy", "Facebook", "Threads", "Reddit", "Line"]) assert.ok(config.rules.includes(`RULE-SET,${name},ISP First,no-resolve`), name);
     assert.deepEqual(config["proxy-groups"].find((group) => group.name === "GeneralSite").proxies, ["🇭🇰HK-IDC", "🇺🇸USA-ISP", "🇺🇸USA-WARP"]);
     const telegram = config["proxy-groups"].find((group) => group.name === "Telegram");
     assert.deepEqual(telegram.proxies, ["🇭🇰HK-IDC", "🇺🇸USA-WARP", "🇺🇸USA-ISP", "Proxy", "DIRECT"]);
@@ -289,12 +289,13 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.tun?.["dns-hijack"], ["any:53", "tcp://any:53"]);
     if (doh) assert.deepEqual(config.dns["default-nameserver"], ["223.5.5.5", "119.29.29.29"]);
     assert.ok(config.rules.includes(`RULE-SET,${customDirectSource.id},DIRECT,no-resolve`));
-    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, redPocketSource.id, "Speedtest", customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", "Perplexity", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise", "Facebook", "Threads", "Reddit", "Line", ...mediaRules, ...generalSiteRules, "China"]);
+    assert.deepEqual(Object.keys(config["rule-providers"]), [customRejectSource.id, redPocketSource.id, "Speedtest", customDirectSource.id, "IBKR", "LongBridge", "Direct", wechatSource.id, "Cloudflare", "OpenAI", "Anthropic", "Gemini", "Grok", "Cursor", "Perplexity", customAISource.id, "AppleIntelligence", "AppleTV", "iCloud", "AppleProxy", "Apple", "Telegram", "Twitter", "Discord", "YouTube", coinSource.id, "Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise", "Facebook", "Threads", "Reddit", "Line", ...mediaRules, ...generalSiteRules, "China"]);
     for (const id of ["Cloudflare", "Grok", "Cursor", "Perplexity", customAISource.id]) assert.ok(config.rules.includes(`RULE-SET,${id},AIProxy,no-resolve`), id);
-    assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|Apple),/.test(rule)), [
+    assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleTV|AppleIntelligence|iCloud|AppleProxy|Apple),/.test(rule)), [
       "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
       "RULE-SET,AppleTV,GlobalMedia,no-resolve",
       "RULE-SET,iCloud,iCloud,no-resolve",
+      "RULE-SET,AppleProxy,ISP First,no-resolve",
       "RULE-SET,Apple,DIRECT,no-resolve",
     ]);
     const repository = new Map([customRejectSource, redPocketSource, customDirectSource, wechatSource, customAISource, coinSource].map((source) => [source.id, source.url]));

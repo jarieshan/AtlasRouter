@@ -386,9 +386,9 @@ test("orders selection options by IP type while preserving regional definitions 
     assert.doesNotMatch(config, /\/(?:Google|GlobalMedia)\.list|token=test-token,/);
     assert.doesNotMatch(config, /^.+ = select,(?:[^\n]*,)?\s*REJECT(?:,|$)/m);
     assert.doesNotMatch(config, /^Apple(?:Proxy|Direct) = /m);
-    const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/magicrule\/surge\/(?:AppleTV|AppleIntelligence|iCloud|Apple)\.list,/.test(line));
+    const appleRules = config.split("[Rule]\n")[1].split("\n").filter((line) => /\/magicrule\/surge\/(?:AppleTV|AppleIntelligence|iCloud|AppleProxy|Apple)\.list,/.test(line));
     assert.deepEqual(appleRules.map((line) => [line.match(/\/magicrule\/surge\/(\w+)\.list,/)[1], line.split(",")[2]]), [
-      ["AppleIntelligence", "AIProxy"], ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
+      ["AppleIntelligence", "AIProxy"], ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["AppleProxy", "ISP First"], ["Apple", "DIRECT"],
     ]);
     assert.doesNotMatch(config.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
     const definitions = [...config.matchAll(/^(.+) = fallback, .+, interval=300/gm)].map((match) => match[1]);
