@@ -534,11 +534,11 @@ function poolPanel(adminRoutes) {
     </div>
   </div>
   <article class="card">
-    <header class="card-head"><h3>录入节点</h3><p>每行粘贴一个 HTTPS 订阅链接、vmess://、vless:// 链接或完整 Surge 节点。VLESS 链接支持 TCP + REALITY + Vision。自动转换并跳过已有连接配置，每次最多 20 个订阅链接。</p></header>
+    <header class="card-head"><h3>录入节点</h3><p>可整段粘贴 3x-ui 导出的订阅清单，也可逐行粘贴 HTTPS 订阅链接、vmess://、vless:// 链接或完整 Surge 节点。VLESS 链接支持 TCP + REALITY + Vision。每批最多 20 个不同的订阅链接，重复连接会自动跳过。</p></header>
     <div class="card-body">
       <label class="field-label" for="import">节点链接或 Surge 节点清单</label>
-      <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="每行一条 HTTPS 订阅链接、vmess://、vless:// 链接或 Surge 节点"></textarea>
-      <p class="hint">按节点名称中的地区旗帜和 IDC / ISP / WARP 关键词分组。可用“节点名 = 链接”指定名称，例如：<code>🇺🇸 LosAngeles - ISP 1 = https://subscription.example.com/node</code></p>
+      <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="ISP-1&#9;https://subscription.example.com/isp-1"></textarea>
+      <p class="hint">导出清单沿用订阅内的节点名称，按地区旗帜和 IDC / ISP / WARP 关键词分组。可用 <code>节点名 = 链接</code> 指定名称。</p>
       <div class="actions"><button id="append" class="tonal" disabled>${icon("plus")}转换并加入待保存清单</button></div>
       <ul id="import-notes" class="notes" aria-live="polite"></ul>
       <details class="editor"><summary>编辑完整清单 / 停用或移除节点</summary>

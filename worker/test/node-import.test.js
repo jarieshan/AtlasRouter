@@ -110,6 +110,29 @@ test("converts one Base64 subscription without persisting its URL or forwarding 
   assert.ok(!JSON.stringify(result).includes(URL));
 });
 
+test("imports 3x-ui export rows with the original names of every upstream node", async () => {
+  const idc = URL + "/idc?format=raw&next=https://example.com/help";
+  const isp = URL + "/isp-1";
+  const warp = URL + "/warp";
+  const subscriptions = new Map([
+    [idc, native("🇺🇸 Example-IDC")],
+    [isp, Buffer.from([vmess({ ps: "🇭🇰 HK-ISP-1", port: 8443 }), vless()].join("\n")).toString("base64")],
+    [warp, "🇺🇸 Example-WARP = trojan, warp.example.com, 443, password=TEST_ONLY"],
+  ]);
+  const text = [`IDC\t${idc}`, `ISP-1   ${isp}`, `Warp\t${warp}`, "", `Another label\t${isp}`].join("\r\n");
+  const calls = [];
+  const result = await importPoolNodes({ text, nodes: [] }, async (url) => {
+    calls.push(url);
+    return new Response(subscriptions.get(url));
+  });
+  assert.deepEqual(calls, [idc, isp, warp]);
+  assert.equal(result.added, 4);
+  assert.equal(result.duplicates, 2);
+  assert.deepEqual(parsePoolNodes(result.nodes).map((node) => node.name),
+    ["🇺🇸 Example-IDC", "🇭🇰 HK-ISP-1", "🇭🇰 HongKong-ISP-1", "🇺🇸 Example-WARP"]);
+  assert.ok(!JSON.stringify(result).includes(URL));
+});
+
 test("converts URL-safe UTF-8 VMess and WebSocket options while keeping native Surge lines", async () => {
   const link = vmess({
     ps: "🇭🇰 香港 - idc", aid: "0", net: "ws", path: "/ws?ed=2048", host: "cdn.example.com",

@@ -47,13 +47,15 @@ Client、DoH、Tencent OA、复制和重置链接在当前页面内存中模拟�
 
 Dev 开关在当前页面加载账户和节点池，用户启停与 Token 重置均作用于当前选中的独立数据库。开发 API 使用 `/api/AtlasRouter-Dev/*`，订阅使用 `/AtlasRouter-Dev`。两库不自动同步；“重置为生产节点”入口不恢复。切换环境保留 Client、DoH 与 Tencent OA 选择，加载失败保持原环境，有未保存编辑时先确认；订阅客户端需要更新为当前环境的链接。
 
-管理员在根路径 `/` 网页的节点池区域按行粘贴 HTTPS 订阅链接、`vmess://`、`vless://` 链接或完整 Surge 节点，点击“转换并加入待保存清单”后核对，再点击“保存并分配”。订阅支持明文或 Base64 编码的 VMess / VLESS 混合节点列表，也可读取 Surge 的 `[Proxy]` 节点。旧页面、API 和手动订阅入口均已停用，统一使用当前根路径。以下示例使用保留域名和占位密码。
+管理员在根路径 `/` 网页的节点池区域按行粘贴 HTTPS 订阅链接、`vmess://`、`vless://` 链接或完整 Surge 节点，点击“转换并加入待保存清单”后核对，再点击“保存并分配”。3x-ui 原生导出的清单可整段粘贴，每行的标签和 HTTPS 链接以制表符或空格分隔，导入时沿用订阅内各节点的原名。订阅支持明文或 Base64 编码的 VMess / VLESS 混合节点列表，也可读取 Surge 的 `[Proxy]` 节点。旧页面、API 和手动订阅入口均已停用，统一使用当前根路径。以下示例使用保留域名和占位密码。
 
 ```text
 🇺🇸 LosAngeles - ISP 1 = trojan, us.example.com, 443, password=REPLACE_ME
 🇭🇰 HongKong - IDC 1 = trojan, hk.example.com, 443, password=REPLACE_ME
 🇸🇬 Singapore - WARP 1 = trojan, sg.example.com, 443, password=REPLACE_ME
 🇺🇸 LosAngeles - ISP 2 = https://subscription.example.com/node
+IDC	https://subscription.example.com/idc
+ISP-1	https://subscription.example.com/isp-1
 ```
 
 每个节点名必须包含一个地区旗帜和唯一一种独立关键词 `IDC`、`ISP` 或 `WARP`，关键词不区分大小写；缺失或冲突时拒绝保存，避免误分类。美国显示 `USA`，其余使用旗帜对应的两位地区代码，分别生成 `🇺🇸USA-ISP`、`🇭🇰HK-IDC`、`🇸🇬SG-WARP`。

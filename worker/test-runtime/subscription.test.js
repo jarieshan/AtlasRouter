@@ -1080,7 +1080,8 @@ test("admin imports authenticate the protected upstream without exposing service
   }));
   t.after(() => mf.dispose());
   await initializeDatabase(mf);
-  const body = { text: "https://subscription.example.com/test-only/node", nodes: [] };
+  const url = "https://subscription.example.com/test-only/node";
+  const body = { text: `ISP-1\t${url}\n${url}`, nodes: [] };
   for (const subject of [undefined, "alice"]) {
     assert.equal((await request(mf, POOL_IMPORT_PATH, { subject, method: "POST", body })).status, 403);
   }
@@ -1088,6 +1089,8 @@ test("admin imports authenticate the protected upstream without exposing service
   const draft = await json(await request(mf, POOL_IMPORT_PATH, { subject: "admin", method: "POST", body }));
   assert.equal(calls, 1);
   assert.equal(draft.added, 1);
+  assert.equal(draft.duplicates, 1);
+  assert.equal(draft.nodes[0].line, nodes(1)[0].line);
   assert.doesNotMatch(JSON.stringify(draft), /TEST_ONLY_CLIENT/);
   const page = await (await request(mf, ACCOUNT_PATH, { subject: "admin" })).text();
   assert.doesNotMatch(page, /TEST_ONLY_CLIENT/);

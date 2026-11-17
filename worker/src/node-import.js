@@ -26,6 +26,11 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
   if (!inputs.length || inputs.length > MAX_NODES) throw invalid("每次请导入 1 至 1000 行节点。");
 
   const sources = inputs.map((entry) => {
+    // A 3x-ui export labels the subscription, which can contain several named nodes.
+    const urlColumn = entry.text.match(/[ \t](https:\/\/\S+)$/i);
+    if (urlColumn && !/=|:\/\//.test(entry.text.slice(0, urlColumn.index))) {
+      return { ...entry, name: null, source: urlColumn[1] };
+    }
     const named = !/^[a-z][a-z0-9+.-]*:\/\//i.test(entry.text)
       && entry.text.match(/^(.+?)\s*=\s*((?:https|vmess|vless):\/\/.+)$/i);
     return { ...entry, name: named ? validName(named[1].trim()) : null, source: named ? named[2] : entry.text };
