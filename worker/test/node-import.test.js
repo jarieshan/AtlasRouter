@@ -46,12 +46,27 @@ test("VLESS imports support explicit names, IPv6, empty short IDs and quoted ALP
   assert.match(result.nodes[0].line, /reality-short-id=, alpn="h2,http\/1.1"$/);
 });
 
+test("3x-ui REALITY key exchange hints preserve the Surge node and its identity", async () => {
+  const original = await importPoolNodes({ text: vless(), nodes: [] }, unreachable);
+  for (const hint of ["true", "false"]) {
+    const text = vless({ "support-x25519mlkem768": hint, spx: "/test-path" });
+    const imported = await importPoolNodes({ text, nodes: [] }, unreachable);
+    assert.equal(imported.nodes[0].line, original.nodes[0].line);
+    assert.equal(imported.warnings.some((warning) => warning.includes("X25519MLKEM768")), hint === "false");
+    const repeated = await importPoolNodes({ text, nodes: original.nodes }, unreachable);
+    assert.equal(repeated.duplicates, 1);
+    assert.deepEqual(repeated.nodes, original.nodes);
+  }
+});
+
 test("rejects invalid or unsupported VLESS parameters without echoing connection credentials", async () => {
   for (const text of [
     vless({ type: "ws" }), vless({ type: "grpc" }), vless({ security: "tls" }), vless({ flow: "" }),
     vless({ encryption: "PRIVATE_TEST_ONLY" }), vless({ headerType: "http" }), vless({ extra: "PRIVATE_TEST_ONLY" }),
     vless({ pbk: "PRIVATE_TEST_ONLY" }), vless({ sid: "abc" }), vless({ sid: "000000000000000000" }),
     vless({ sni: "target.example.com\n[Rule]" }), vless({ alpn: "h2,,http/1.1" }),
+    vless({ "support-x25519mlkem768": "PRIVATE_TEST_ONLY" }), vless({ "support-x25519mlkem768": "" }),
+    vless({ "support-x25519mlkem768": "true" }).replace("?", "?support-x25519mlkem768=false&"),
     vless().replace(UUID, "PRIVATE_TEST_ONLY"), vless().replace(":8443", ":0"),
     vless().replace(":8443", ":70000"), vless().replace("?", "?security=reality&"),
     vless().replace("@", ":PRIVATE_TEST_ONLY@"), vless().replace("?", "/path?"),
@@ -116,7 +131,7 @@ test("imports 3x-ui export rows with the original names of every upstream node",
   const warp = URL + "/warp";
   const subscriptions = new Map([
     [idc, native("🇺🇸 Example-IDC")],
-    [isp, Buffer.from([vmess({ ps: "🇭🇰 HK-ISP-1", port: 8443 }), vless()].join("\n")).toString("base64")],
+    [isp, Buffer.from([vmess({ ps: "🇭🇰 HK-ISP-1", port: 8443 }), vless({ "support-x25519mlkem768": "true" })].join("\n")).toString("base64")],
     [warp, "🇺🇸 Example-WARP = trojan, warp.example.com, 443, password=TEST_ONLY"],
   ]);
   const text = [`IDC\t${idc}`, `ISP-1   ${isp}`, `Warp\t${warp}`, "", `Another label\t${isp}`].join("\r\n");

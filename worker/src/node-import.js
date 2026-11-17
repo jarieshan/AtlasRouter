@@ -130,9 +130,13 @@ function convertVless(link, name) {
   const port = Number(url.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw invalid("VLESS 端口不正确。");
   const query = url.searchParams;
-  const known = new Set(["type", "security", "encryption", "flow", "sni", "pbk", "sid", "fp", "spx", "headerType", "alpn"]);
+  const known = new Set(["type", "security", "encryption", "flow", "sni", "pbk", "sid", "fp", "spx", "headerType", "alpn", "support-x25519mlkem768"]);
   for (const key of query.keys()) {
     if (!known.has(key) || query.getAll(key).length !== 1) throw invalid("VLESS 含有尚未支持或重复的参数。");
+  }
+  const mlkemHint = query.get("support-x25519mlkem768");
+  if (mlkemHint !== null && !["true", "false"].includes(mlkemHint)) {
+    throw invalid("support-x25519mlkem768 必须为 true 或 false。");
   }
   if (!["tcp", "raw"].includes(query.get("type") || "tcp")
     || query.get("security") !== "reality" || (query.get("encryption") || "none") !== "none"
@@ -156,6 +160,7 @@ function convertVless(link, name) {
   const value = ["vless", validHost(url.hostname), String(port),
     ...Object.entries(params).map(([key, value]) => `${key}=${quoteValue(value)}`)].join(", ");
   const warnings = ["VLESS + REALITY + Vision 需要 Surge iOS 6.0.0+ / Mac 6.12.0+，REALITY 使用内置 Chrome ClientHello。"];
+  if (mlkemHint === "false") warnings.push("Surge 会自动协商 REALITY 密钥交换，无法通过此链接强制关闭 X25519MLKEM768。");
   return { ...parseLine(`${validName(name || decodeURIComponent(url.hash.slice(1)) || "导入节点")} = ${value}`), warnings };
 }
 

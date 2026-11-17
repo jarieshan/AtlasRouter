@@ -154,7 +154,8 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
   const before = await readSubscriptionState({ DB: devDb });
   const text = [1, 2, 3].map((number) => {
     const query = new URLSearchParams({ security: "reality", type: "tcp", encryption: "none", flow: "xtls-rprx-vision",
-      sni: "target.example.com", pbk: Buffer.alloc(32, number).toString("base64url"), sid: "0123456789abcdef", fp: "chrome", spx: "/" });
+      sni: "target.example.com", pbk: Buffer.alloc(32, number).toString("base64url"), sid: "0123456789abcdef",
+      fp: "chrome", spx: "/", "support-x25519mlkem768": "true" });
     return `vless://00000000-0000-4000-8000-${String(number).padStart(12, "0")}@node.example.com:8443?${query}#${encodeURIComponent(`🇭🇰 HongKong-ISP-${number}`)}`;
   }).join("\n");
   const imported = await json(await request(mf, devApi(POOL_IMPORT_PATH), { subject: "admin", method: "POST", body: { nodes: existing, text } }));
