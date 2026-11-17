@@ -321,6 +321,27 @@ test("an upstream VMess protocol tag renames only the exact legacy name and conn
   assert.deepEqual(repeated.nodes, [custom]);
 });
 
+test("mixed subscriptions free the old VMess name and preserve custom exit countries for matching clients", async () => {
+  const client = "ISP-TEST";
+  const vmName = "🇭🇰 HK-VMess-" + client;
+  const vlName = "🇭🇰 HongKong-" + client;
+  const hyName = "🇭🇰 HK-Hy2-" + client;
+  const shares = [vless({}, vlName), "hy2://TEST_ONLY@node.example.com#" + encodeURIComponent(hyName), vmess({ ps: vmName })];
+  const read = async () => new Response(shares.join("\n"));
+  for (const [oldName, flag, expectedVm] of [[vlName, "🇭🇰", vmName], ["🇦🇺 Custom-ISP-9", "🇦🇺", "🇦🇺 Custom-ISP-9"]]) {
+    const original = { id: "keeper", line: native(oldName), enabled: true };
+    const result = await importPoolNodes({ text: URL, nodes: [original] }, read);
+    const parsed = parsePoolNodes(result.nodes);
+    assert.equal(result.added, 2);
+    assert.equal(result.duplicates, 1);
+    assert.deepEqual(parsed.map((node) => node.name), [expectedVm, vlName.replace("🇭🇰", flag), hyName.replace("🇭🇰", flag)]);
+    assert.equal(parsed[0].id, original.id);
+    assert.equal(original.line, native(oldName));
+    const again = await importPoolNodes({ text: URL, nodes: result.nodes }, read);
+    assert.deepEqual(again.nodes, result.nodes);
+  }
+});
+
 test("does not merge different credentials, TLS/AEAD options or quoted values on the same endpoint", async () => {
   const result = await importPoolNodes({ text: [
     vmess(), vmess({ id: "00000000-0000-4000-8000-000000000002" }),

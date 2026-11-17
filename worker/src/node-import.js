@@ -1,5 +1,5 @@
 import { HttpError } from "./errors.js";
-import { identifyNodeGroup } from "./node-pool.js";
+import { groupNodeVariants, identifyNodeGroup } from "./node-pool.js";
 
 const MAX_NODES = 1000;
 const MAX_LINKS = 20;
@@ -49,7 +49,11 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
     for (const [url, value] of batch) downloaded.set(url, value);
   }
 
-  const keys = new Set(result.map((node) => connectionKey(parseLine(node.line))));
+  const keys = new Map();
+  for (const node of result) {
+    const key = connectionKey(parseLine(node.line));
+    keys.set(key, keys.has(key) ? null : node);
+  }
   const names = new Map(result.map((node) => [parseLine(node.line).name, node]));
   const warnings = [];
   let duplicates = 0;
@@ -62,16 +66,16 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
         content = response.text;
       }
       const imported = parseContent(content, entry.name);
+      if (/^https:\/\//i.test(entry.source) && keys.size && imported.length >= 3) {
+        for (const message of alignSubscriptionVariants(imported, keys, names)) warnings.push(`第 ${entry.index} 行：${message}`);
+      }
       for (const item of imported) {
         const key = connectionKey(item);
         if (keys.has(key)) {
           const tagged = /^vmess\s*,/i.test(item.value) && item.name.match(/^(.+)-VMess([- ](?:ISP|IDC|WARP)\b.*)$/i);
           const oldName = tagged && tagged[1] + tagged[2];
           const previous = names.get(oldName);
-          if (previous && !names.has(item.name) && connectionKey(parseLine(previous.line)) === key) {
-            previous.line = `${item.name} ${previous.line.slice(previous.line.indexOf("="))}`;
-            names.delete(oldName);
-            names.set(item.name, previous);
+          if (previous && connectionKey(parseLine(previous.line)) === key && renameDraftNode(previous, item.name, names)) {
             warnings.push(`第 ${entry.index} 行：已将已有 VMess 节点的协议标记加入待保存名称，保留原 ID 和启停状态。`);
           }
           duplicates += 1; continue;
@@ -85,7 +89,7 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
         parseLine(line);
         const node = { id: crypto.randomUUID(), line, enabled: true };
         result.push(node);
-        keys.add(key);
+        keys.set(key, node);
         names.set(item.name, node);
         for (const warning of item.warnings ?? []) warnings.push(`第 ${entry.index} 行：${warning}`);
         try { identifyNodeGroup(item.name); }
@@ -99,6 +103,57 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
     throw invalid("转换后的清单超过 512 KiB，请减少节点后重试。");
   }
   return { nodes: result, added: result.length - nodes.length, duplicates, warnings: [...new Set(warnings)] };
+}
+
+function renameDraftNode(node, name, names) {
+  if (names.has(name)) return false;
+  names.delete(parseLine(node.line).name);
+  node.line = `${name} ${node.line.slice(node.line.indexOf("="))}`;
+  names.set(name, node);
+  return true;
+}
+
+// An upstream flag can identify the inbound's location while the saved flag
+// identifies the client's exit. Only an exact, unique VMess connection and
+// its independently matched subscription variants can carry that exit forward.
+function alignSubscriptionVariants(items, keys, names) {
+  const candidates = [];
+  for (const [index, item] of items.entries()) {
+    if (!/^(?:vmess|vless|hysteria2)\s*,/i.test(item.value)) continue;
+    try {
+      candidates.push({ ...item, ...identifyNodeGroup(item.name), id: String(index), enabled: true,
+        ownerIds: [], assignmentCount: 0, item });
+    } catch { /* Unclassified names remain editable in the draft. */ }
+  }
+  const warnings = [];
+  for (const { variants } of groupNodeVariants(candidates)) {
+    if (variants.length !== 3) continue;
+    const [vless, vmess] = variants;
+    if (!/-VMess[- ]/i.test(vmess.name)) continue;
+    const existing = keys.get(connectionKey(vmess));
+    if (!existing) continue;
+    const oldName = parseLine(existing.line).name;
+    let saved;
+    try { saved = identifyNodeGroup(oldName); } catch { continue; }
+    if (saved.ipType !== vmess.ipType) continue;
+    if (saved.region !== vmess.region) {
+      const flag = /[\u{1F1E6}-\u{1F1FF}]{2}/u;
+      const oldFlag = oldName.match(flag)[0];
+      for (const { item } of variants) {
+        const before = item.name;
+        item.name = before.replace(flag, oldFlag);
+        const duplicate = keys.get(connectionKey(item));
+        if (duplicate && parseLine(duplicate.line).name === before) renameDraftNode(duplicate, item.name, names);
+      }
+      warnings.push("同一客户端的协议连接沿用已有 VMess 节点的出口地区。");
+    }
+    // Older inventories used today's VLESS name for VMess. Free that name
+    // before appending any new line, even when VLESS arrives first.
+    if (oldName === vless.item.name && renameDraftNode(existing, vmess.item.name, names)) {
+      warnings.push("已同步 VMess 协议标记，保留原节点 ID 和启停状态。");
+    }
+  }
+  return warnings;
 }
 
 // Reset from stored definitions without source identities or allocation history.

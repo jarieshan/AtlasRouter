@@ -70,6 +70,8 @@ VLESS 链接转换支持 UUID、TCP / RAW + REALITY + Vision、`encryption=none`
 
 已有 VMess 连接的上游名称如果只是在客户端名前增加 `-VMess`，重新导入会在待保存清单中同步这个标记，并保留节点 ID 和启停状态。自定义别名继续保留。
 
+从同一订阅读到完整的三种协议时，如果现有 VMess 名称刚好被新 VLESS 使用，导入器会先给原 VMess 更新名称。已经按出口国家分组的 VMess 会把地区旗帜带给本客户端的 VLESS 和 Hy2，保留原来的地区策略和分配。这样处理要求 VMess 连接配置唯一且相同，三个协议也必须匹配到同一组和服务端客户端。
+
 Hy2 导入支持单端口（默认 443）、TLS 的 SNI、ALPN、证书校验名称和单个 SHA-256 指纹。密码支持 URL 百分号编码。端口跳跃和 ECH 链接会提示无法转换。[Hysteria 2 分享链接](https://v2.hysteria.network/docs/developers/URI-Scheme/) · [Surge Hysteria 2](https://manual.nssurge.com/policies/hysteria2.html)
 
 每批最多请求 20 个不同的 HTTPS 公网域名订阅地址，单个请求超时 10 秒、响应最多 512 KiB，不跟随重定向；重复链接仅请求一次。解析由管理员专用接口完成，不转发浏览器 Cookie 或 Access 凭据，不保存来源链接，不经过第三方转换服务。任一条解析失败时，原待保存清单和输入保留，修正后可重试。
