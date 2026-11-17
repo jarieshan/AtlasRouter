@@ -50,7 +50,7 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
   }
 
   const keys = new Set(result.map((node) => connectionKey(parseLine(node.line))));
-  const names = new Set(result.map((node) => parseLine(node.line).name));
+  const names = new Map(result.map((node) => [parseLine(node.line).name, node]));
   const warnings = [];
   let duplicates = 0;
   for (const entry of sources) {
@@ -64,7 +64,18 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
       const imported = parseContent(content, entry.name);
       for (const item of imported) {
         const key = connectionKey(item);
-        if (keys.has(key)) { duplicates += 1; continue; }
+        if (keys.has(key)) {
+          const tagged = /^vmess\s*,/i.test(item.value) && item.name.match(/^(.+)-VMess([- ](?:ISP|IDC|WARP)\b.*)$/i);
+          const oldName = tagged && tagged[1] + tagged[2];
+          const previous = names.get(oldName);
+          if (previous && !names.has(item.name) && connectionKey(parseLine(previous.line)) === key) {
+            previous.line = `${item.name} ${previous.line.slice(previous.line.indexOf("="))}`;
+            names.delete(oldName);
+            names.set(item.name, previous);
+            warnings.push(`第 ${entry.index} 行：已将已有 VMess 节点的协议标记加入待保存名称，保留原 ID 和启停状态。`);
+          }
+          duplicates += 1; continue;
+        }
         if (result.length >= MAX_NODES) throw invalid("节点总数不能超过 1000。");
         const originalName = item.name;
         let suffix = 2;
@@ -72,9 +83,10 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
         if (item.name !== originalName) warnings.push(`第 ${entry.index} 行：同名节点的连接配置不同，已为新节点名称追加序号。`);
         const line = `${item.name} = ${item.value}`;
         parseLine(line);
-        result.push({ id: crypto.randomUUID(), line, enabled: true });
+        const node = { id: crypto.randomUUID(), line, enabled: true };
+        result.push(node);
         keys.add(key);
-        names.add(item.name);
+        names.set(item.name, node);
         for (const warning of item.warnings ?? []) warnings.push(`第 ${entry.index} 行：${warning}`);
         try { identifyNodeGroup(item.name); }
         catch { warnings.push(`待保存清单第 ${result.length} 个节点：名称需包含一个地区旗帜和唯一一种 IDC / ISP / WARP 关键词，请补全后保存。`); }

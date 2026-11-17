@@ -68,6 +68,8 @@ VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、�
 
 VLESS 链接转换支持 UUID、TCP / RAW + REALITY + Vision、`encryption=none`、SNI、公钥、short ID 和 ALPN。Surge iOS 6.0.0+ / Mac 6.12.0+ 支持这套配置，REALITY 使用内置 Chrome ClientHello，`fp` / `spx` 的处理遵循 Surge 分享链接语义。3x-ui 导出链接中的 `support-x25519mlkem768=true` 可直接导入，Surge 会自动协商 REALITY 密钥交换方式。当前 Clash 转换器支持的协议见订阅说明，Clash 订阅按顺序输出已有的 VMess 和 Hy2 连接。[Surge VLESS](https://manual.nssurge.com/policies/vless.html)、[Clash 转换范围](subscription.md)
 
+已有 VMess 连接的上游名称如果只是在客户端名前增加 `-VMess`，重新导入会在待保存清单中同步这个标记，并保留节点 ID 和启停状态。自定义别名继续保留。
+
 Hy2 导入支持单端口（默认 443）、TLS 的 SNI、ALPN、证书校验名称和单个 SHA-256 指纹。密码支持 URL 百分号编码。端口跳跃和 ECH 链接会提示无法转换。[Hysteria 2 分享链接](https://v2.hysteria.network/docs/developers/URI-Scheme/) · [Surge Hysteria 2](https://manual.nssurge.com/policies/hysteria2.html)
 
 每批最多请求 20 个不同的 HTTPS 公网域名订阅地址，单个请求超时 10 秒、响应最多 512 KiB，不跟随重定向；重复链接仅请求一次。解析由管理员专用接口完成，不转发浏览器 Cookie 或 Access 凭据，不保存来源链接，不经过第三方转换服务。任一条解析失败时，原待保存清单和输入保留，修正后可重试。

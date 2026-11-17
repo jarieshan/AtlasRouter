@@ -308,6 +308,19 @@ test("deduplicates links, names, parameter order and VMess defaults without chan
   assert.deepEqual(existing, snapshot);
 });
 
+test("an upstream VMess protocol tag renames only the exact legacy name and connection in the draft", async () => {
+  const oldName = "🇭🇰 HK-ISP-1";
+  const name = "🇭🇰 HK-VMess-ISP-1";
+  const existing = { id: "existing", enabled: false, line: native(oldName) };
+  const result = await importPoolNodes({ text: URL, nodes: [existing] }, async () => new Response(vmess({ ps: name })));
+  assert.equal(result.duplicates, 1);
+  assert.deepEqual(result.nodes, [{ ...existing, line: existing.line.replace(oldName, name) }]);
+  assert.equal(existing.line, native(oldName));
+  const custom = { ...existing, line: native("🇭🇰 Custom-ISP-1") };
+  const repeated = await importPoolNodes({ text: vmess({ ps: name }), nodes: [custom] }, unreachable);
+  assert.deepEqual(repeated.nodes, [custom]);
+});
+
 test("does not merge different credentials, TLS/AEAD options or quoted values on the same endpoint", async () => {
   const result = await importPoolNodes({ text: [
     vmess(), vmess({ id: "00000000-0000-4000-8000-000000000002" }),
