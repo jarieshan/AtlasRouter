@@ -164,6 +164,41 @@ test("imports 3x-ui export rows with the original names of every upstream node",
   assert.ok(!JSON.stringify(result).includes(URL));
 });
 
+test("seven mixed subscription rows show each compatibility notice once with its source lines", async () => {
+  const urls = Array.from({ length: 7 }, (_, i) => URL + "/" + (i + 1));
+  const subscriptions = urls.map((_, i) => [
+    vmess({ ps: `🇭🇰 HK-ISP-${i + 1}`, port: 8001 + i, alpn: "h2", fp: "chrome" }),
+    vless({}, `🇭🇰 HongKong-ISP-${i + 1}`, `node.example.com:${8101 + i}`),
+  ]);
+  subscriptions[0].push(vmess({ ps: "🇭🇰 HK-IDC", port: 9000, alpn: "h2", fp: "chrome" }));
+  const text = urls.map((url, i) => `ISP-${i + 1}\t${url}`).join("\r\n");
+  const read = async (url) => new Response(subscriptions[urls.indexOf(url)].join("\n"));
+  const result = await importPoolNodes({ text, nodes: [] }, read);
+  assert.equal(result.added, 15);
+  assert.equal(result.warnings.length, 3);
+  for (const [i, topic] of ["保留了 ALPN", "TLS 浏览器指纹", "VLESS + REALITY + Vision"].entries()) {
+    assert.ok(result.warnings[i].startsWith("第 1–7 行：" + topic));
+  }
+  const repeated = await importPoolNodes({ text, nodes: result.nodes }, read);
+  assert.equal(repeated.duplicates, 15);
+  assert.deepEqual(repeated.warnings, []);
+});
+
+test("warning ranges distinguish source lines from draft node positions and retain the failing line", async () => {
+  const nodes = [{ id: "existing", line: native() }];
+  const text = [
+    "# heading", vless({}, "Missing A"), vless({}, "🇭🇰 HK-ISP-2", "node.example.com:8444"), "",
+    vless({}, "Missing B", "node.example.com:8445"), vmess({ fp: "chrome", port: 9000 }),
+  ].join("\n");
+  const result = await importPoolNodes({ text, nodes }, unreachable);
+  assert.equal(result.warnings.length, 3);
+  assert.match(result.warnings[0], /^第 2–3、5 行：VLESS/);
+  assert.match(result.warnings[1], /^第 6 行：TLS 浏览器指纹/);
+  assert.match(result.warnings[2], /^待保存清单第 2、4 个节点：名称需包含/);
+  await assert.rejects(importPoolNodes({ text: text + "\n" + vless({ flow: "invalid" }), nodes }, unreachable),
+    (error) => error.status === 400 && error.message.startsWith("第 7 行："));
+});
+
 test("converts URL-safe UTF-8 VMess and WebSocket options while keeping native Surge lines", async () => {
   const link = vmess({
     ps: "🇭🇰 香港 - idc", aid: "0", net: "ws", path: "/ws?ed=2048", host: "cdn.example.com",

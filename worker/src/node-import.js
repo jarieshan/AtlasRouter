@@ -55,7 +55,12 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
     keys.set(key, keys.has(key) ? null : node);
   }
   const names = new Map(result.map((node) => [parseLine(node.line).name, node]));
-  const warnings = [];
+  const warningLines = new Map();
+  const unclassifiedNodes = [];
+  function warn(line, message) {
+    if (!warningLines.has(message)) warningLines.set(message, new Set());
+    warningLines.get(message).add(line);
+  }
   let duplicates = 0;
   for (const entry of sources) {
     try {
@@ -67,7 +72,7 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
       }
       const imported = parseContent(content, entry.name);
       if (/^https:\/\//i.test(entry.source) && keys.size && imported.length >= 3) {
-        for (const message of alignSubscriptionVariants(imported, keys, names)) warnings.push(`第 ${entry.index} 行：${message}`);
+        for (const message of alignSubscriptionVariants(imported, keys, names)) warn(entry.index, message);
       }
       for (const item of imported) {
         const key = connectionKey(item);
@@ -76,7 +81,7 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
           const oldName = tagged && tagged[1] + tagged[2];
           const previous = names.get(oldName);
           if (previous && connectionKey(parseLine(previous.line)) === key && renameDraftNode(previous, item.name, names)) {
-            warnings.push(`第 ${entry.index} 行：已将已有 VMess 节点的协议标记加入待保存名称，保留原 ID 和启停状态。`);
+            warn(entry.index, "已将已有 VMess 节点的协议标记加入待保存名称，保留原 ID 和启停状态。");
           }
           duplicates += 1; continue;
         }
@@ -84,16 +89,16 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
         const originalName = item.name;
         let suffix = 2;
         while (names.has(item.name)) item.name = `${originalName} (${suffix++})`;
-        if (item.name !== originalName) warnings.push(`第 ${entry.index} 行：同名节点的连接配置不同，已为新节点名称追加序号。`);
+        if (item.name !== originalName) warn(entry.index, "同名节点的连接配置不同，已为新节点名称追加序号。");
         const line = `${item.name} = ${item.value}`;
         parseLine(line);
         const node = { id: crypto.randomUUID(), line, enabled: true };
         result.push(node);
         keys.set(key, node);
         names.set(item.name, node);
-        for (const warning of item.warnings ?? []) warnings.push(`第 ${entry.index} 行：${warning}`);
+        for (const warning of item.warnings ?? []) warn(entry.index, warning);
         try { identifyNodeGroup(item.name); }
-        catch { warnings.push(`待保存清单第 ${result.length} 个节点：名称需包含一个地区旗帜和唯一一种 IDC / ISP / WARP 关键词，请补全后保存。`); }
+        catch { unclassifiedNodes.push(result.length); }
       }
     } catch (error) {
       throw invalid(`第 ${entry.index} 行：${error instanceof HttpError ? error.message : "无法解析节点。"}`);
@@ -102,7 +107,22 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
   if (new TextEncoder().encode(JSON.stringify({ nodes: result, revision: Number.MAX_SAFE_INTEGER })).length > MAX_BYTES) {
     throw invalid("转换后的清单超过 512 KiB，请减少节点后重试。");
   }
-  return { nodes: result, added: result.length - nodes.length, duplicates, warnings: [...new Set(warnings)] };
+  const warnings = Array.from(warningLines, ([message, lines]) => `第 ${formatPositions(lines)} 行：${message}`);
+  if (unclassifiedNodes.length) {
+    warnings.push(`待保存清单第 ${formatPositions(unclassifiedNodes)} 个节点：名称需包含一个地区旗帜和唯一一种 IDC / ISP / WARP 关键词，请补全后保存。`);
+  }
+  return { nodes: result, added: result.length - nodes.length, duplicates, warnings };
+}
+
+// Both input lines and draft nodes are collected in ascending order.
+function formatPositions(positions) {
+  const ranges = [];
+  for (const position of positions) {
+    const last = ranges.at(-1);
+    if (last && last[1] + 1 === position) last[1] = position;
+    else ranges.push([position, position]);
+  }
+  return ranges.map(([first, last]) => first === last ? String(first) : `${first}–${last}`).join("、");
 }
 
 function renameDraftNode(node, name, names) {
