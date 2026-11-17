@@ -24,7 +24,7 @@ function page(title, panels, isAdmin, preview = null, development = false) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
   <title>${title} · AtlasRouter</title>
-  <style>${styles}</style>
+  <style id="page-styles">${styles}</style>
 </head>
 <body>
 <header class="topbar"><div class="wrap topbar-inner">
@@ -241,7 +241,7 @@ const styles = `
 const clientHelpers = String.raw`
   const pageState = document.atlasrouterEnvironment ??= {
     development: !previewData && new URL(location.href).searchParams.get("environment") === "development",
-    pending: 0, changing: false, panels: [],
+    pending: 0, changing: false, panels: [], cleanup: [],
   };
   const status = root.querySelector(".status");
   function message(text, error = false) {
@@ -323,7 +323,7 @@ function accountPanel(preview, { development, developmentAvailable }) {
             <input id="enable-tencent-oa" type="checkbox" role="switch" aria-describedby="tencent-oa-help">
           </label>
           ${developmentAvailable ? `<label class="setting" for="enable-dev">
-            <span class="setting-text"><span>Dev</span><span>重新加载开发版页面，使用独立测试节点和配置。切换后请更新客户端中的订阅链接。</span></span>
+            <span class="setting-text"><span>Dev</span><span>原地加载开发版界面，使用独立测试节点和配置。切换后请更新客户端中的订阅链接。</span></span>
             <input id="enable-dev" type="checkbox" role="switch"${development ? " checked" : ""}>
           </label>` : ""}
         </div>
@@ -430,8 +430,27 @@ function accountPanel(preview, { development, developmentAvailable }) {
           || response.headers.get("x-atlasrouter-page-environment") !== expected) {
           throw new Error("登录已失效或页面版本不可用，请刷新页面后重试。");
         }
-        await response.body?.cancel();
-        location.replace(url.toString());
+        const next = new DOMParser().parseFromString(await response.text(), "text/html");
+        const nextStyles = next.getElementById("page-styles");
+        const scripts = [...next.querySelectorAll("script")];
+        if (!nextStyles || !next.getElementById("account-panel") || !scripts.length) {
+          throw new Error("页面内容不完整，请稍后重试。");
+        }
+        scripts.forEach((script) => script.remove());
+        pageState.cleanup.forEach((cleanup) => cleanup());
+        delete document.atlasrouterEnvironment;
+        history.replaceState(null, "", url);
+        document.title = next.title;
+        document.getElementById("page-styles").replaceWith(nextStyles);
+        document.body.replaceChildren(...next.body.childNodes);
+        for (const source of scripts) {
+          const script = document.createElement("script");
+          for (const attribute of source.attributes) script.setAttribute(attribute.name, attribute.value);
+          script.async = false;
+          script.textContent = source.textContent;
+          document.body.append(script);
+        }
+        document.getElementById("enable-dev")?.focus({ preventScroll: true });
       } catch (error) {
         development.checked = previous;
         message("切换失败，仍使用" + (previous ? "开发" : "正式") + "环境：" + error.message, true);
@@ -496,7 +515,10 @@ function accountPanel(preview, { development, developmentAvailable }) {
       catch (error) { message(error.message, true); }
       finally { rotate.disabled = false; }
     };
-    if (!previewData) document.addEventListener("atlasrouter:inventory", load);
+    if (!previewData) {
+      document.addEventListener("atlasrouter:inventory", load);
+      pageState.cleanup.push(() => document.removeEventListener("atlasrouter:inventory", load));
+    }
     load();
   ` };
 }

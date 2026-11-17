@@ -3,6 +3,7 @@ import test from "node:test";
 import vm from "node:vm";
 import { renderAccountPage } from "../src/pool-pages.js";
 import { ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH } from "../src/routes.js";
+import { openPage } from "../test-helpers/page.js";
 
 function element() {
   return {
@@ -12,84 +13,47 @@ function element() {
   };
 }
 
-test("Dev reloads the selected page code and preserves client choices in its URL", async () => {
+test("Dev hot-loads page code and preserves client choices in its URL", async () => {
   for (const active of [false, true]) {
-    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
-    fields.get("#subscription-client").value = "surge";
-    fields.get("#enable-dev").checked = active;
     const href = `https://atlas.example/?client=clash&doh=0&future_option=1${active ? "&environment=development" : ""}#account-panel`;
-    let destination;
-    const location = { href, replace(value) { destination = value; } };
-    const notice = { hidden: !active };
-    const calls = [];
-    const html = renderAccountPage({ development: active, developmentAvailable: true });
-    assert.match(html, new RegExp(`id="enable-dev" type="checkbox" role="switch"${active ? " checked" : ""}>`));
-    assert.doesNotMatch(html, /environment-toggle/);
-    vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
-      document: { getElementById: (id) => id === "development-notice" ? notice : ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
-      URL, location, confirm: () => true,
-      fetch: async (path, options) => {
-        calls.push(path);
-        if (path.startsWith("/?")) {
-          assert.equal(options.cache, "no-store");
-          assert.equal(options.credentials, "same-origin");
-          assert.equal(options.redirect, "error");
-          return new Response("<html>Selected page</html>", { headers: {
-            "content-type": "text/html", "x-atlasrouter-page-environment": active ? "production" : "development",
-          } });
-        }
-        return Response.json({ email: "member@example.com", status: "active", groups: [],
-          subscriptionUrl: `https://atlas.example/AtlasRouter${path.includes("/api/AtlasRouter-Dev/") ? "-Dev" : ""}?token=TEST_ONLY` });
-      },
-    });
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(calls[0].startsWith("/api/AtlasRouter-Dev/"), active);
-    const subscription = new URL(fields.get("#subscription").value);
-    assert.equal(subscription.pathname, active ? "/AtlasRouter-Dev" : "/AtlasRouter");
-    assert.equal(subscription.searchParams.get("dev"), null);
-    assert.equal(subscription.searchParams.get("client"), "clash");
-    assert.equal(subscription.searchParams.get("doh"), "0");
-    fields.get("#enable-dev").checked = !active;
-    await fields.get("#enable-dev").onchange();
-    const next = new URL(destination);
+    const page = await openPage({ isAdmin: false, href });
+    assert.equal(page.account.get("#enable-dev").checked, active);
+    await page.change(!active);
+    const next = new URL(page.location.href);
     assert.equal(next.searchParams.get("environment"), active ? null : "development");
     assert.equal(next.searchParams.get("client"), "clash");
     assert.equal(next.searchParams.get("doh"), "0");
     assert.equal(next.searchParams.get("future_option"), "1");
     assert.equal(next.hash, "#account-panel");
-    assert.equal(calls.length, 2, "the target HTML is checked before navigating");
-    assert.equal(new URL(fields.get("#subscription").value).pathname, active ? "/AtlasRouter-Dev" : "/AtlasRouter");
-    assert.equal(fields.get("#copy").disabled, true);
-    assert.equal(notice.hidden, !active);
+    assert.equal(page.swaps, 1);
+    assert.equal(page.calls.length, 3);
+    assert.equal(page.calls[1].options.cache, "no-store");
+    assert.equal(page.calls[1].options.credentials, "same-origin");
+    assert.equal(page.calls[1].options.redirect, "error");
+    assert.equal(new URL(page.account.get("#subscription").value).pathname, active ? "/AtlasRouter" : "/AtlasRouter-Dev");
+    assert.equal(page.account.get("#copy").disabled, false);
+    assert.equal(page.account.get("#enable-dev").focused, true);
+    assert.equal(page.notice.hidden, active);
   }
   assert.doesNotMatch(renderAccountPage({ preview: true, developmentAvailable: true }), /id="enable-dev"/);
 });
 
-test("Tencent OA and Wi-Fi Assist choices load from the page URL and survive the Dev switch", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
-  fields.get("#subscription-client").value = "surge";
-  let destination;
-  const location = { href: "https://atlas.example/?tencent_oa=1&wifi_assist=1", replace(value) { destination = value; } };
-  vm.runInNewContext(renderAccountPage({ developmentAvailable: true }).match(/<script>([\s\S]*?)<\/script>/)[1], {
-    document: { getElementById: (id) => id === "development-notice" ? { hidden: true } : ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
-    URL, location, confirm: () => true,
-    fetch: async (path) => path.startsWith("/?") ? new Response("<html>Dev</html>", { headers: {
-      "content-type": "text/html", "x-atlasrouter-page-environment": "development",
-    } }) : Response.json({ email: "member@example.com", status: "active", groups: [],
-      subscriptionUrl: "https://atlas.example/AtlasRouter?token=TEST_ONLY" }),
-  });
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(fields.get("#enable-tencent-oa").checked, true);
-  assert.equal(fields.get("#enable-wifi-assist").checked, true);
-  assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter?token=TEST_ONLY&tencent_oa=1&wifi_assist=1");
-  fields.get("#subscription-client").value = "clash";
-  fields.get("#subscription-client").onchange();
-  assert.equal(fields.get("#enable-tencent-oa").disabled, true);
-  fields.get("#enable-dev").checked = true;
-  await fields.get("#enable-dev").onchange();
-  assert.equal(new URL(destination).searchParams.get("tencent_oa"), "1");
-  assert.equal(new URL(destination).searchParams.get("wifi_assist"), "1");
-  assert.equal(new URL(destination).searchParams.get("client"), "clash");
+test("Tencent OA and Wi-Fi Assist choices survive hot-loading both environments", async () => {
+  const page = await openPage({ isAdmin: false, href: "https://atlas.example/?tencent_oa=1&wifi_assist=1" });
+  assert.equal(page.account.get("#enable-tencent-oa").checked, true);
+  assert.equal(page.account.get("#enable-wifi-assist").checked, true);
+  page.account.get("#subscription-client").value = "clash";
+  page.account.get("#subscription-client").onchange();
+  for (const development of [true, false]) {
+    await page.change(development);
+    assert.equal(page.account.get("#enable-tencent-oa").checked, true);
+    assert.equal(page.account.get("#enable-tencent-oa").disabled, true);
+    assert.equal(page.account.get("#enable-wifi-assist").checked, true);
+    const subscription = new URL(page.account.get("#subscription").value);
+    assert.equal(subscription.searchParams.get("client"), "clash");
+    assert.equal(subscription.searchParams.get("wifi_assist"), "1");
+    assert.equal(subscription.searchParams.has("tencent_oa"), false);
+  }
 });
 
 test("subscription controls customize copied URLs and retain choices across token rotation", async () => {

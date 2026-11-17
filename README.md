@@ -8,7 +8,7 @@ AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统�
 
 ## 当前状态
 
-已实现登录、自动分配和订阅生成。Dev 开关重新加载 develop 部署的页面，并使用独立测试节点与开发版配置。关闭 Dev 时加载正式页面。切换会保留 Client、DoH、Tencent OA 和 Wi-Fi Assist 选项。页面和开发订阅通过同一域名调用私有开发 Worker。配置见 [部署说明](docs/deployment-cloudflare.md)。
+已实现登录、自动分配和订阅生成。Dev 开关在当前页面热加载 develop 部署的界面、样式和事件代码，并使用独立测试节点与开发版配置。关闭 Dev 时原地加载正式版界面。切换会保留 Client、DoH、Tencent OA 和 Wi-Fi Assist 选项。页面和开发订阅通过同一域名调用私有开发 Worker。配置见 [部署说明](docs/deployment-cloudflare.md)。
 
 - `README.md`：项目说明与维护入口。
 - `AGENTS.md`：面向后续 LLM/Agent 协作者的仓库工作规范。
