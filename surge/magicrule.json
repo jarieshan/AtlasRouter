@@ -51,6 +51,10 @@
     "surge": "https://magicrule.pages.dev/data/rules/Surge/9d4d9b3f0482a5f641bc661d/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/2193b70ddecc8e473c65013f/manifest.json"
   },
+  "AppleProxy": {
+    "surge": "https://magicrule.pages.dev/data/rules/Surge/d2db650d955d574d6cdfd28a/manifest.json",
+    "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/a5a9b05ef8cd3f9b750de234/manifest.json"
+  },
   "Apple": {
     "surge": "https://magicrule.pages.dev/data/rules/Surge/d4a1a49a4f9301369ccbdd07/manifest.json",
     "mihomo": "https://magicrule.pages.dev/data/rules/Mihomo/b2261511504559990e0aa6c2/manifest.json"

@@ -799,6 +799,14 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(wechatProvider.url, WECHAT_URL);
         for (const group of config["proxy-groups"].filter((group) => group.type === "select")) assert.ok(!group.proxies.includes("REJECT"), group.name);
         assert.ok(magicRuleRelay(config["rule-providers"].iCloud.url, "iCloud", "mihomo"));
+        assert.ok(magicRuleRelay(config["rule-providers"].AppleProxy.url, "AppleProxy", "mihomo"));
+        assert.deepEqual(config.rules.filter((rule) => /^RULE-SET,(?:AppleIntelligence|AppleTV|iCloud|AppleProxy|Apple),/.test(rule)), [
+          "RULE-SET,AppleIntelligence,AIProxy,no-resolve",
+          "RULE-SET,AppleTV,GlobalMedia,no-resolve",
+          "RULE-SET,iCloud,iCloud,no-resolve",
+          "RULE-SET,AppleProxy,ISP First,no-resolve",
+          "RULE-SET,Apple,DIRECT,no-resolve",
+        ]);
         const youtube = config["proxy-groups"].find((group) => group.name === "YouTube");
         assert.deepEqual(youtube.proxies, ["🇭🇰HK-IDC", "🇺🇸USA-ISP"]);
         assert.ok(!youtube.hidden);
@@ -857,7 +865,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.deepEqual(sources.map(([, url, policy]) => [REPOSITORY_RULE_SET_URLS.includes(url) ? url : url.match(/\/magicrule\/surge\/([A-Za-z]+)\.list$/)[1], policy]), [
           [CUSTOM_REJECT_URL, "REJECT"], [RED_POCKET_URL, "🇺🇸USA-ISP"], ["Speedtest", "Speedtest"], [CUSTOM_DIRECT_URL, "DIRECT"], ["IBKR", "DIRECT"], ["LongBridge", "Proxy"], ["Direct", "DIRECT"], [WECHAT_URL, "WeChat"],
           ["Cloudflare", "AIProxy"], ["OpenAI", "AIProxy"], ["Anthropic", "AIProxy"], ["Gemini", "AIProxy"], ["Grok", "AIProxy"], ["Cursor", "AIProxy"], ["Perplexity", "AIProxy"], [CUSTOM_AI_URL, "AIProxy"], ["AppleIntelligence", "AIProxy"],
-          ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["Apple", "DIRECT"],
+          ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["AppleProxy", "ISP First"], ["Apple", "DIRECT"],
           ["Telegram", "Telegram"], ["Twitter", "X"], ["Discord", "Proxy"], ["YouTube", "YouTube"],
           [COIN_URL, "OverseasFinance"], ...["Binance", "OKX", "Bybit", "PayPal", "eBay", "Stripe", "Wise"].map((name) => [name, "OverseasFinance"]),
           ...["Facebook", "Threads", "Reddit", "Line"].map((name) => [name, "ISP First"]),

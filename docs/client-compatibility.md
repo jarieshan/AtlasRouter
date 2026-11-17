@@ -10,7 +10,7 @@ master 与 develop 维护同一套订阅实现和模板，环境差异由各自�
 | 地区组主备 | Surge / Clash 的 ISP、WARP、IDC 组均为同顺序 fallback，interval=300 | 同左 |
 | 策略组显示 | 业务组和 ISP 地区组可见，WARP / IDC 地区组和 DoH Proxy 隐藏 | `SHOW_ALL_PROXY_GROUPS=true`，所有组可见 |
 | 仓库规则资源 | `REPOSITORY_RULES_REF=master`，生成 jsDelivr `@master` | `REPOSITORY_RULES_REF=develop`，生成 jsDelivr `@develop` |
-| MagicRule | 39 类、78 份客户端产物；启用定时检查 | 同一规则基线，不运行 Cron |
+| MagicRule | 40 类、80 份客户端产物；启用定时检查 | 同一规则基线，不运行 Cron |
 | 发布 | Cloudflare master 构建，`npm run deploy` | Cloudflare develop 构建，`npm run deploy:development` |
 
 两分支使用相同的 FINAL、Speedtest、OverseasFinance、ISP First、GeneralSite、Apple/AI/影音规则和客户端适配。节点来自各自节点池，实际出口由各客户端的健康检查结果和个人主备顺序共同决定。
@@ -21,7 +21,7 @@ master 与 develop 维护同一套订阅实现和模板，环境差异由各自�
 
 | 项目 | 当前结果 | 边界 |
 | --- | --- | --- |
-| 规则、业务组顺序 | 两分支依次为 CustomReject、RedPocket、Speedtest、CustomDirect、IBKR / LongBridge、MagicRule Direct、WeChat、AI（含 Cloudflare、AppleIntelligence）、Apple、Telegram / X / Discord / YouTube、OverseasFinance、ISP First（Facebook / Threads / Reddit / Line）、影音独立规则、GeneralSite（Alphabet / GitHub / Wikimedia）、国内直连名单；AppleTV、AppleIntelligence、iCloud 在 Apple 完整规则前；YouTube 在 Netflix 等影音规则前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
+| 规则、业务组顺序 | 两分支依次为 CustomReject、RedPocket、Speedtest、CustomDirect、IBKR / LongBridge、MagicRule Direct、WeChat、AI（含 Cloudflare、AppleIntelligence）、Apple、Telegram / X / Discord / YouTube、OverseasFinance、ISP First（Facebook / Threads / Reddit / Line）、影音独立规则、GeneralSite（Alphabet / GitHub / Wikimedia）、国内直连名单；AppleIntelligence → AppleTV → iCloud → AppleProxy → Apple 按此顺序匹配，AppleProxy 使用 `ISP First`；YouTube 在 Netflix 等影音规则前；Proxy 的 Auto 在 IDC 后；保留最终兜底 | `select` 是手动选择，组之间不按健康状态自动回退；已有选择取决于客户端本地状态 |
 | 节点主备 | Surge / Clash 均为同顺序 fallback，interval=300 | 各客户端的测速时机和结果可能不同，实际选择由客户端决定 |
 | Auto | 两端均为 url-test，interval=300、容差 50 ms | Surge 包含本订阅的全部代理节点，Clash 会过滤不兼容的节点 |
 | DoH Proxy | 正式按模板隐藏，开发两端均可见，仅含 IDC 节点；Surge Smart，Clash url-test；Cloudflare / Google 使用该组，阿里 / 腾讯直连 | 无 IDC 或 Clash 过滤后无兼容 IDC 时省略该组，国外 DoH 规则改为 REJECT，其他订阅内容保留 |
