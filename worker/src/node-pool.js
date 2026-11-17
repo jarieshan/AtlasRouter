@@ -62,11 +62,15 @@ export function parsePoolNodes(entries, previous = []) {
   const previousGroups = groupNodeVariants(previous);
   const retained = previousGroups.flatMap((node) => node.members.map((member) => byId.get(member.id))).filter(Boolean);
   const ordered = [...retained, ...parsed.filter((node) => !oldNodes.has(node.id))];
-  const replacements = new Map(groupNodeVariants(ordered).map((node) => [node.key, node]));
+  const replacements = new Map(groupNodeVariants(ordered).flatMap((node) => node.members.map((member) => [member.id, node])));
   for (const previousNode of previousGroups) {
-    const replacement = replacements.get(previousNode.key);
-    if (previousNode.members.length < 2 || !replacement) continue;
+    if (previousNode.members.length < 2) continue;
     const removed = previousNode.members.filter((node) => !byId.has(node.id));
+    if (!removed.length) continue;
+    const surviving = new Set(previousNode.members.filter((member) => byId.get(member.id)?.group === previousNode.group)
+      .map((member) => replacements.get(member.id)));
+    if (surviving.size !== 1) continue;
+    const [replacement] = surviving;
     const anchor = replacement.anchor;
     anchor.ownerIds = [...new Set([...anchor.ownerIds, ...removed.flatMap((node) => node.ownerIds)])];
     anchor.assignmentCount += removed.reduce((count, node) => count + node.assignmentCount, 0);
@@ -75,10 +79,26 @@ export function parsePoolNodes(entries, previous = []) {
   return ordered;
 }
 
-// Pair one VMess and one VLESS endpoint for the same server-side client.
-// Ambiguous inventories retain separate entries instead of choosing a pairing.
+const protocolOrder = ["vless", "vmess", "hysteria2"];
+
 export function groupNodeVariants(nodes) {
   const identities = new Map(nodes.map((node) => [node.id, nodeIdentity(node)]));
+  // 3x-ui gives Hy2 a separate password. Match its explicitly tagged client
+  // name to a unique VLESS/VMess identity on the same server and in the same group.
+  const labels = new Map();
+  for (const identity of identities.values()) {
+    if (!identity.label) continue;
+    if (!labels.has(identity.label)) labels.set(identity.label, []);
+    labels.get(identity.label).push(identity);
+  }
+  for (const matches of labels.values()) {
+    const hy2 = matches.filter((item) => item.protocol === "hysteria2");
+    const others = matches.filter((item) => item.protocol !== "hysteria2");
+    const keys = new Set(others.map((item) => item.key));
+    if (hy2.length === 1 && keys.size === 1 && new Set(others.map((item) => item.protocol)).size === others.length) {
+      hy2[0].key = others[0].key;
+    }
+  }
   const candidates = new Map();
   for (const node of nodes) {
     const { key } = identities.get(node.id);
@@ -91,8 +111,8 @@ export function groupNodeVariants(nodes) {
     if (seen.has(node.id)) continue;
     const identity = identities.get(node.id);
     const candidatesForNode = candidates.get(identity.key);
-    const paired = candidatesForNode.length === 2
-      && new Set(candidatesForNode.map((member) => identities.get(member.id).protocol)).size === 2;
+    const paired = candidatesForNode.length > 1
+      && new Set(candidatesForNode.map((member) => identities.get(member.id).protocol)).size === candidatesForNode.length;
     const members = paired ? candidatesForNode : [node];
     for (const member of members) seen.add(member.id);
     const enabled = members.filter((member) => member.enabled);
@@ -101,7 +121,7 @@ export function groupNodeVariants(nodes) {
       group: node.group,
       members,
       anchor: enabled[0] ?? node,
-      variants: [...enabled].sort((a, b) => Number(identities.get(a.id).protocol === "vmess") - Number(identities.get(b.id).protocol === "vmess")),
+      variants: [...enabled].sort((a, b) => protocolOrder.indexOf(identities.get(a.id).protocol) - protocolOrder.indexOf(identities.get(b.id).protocol)),
       ownerIds: [...new Set(members.flatMap((member) => member.ownerIds))],
       assignmentCount: members.reduce((count, member) => count + member.assignmentCount, 0),
       firstAssignedAt: members.map((member) => member.firstAssignedAt).filter(Boolean).sort()[0] ?? null,
@@ -114,13 +134,20 @@ function nodeIdentity(node) {
   try {
     const [type, host, , ...parameters] = splitSurgeList(node.value);
     const protocol = type.toLowerCase();
-    if (["vless", "vmess"].includes(protocol)) {
-      const username = surgeOptions(parameters).get("username");
-      if (/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(username ?? "")) {
-        const address = surgeValue(host);
-        const authority = address.includes(":") && !address.startsWith("[") ? `[${address}]` : address;
-        const server = new URL(`http://${authority}`).hostname.toLowerCase().replace(/\.$/, "");
-        return { protocol, key: JSON.stringify([node.group, server, username.toLowerCase()]) };
+    if (protocolOrder.includes(protocol)) {
+      const address = surgeValue(host);
+      const authority = address.includes(":") && !address.startsWith("[") ? `[${address}]` : address;
+      const server = new URL(`http://${authority}`).hostname.toLowerCase().replace(/\.$/, "");
+      const options = surgeOptions(parameters);
+      if (protocol === "hysteria2" && options.get("password")) {
+        const client = node.name.match(/-Hy2[- ](.+)$/i)?.[1];
+        return { protocol, key: `node:${node.id}`, label: client && JSON.stringify([node.group, server, client]) };
+      }
+      const username = options.get("username");
+      if (protocol !== "hysteria2" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(username ?? "")) {
+        const client = node.name.match(/-(?:VMess|VLESS)[- ](.+)$/i)?.[1] ?? node.name.match(/[- ]((?:IDC|ISP|WARP)\b.*)$/i)?.[1];
+        return { protocol, key: JSON.stringify([node.group, server, username.toLowerCase()]),
+          label: client && JSON.stringify([node.group, server, client]) };
       }
     }
   } catch { /* Invalid or unsupported connection formats keep their own allocation. */ }

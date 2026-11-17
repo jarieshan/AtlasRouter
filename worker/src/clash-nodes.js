@@ -4,7 +4,7 @@ import { positiveInteger, splitSurgeList, surgeAssignment, surgeBoolean, surgeOp
 export function convertClashNode(line, warn = () => {}) {
   const [name, value] = surgeAssignment(line);
   const [protocol, host, port, ...params] = splitSurgeList(value);
-  const type = { vmess: "vmess", trojan: "trojan", ss: "ss", http: "http", https: "http", socks5: "socks5", "socks5-tls": "socks5" }[protocol?.toLowerCase()];
+  const type = { vmess: "vmess", hysteria2: "hysteria2", trojan: "trojan", ss: "ss", http: "http", https: "http", socks5: "socks5", "socks5-tls": "socks5" }[protocol?.toLowerCase()];
   if (typeof type !== "string" || !host) throw new Error("Unsupported protocol");
   const node = { name, type, server: host.replace(/^\[|\]$/g, ""), port: positiveInteger(port) };
   if (node.port > 65535) throw new Error("Invalid port");
@@ -14,7 +14,7 @@ export function convertClashNode(line, warn = () => {}) {
   if (options.has("tfo")) node.tfo = surgeBoolean(take("tfo"));
   omitTestOverrides(options, warn);
   if (options.has("udp-relay")) node.udp = surgeBoolean(take("udp-relay"));
-  else if (["vmess", "trojan"].includes(type)) node.udp = true;
+  else if (["vmess", "trojan", "hysteria2"].includes(type)) node.udp = true;
   if (type === "vmess") {
     node.uuid = required("username");
     if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(node.uuid)
@@ -22,6 +22,16 @@ export function convertClashNode(line, warn = () => {}) {
     node.alterId = 0;
     node.cipher = { "aes-128-gcm": "aes-128-gcm", "chacha20-ietf-poly1305": "chacha20-poly1305" }[take("encrypt-method", "aes-128-gcm")];
     if (typeof node.cipher !== "string") throw new Error("Unsupported cipher");
+  } else if (type === "hysteria2") {
+    node.password = required("password");
+    if (options.has("download-bandwidth")) node.down = positiveInteger(take("download-bandwidth"));
+    for (const obfs of ["salamander", "gecko"]) {
+      if (options.has(`${obfs}-password`)) {
+        if (node.obfs) throw new Error("Conflicting Hy2 obfuscation options");
+        node.obfs = obfs;
+        node["obfs-password"] = required(`${obfs}-password`);
+      }
+    }
   } else if (type === "trojan" || type === "ss") {
     node.password = required("password");
     if (type === "ss") {
@@ -39,11 +49,11 @@ export function convertClashNode(line, warn = () => {}) {
     for (const key of ["username", "password"]) if (options.has(key)) node[key] = take(key);
   }
 
-  const tlsProtocol = ["trojan", "https", "socks5-tls"].includes(protocol.toLowerCase());
+  const tlsProtocol = ["trojan", "https", "socks5-tls", "hysteria2"].includes(protocol.toLowerCase());
   const tls = surgeBoolean(take("tls", String(tlsProtocol)));
   if ((tlsProtocol && !tls) || (type === "ss" && tls)) throw new Error("Unsupported TLS mode");
   if (tls) {
-    if (type !== "trojan") node.tls = true;
+    if (!["trojan", "hysteria2"].includes(type)) node.tls = true;
     if (options.has("sni")) {
       const sni = take("sni");
       // Surge's sentinel disables SNI; a literal hostname in Mihomo would not.

@@ -143,6 +143,24 @@ test("adding, disabling, deleting and restoring protocol variants preserves logi
   assert.ok(userGroups(state, "user-1")[0].nodes.every((node) => !node.id.endsWith("-2")));
 });
 
+test("Hy2 uses an unambiguous server and client label and retains ownership when it is the last variant", () => {
+  const [vmess, vless] = protocolNodes(1);
+  const vm = { ...vmess, line: vmess.line.replace("HK-ISP", "HK-VMess-ISP") };
+  const hy = { id: "hy", line: "🇭🇰 HK-Hy2-ISP-1 = hysteria2, node.example.com, 443, password=TEST_ONLY" };
+  const state = createState(1, 1);
+  state.nodes = parsePoolNodes([vm, vless, hy]);
+  allocateNodes(state, NOW);
+  assert.deepEqual(groupNodeVariants(state.nodes)[0].variants.map((node) => node.id), [vless.id, vm.id, hy.id]);
+  const [survivor] = parsePoolNodes([hy], state.nodes);
+  assert.deepEqual(survivor.ownerIds, ["user-0"]);
+  assert.equal(survivor.assignmentCount, 1);
+  for (const [from, to] of [["node.example.com", "other.example.com"], ["ISP-1", "ISP-2"], ["-Hy2-", "-Custom-"]]) {
+    assert.equal(groupNodeVariants(parsePoolNodes([vm, vless, { ...hy, line: hy.line.replace(from, to) }])).length, 2);
+  }
+  const other = { ...vm, id: "other", line: vm.line.replace("HK-VMess", "Other-VMess").replace("8000-000000000001", "8000-000000000002") };
+  assert.equal(groupNodeVariants(parsePoolNodes([hy, vm, vless, other])).length, 3);
+});
+
 test("pairing requires the same server, UUID and group and keeps ambiguous or unrelated entries separate", () => {
   const pair = protocolNodes(1);
   assert.equal(groupNodeVariants(parsePoolNodes(pair)).length, 1);

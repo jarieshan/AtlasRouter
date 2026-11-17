@@ -32,7 +32,7 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
       return { ...entry, name: null, source: urlColumn[1] };
     }
     const named = !/^[a-z][a-z0-9+.-]*:\/\//i.test(entry.text)
-      && entry.text.match(/^(.+?)\s*=\s*((?:https|vmess|vless):\/\/.+)$/i);
+      && entry.text.match(/^(.+?)\s*=\s*((?:https|vmess|vless|hy2|hysteria2):\/\/.+)$/i);
     return { ...entry, name: named ? validName(named[1].trim()) : null, source: named ? named[2] : entry.text };
   });
   const urls = new Set(sources.filter((entry) => /^https:\/\//i.test(entry.source)).map((entry) => subscriptionUrl(entry.source)));
@@ -116,8 +116,51 @@ function parseContent(content, name) {
   return lines.map((line) => {
     if (/^vmess:\/\//i.test(line)) return convertVmess(line, name);
     if (/^vless:\/\//i.test(line)) return convertVless(line, name);
+    if (/^(?:hy2|hysteria2):\/\//i.test(line)) return convertHysteria2(line, name);
     return parseLine(name && line.indexOf("=") > 0 ? `${name} = ${line.slice(line.indexOf("=") + 1)}` : line);
   });
+}
+
+function convertHysteria2(link, name) {
+  let url;
+  try { url = new URL(link); }
+  catch { throw invalid("Hy2 链接需要有效的主机名和单个端口。"); }
+  const port = Number(url.port || 443);
+  if (!url.username || !["", "/"].includes(url.pathname) || port < 1 || port > 65535) throw invalid("Hy2 凭据、路径或端口不正确。");
+  const query = url.searchParams;
+  const known = new Set(["security", "sni", "alpn", "insecure", "vcn", "pinSHA256", "fp", "obfs", "obfs-password"]);
+  for (const key of query.keys()) {
+    if (!known.has(key) || query.getAll(key).length !== 1) throw invalid("Hy2 含有尚未支持或重复的参数。");
+  }
+  if (query.has("security") && query.get("security") !== "tls") throw invalid("Hy2 需要 TLS。");
+  const auth = decodeURIComponent(url.username) + (url.password ? ":" + decodeURIComponent(url.password) : "");
+  const params = { password: auth };
+  if (query.get("sni")) params.sni = validHost(query.get("sni"));
+  if (query.get("vcn")) params["server-cert-verify-name"] = validHost(query.get("vcn"));
+  if (query.has("insecure")) {
+    const insecure = query.get("insecure");
+    if (!["0", "1", "true", "false"].includes(insecure)) throw invalid("Hy2 证书校验参数不正确。");
+    if (["1", "true"].includes(insecure)) params["skip-cert-verify"] = "true";
+  }
+  if (query.has("pinSHA256")) {
+    const pin = query.get("pinSHA256").replaceAll(":", "");
+    if (!/^[a-f0-9]{64}$/i.test(pin)) throw invalid("Hy2 需要单个 SHA-256 证书指纹。");
+    params["server-cert-fingerprint-sha256"] = pin.toUpperCase();
+  }
+  if (query.has("alpn")) {
+    const alpn = query.get("alpn");
+    if (!alpn.split(",").every((value) => /^[a-z0-9./_-]+$/i.test(value))) throw invalid("ALPN 格式不正确。");
+    params.alpn = alpn;
+  }
+  if (query.has("obfs") || query.has("obfs-password")) {
+    const obfs = query.get("obfs");
+    if (!["salamander", "gecko"].includes(obfs) || !query.get("obfs-password")) throw invalid("Hy2 混淆类型或密码不受支持。");
+    params[`${obfs}-password`] = query.get("obfs-password");
+  }
+  const warnings = query.get("fp") ? ["Surge 的 Hy2 使用 QUIC TLS，链接中的浏览器指纹未写入配置。"] : [];
+  const value = ["hysteria2", validHost(url.hostname), String(port),
+    ...Object.entries(params).map(([key, value]) => `${key}=${quoteValue(value)}`)].join(", ");
+  return { ...parseLine(`${validName(name || decodeURIComponent(url.hash.slice(1)) || "导入节点")} = ${value}`), warnings };
 }
 
 function convertVless(link, name) {
@@ -227,7 +270,7 @@ function convertVmess(link, name) {
 
 function quoteValue(value) {
   if (typeof value !== "string" || /[\x00-\x1f\x7f"\\]/.test(value)) throw invalid("节点参数包含无法安全转换的字符。");
-  return /[,;#\s]/.test(value) ? `"${value}"` : value;
+  return /[(),;#\s]/.test(value) ? `"${value}"` : value;
 }
 
 function validName(name) {
@@ -244,7 +287,7 @@ function validHost(host) {
 
 function parseLine(line) {
   if (typeof line !== "string" || line.length > 4096 || /[\r\n]/.test(line)) throw invalid("Surge 节点必须是最多 4096 字符的单行配置。");
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(line)) throw invalid("支持 HTTPS 订阅、vmess://、vless:// 链接和 Surge 节点行。");
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(line)) throw invalid("支持 HTTPS 订阅、VMess、VLESS、Hy2 链接和 Surge 节点行。");
   const separator = line.indexOf("=");
   if (separator < 1) throw invalid("需要完整的“节点名 = 配置”Surge 节点行。");
   const name = validName(line.slice(0, separator));

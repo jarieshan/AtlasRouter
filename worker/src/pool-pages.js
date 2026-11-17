@@ -534,7 +534,7 @@ function poolPanel(adminRoutes) {
     </div>
   </div>
   <article class="card">
-    <header class="card-head"><h3>录入节点</h3><p>可整段粘贴 3x-ui 导出的订阅清单，也可逐行粘贴 HTTPS 订阅链接、vmess://、vless:// 链接或完整 Surge 节点。VLESS 链接支持 TCP + REALITY + Vision。每批最多 20 个不同的订阅链接，重复连接会自动跳过。</p></header>
+    <header class="card-head"><h3>录入节点</h3><p>可整段粘贴 3x-ui 导出的订阅清单，也可逐行粘贴 HTTPS 订阅链接、vmess://、vless://、hy2://、hysteria2:// 链接或完整 Surge 节点。VLESS 链接支持 TCP + REALITY + Vision。每批最多 20 个不同的订阅链接，重复连接会自动跳过。</p></header>
     <div class="card-body">
       <label class="field-label" for="import">节点链接或 Surge 节点清单</label>
       <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="ISP-1&#9;https://subscription.example.com/isp-1"></textarea>

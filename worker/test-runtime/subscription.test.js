@@ -152,14 +152,17 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
     accounts.push(await json(await request(mf, devApi(ACCOUNT_PROFILE_PATH), { subject })));
   }
   const before = await readSubscriptionState({ DB: devDb });
-  const text = [1, 2, 3].map((number) => {
+  const text = [1, 2, 3].flatMap((number) => {
     const query = new URLSearchParams({ security: "reality", type: "tcp", encryption: "none", flow: "xtls-rprx-vision",
       sni: "target.example.com", pbk: Buffer.alloc(32, number).toString("base64url"), sid: "0123456789abcdef",
       fp: "chrome", spx: "/", "support-x25519mlkem768": "true" });
-    return `vless://00000000-0000-4000-8000-${String(number).padStart(12, "0")}@node.example.com:8443?${query}#${encodeURIComponent(`🇭🇰 HongKong-ISP-${number}`)}`;
+    return [
+      `vless://00000000-0000-4000-8000-${String(number).padStart(12, "0")}@node.example.com:8443?${query}#${encodeURIComponent(`🇭🇰 HongKong-ISP-${number}`)}`,
+      `hysteria2://fixture-${number}@node.example.com:443?security=tls&alpn=h3#${encodeURIComponent(`🇭🇰 HK-Hy2-ISP-${number}`)}`,
+    ];
   }).join("\n");
   const imported = await json(await request(mf, devApi(POOL_IMPORT_PATH), { subject: "admin", method: "POST", body: { nodes: existing, text } }));
-  assert.equal(imported.added, 3);
+  assert.equal(imported.added, 6);
   assert.deepEqual(await readSubscriptionState({ DB: devDb }), before);
   await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT", body: { revision: 1, nodes: imported.nodes } }));
   const after = await readSubscriptionState({ DB: devDb });
@@ -172,7 +175,7 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
     const response = await request(mf, user.subscriptionUrl);
     assert.equal(response.status, 200);
     const profile = await response.text();
-    const expected = orders[index].flatMap((number) => [`🇭🇰 HongKong ISP-${number}`, `🇭🇰 HK ISP-${number}`]);
+    const expected = orders[index].flatMap((number) => [`🇭🇰 HongKong ISP-${number}`, `🇭🇰 HK ISP-${number}`, `🇭🇰 HK-Hy2 ISP-${number}`]);
     assert.deepEqual(fallbackMembers(profile, "🇭🇰HK-ISP"), expected);
     assert.match(profile, /^🇭🇰 HongKong ISP-1 = vless,/m);
     assert.match(profile, /^🇭🇰 HK ISP-1 = vmess,/m);
@@ -181,7 +184,7 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
     assert.equal(await (await request(mf, user.subscriptionUrl)).text(), profile);
     const clash = parseYaml(await (await request(mf, user.subscriptionUrl + "&client=clash")).text());
     assert.deepEqual(clash["proxy-groups"].find((group) => group.name === "🇭🇰HK-ISP").proxies,
-      orders[index].map((number) => `🇭🇰 HK ISP-${number}`));
+      orders[index].flatMap((number) => [`🇭🇰 HK ISP-${number}`, `🇭🇰 HK-Hy2 ISP-${number}`]));
   }
   assert.equal((await request(mf, "/AtlasRouter-Dev?token=invalid")).status, 401);
   assert.equal((await request(mf, "/AtlasRouter-Dev/modules/missing")).status, 404);

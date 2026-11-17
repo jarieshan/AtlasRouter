@@ -24,14 +24,14 @@ Client、DoH、Tencent OA、复制和重置链接在当前页面内存中模拟�
 
 ## 分配规则
 
-1. 节点按“地区 + 出口 IP 类型”分组，每位启用用户在每个启用组获得一个主节点。同组、同服务器地址、同客户端 UUID 的一条 VLESS 与一条 VMess 连接视为同一节点，合计一份分配容量。服务器域名和 UUID 按大小写无关比较，连接端口可以不同。名称中的 `HK` / `HongKong`、`US(LA)` / `LosAngeles` 差异由这组连接信息关联。同一身份出现多条同协议连接时，各条独立分配。
+1. 节点按“地区 + 出口 IP 类型”分组，每位启用用户在每个启用组获得一个主节点。同组、同服务器地址、同客户端 UUID 的一条 VLESS 与一条 VMess 连接视为同一节点，合计一份分配容量。服务器域名和 UUID 按大小写无关比较，连接端口可以不同。名称中的 `HK` / `HongKong`、`US(LA)` / `LosAngeles` 差异由这组连接信息关联。名称采用“入站名-Hy2-客户端名”的 Hy2 通过同组、同服务器和唯一的客户端名加入已有节点，使用独立的密码。身份匹配有歧义时保留独立节点。
 2. 优先选当前分配用户数最少的节点；相同时选历史分配次数最少的节点，再按首次录入顺序决定。空闲节点优先于已被分配的节点。
 3. 同组节点数不足时允许重复分配。各节点的当前分配人数之差不超过 1。
 4. 使用两层轮转：主节点固定在首位，其余节点从主节点之后按首次录入顺序环绕排列，再按用户在该主节点分配名单中的序号轮转。三个节点的首批三个用户得到 `1→2→3`、`2→3→1`、`3→1→2`；第二批得到 `1→3→2`、`2→1→3`、`3→2→1`。每个主备位置上各节点出现次数之差不超过 1。Surge / Clash 按首个可用节点回退时，同一个主节点失效后的新增接管人数之差不超过 1；两端的健康检查结果可能不同，因此不保证实际同时选择相同节点。
 5. 保存清单、启停节点或用户时重新平衡。保留仍然均衡的归属，只移动过量分配的用户；同一节点上较晚分配的用户先移动。新增容量可减少主节点共享。编辑凭据、重排清单不会自行改变节点环顺序。用户增减或节点启停可能调整备用顺序；同一状态下重复生成或重启服务后，顺序保持一致。
 6. 没有任何启用节点时仍生成用户链接，订阅返回 `503 Waiting for node allocation`。管理员启用节点后自动完成分配。
 
-成对节点在 Surge fallback 中按 VLESS → VMess 展开，再进入下一个节点。例如两个香港 ISP 节点的顺序为 `🇭🇰 HongKong ISP-1` → `🇭🇰 HK ISP-1` → `🇭🇰 HongKong ISP-2` → `🇭🇰 HK ISP-2`。添加另一协议连接会沿用已有归属和历史次数。停用或删除其中一条时，继续使用另一条启用连接。两条均停用或删除时，用户重新分配到同组剩余启用节点。旧数据中分散在两个协议上的归属会合并，保存清单或触发分配时按合并后的容量重新平衡。[Surge fallback 优先顺序](https://manual.nssurge.com/policy-groups/fallback.html)
+同一节点在 Surge 中按 VLESS → VMess → Hy2 回退，再尝试下一个节点。添加协议连接沿用已有归属与历史次数。停用或删除某个协议时，剩余连接继续承担该节点的分配。全部连接停用或删除时，用户重新分配到同组其余启用节点。旧数据中分散在不同协议上的归属会合并，保存清单或触发分配时按合并后的容量重新平衡。[Surge fallback 优先顺序](https://manual.nssurge.com/policy-groups/fallback.html)
 
 用户、节点和归属分别保存在 D1 的 `users`、`nodes`、`assignments` 表中，字段与约束见 [env.md](env.md)。`assignments` 的 `(user_id, group_name)` 主键保证每人每组最多一个主节点，外键保证该节点属于同组；共享主节点不受此限制。当前分配人数由关系表统计，历史次数单独保存在节点表。节点录入顺序和同一主节点的 `owner_order` 持久化保存，备用列表按两层轮转规则生成。
 
@@ -47,7 +47,7 @@ Client、DoH、Tencent OA、复制和重置链接在当前页面内存中模拟�
 
 Dev 开关在当前页面加载账户和节点池，用户启停与 Token 重置均作用于当前选中的独立数据库。开发 API 使用 `/api/AtlasRouter-Dev/*`，订阅使用 `/AtlasRouter-Dev`。两库不自动同步；“重置为生产节点”入口不恢复。切换环境保留 Client、DoH 与 Tencent OA 选择，加载失败保持原环境，有未保存编辑时先确认；订阅客户端需要更新为当前环境的链接。
 
-管理员在根路径 `/` 网页的节点池区域按行粘贴 HTTPS 订阅链接、`vmess://`、`vless://` 链接或完整 Surge 节点，点击“转换并加入待保存清单”后核对，再点击“保存并分配”。3x-ui 原生导出的清单可整段粘贴，每行的标签和 HTTPS 链接以制表符或空格分隔，导入时沿用订阅内各节点的原名。订阅支持明文或 Base64 编码的 VMess / VLESS 混合节点列表，也可读取 Surge 的 `[Proxy]` 节点。旧页面、API 和手动订阅入口均已停用，统一使用当前根路径。以下示例使用保留域名和占位密码。
+管理员在根路径 `/` 网页的节点池区域按行粘贴 HTTPS 订阅链接、`vmess://`、`vless://`、`hy2://`、`hysteria2://` 链接或完整 Surge 节点，点击“转换并加入待保存清单”后核对，再点击“保存并分配”。3x-ui 原生导出的清单可整段粘贴，每行的标签和 HTTPS 链接以制表符或空格分隔，导入时沿用订阅内各节点的原名。订阅支持明文或 Base64 编码的 VMess / VLESS / Hy2 混合节点列表，也可读取 Surge 的 `[Proxy]` 节点。旧页面、API 和手动订阅入口均已停用，统一使用当前根路径。以下示例使用保留域名和占位密码。
 
 ```text
 🇺🇸 LosAngeles - ISP 1 = trojan, us.example.com, 443, password=REPLACE_ME
@@ -66,7 +66,9 @@ ISP-1	https://subscription.example.com/isp-1
 
 VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、可选 TLS、SNI 和 ALPN。`auto` 加密映射为 `aes-128-gcm`；不支持的协议、传输方式或加密方式会拒绝导入。TLS 浏览器指纹 `fp` 没有对应的 Surge 参数，省略并提示；ALPN 需要 Surge iOS 5.20.0+ / Mac 6.7.0+，证书校验名称需要 iOS 5.21.0+ / Mac 6.8.0+，参见 [VMess](https://manual.nssurge.com/policies/vmess.html) 和 [TLS 参数](https://manual.nssurge.com/policies/tls.html)。
 
-VLESS 链接转换支持 UUID、TCP / RAW + REALITY + Vision、`encryption=none`、SNI、公钥、short ID 和 ALPN。Surge iOS 6.0.0+ / Mac 6.12.0+ 支持这套配置，REALITY 使用内置 Chrome ClientHello，`fp` / `spx` 的处理遵循 Surge 分享链接语义。3x-ui 导出链接中的 `support-x25519mlkem768=true` 可直接导入，Surge 会自动协商 REALITY 密钥交换方式。当前 Clash 转换器支持的协议见订阅说明，成对节点在 Clash 中输出对应的 VMess 连接。[Surge VLESS](https://manual.nssurge.com/policies/vless.html)、[Clash 转换范围](subscription.md)
+VLESS 链接转换支持 UUID、TCP / RAW + REALITY + Vision、`encryption=none`、SNI、公钥、short ID 和 ALPN。Surge iOS 6.0.0+ / Mac 6.12.0+ 支持这套配置，REALITY 使用内置 Chrome ClientHello，`fp` / `spx` 的处理遵循 Surge 分享链接语义。3x-ui 导出链接中的 `support-x25519mlkem768=true` 可直接导入，Surge 会自动协商 REALITY 密钥交换方式。当前 Clash 转换器支持的协议见订阅说明，Clash 订阅按顺序输出已有的 VMess 和 Hy2 连接。[Surge VLESS](https://manual.nssurge.com/policies/vless.html)、[Clash 转换范围](subscription.md)
+
+Hy2 导入支持单端口（默认 443）、TLS 的 SNI、ALPN、证书校验名称和单个 SHA-256 指纹。密码支持 URL 百分号编码。端口跳跃和 ECH 链接会提示无法转换。[Hysteria 2 分享链接](https://v2.hysteria.network/docs/developers/URI-Scheme/) · [Surge Hysteria 2](https://manual.nssurge.com/policies/hysteria2.html)
 
 每批最多请求 20 个不同的 HTTPS 公网域名订阅地址，单个请求超时 10 秒、响应最多 512 KiB，不跟随重定向；重复链接仅请求一次。解析由管理员专用接口完成，不转发浏览器 Cookie 或 Access 凭据，不保存来源链接，不经过第三方转换服务。任一条解析失败时，原待保存清单和输入保留，修正后可重试。
 

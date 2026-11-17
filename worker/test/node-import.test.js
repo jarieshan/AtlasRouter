@@ -38,6 +38,22 @@ test("converts REALITY Vision links and mixed Base64 subscriptions with both pro
   assert.deepEqual(repeated.nodes, result.nodes);
 });
 
+test("3x-ui Hy2 links preserve TLS, credentials and names in direct and subscription imports", async () => {
+  const name = "🇭🇰 HK-Hy2-ISP-1";
+  const uri = `hysteria2://test%2Cuser:pass%23word@[2001:db8::1]/?security=tls&alpn=h3&sni=target.example.com&insecure=0#${encodeURIComponent(name)}`;
+  const read = async () => new Response(Buffer.from([vmess(), vless(), uri].join("\n")).toString("base64"));
+  const batch = await importPoolNodes({ text: "ISP-1\t" + URL, nodes: [] }, read);
+  assert.equal(batch.added, 3);
+  assert.equal(batch.nodes[2].line, `${name} = hysteria2, [2001:db8::1], 443, password="test,user:pass#word", sni=target.example.com, alpn=h3`);
+  const again = await importPoolNodes({ text: "Other = " + uri.replace("hysteria2:", "hy2:"), nodes: batch.nodes }, unreachable);
+  assert.equal(again.duplicates, 1);
+  assert.deepEqual(again.nodes, batch.nodes);
+  for (const value of ["?insecure=1&insecure=0", "?pinSHA256=bad", "?ech=unsupported", "?security=none", "?obfs=gecko"]) {
+    await assert.rejects(importPoolNodes({ text: "hy2://TEST_ONLY@node.example.com" + value, nodes: [] }, unreachable),
+      (error) => error.status === 400 && !error.message.includes("TEST_ONLY"));
+  }
+});
+
 test("VLESS imports support explicit names, IPv6, empty short IDs and quoted ALPN", async () => {
   const result = await importPoolNodes({
     text: `🇭🇰 HK-IDC-1 = ${vless({ sid: "", alpn: "h2,http/1.1" }, "bad,name", "[2001:db8::1]:8443")}`, nodes: [],
