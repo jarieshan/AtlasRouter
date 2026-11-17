@@ -11,6 +11,7 @@ import { CHECK_INTERVAL } from "../src/magic-rule-check.js";
 import { magicRuleSources } from "../src/magic-rules.js";
 import { allocateNodes, parsePoolNodes, userGroups } from "../src/node-pool.js";
 import { readSubscriptionState } from "../src/subscription-db.js";
+import { protocolNodes } from "../test-helpers/protocol-nodes.js";
 import { splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
 import {
   ACCOUNT_PATH, ACCOUNT_PROFILE_PATH, ACCOUNT_TOKEN_PATH, INTERNAL_ACCOUNT_PAGE_PATH, POOL_SUBSCRIPTION_PATH, getAdminRoutes,
@@ -124,6 +125,68 @@ async function save(mf, entries = nodes(), revision = 0) {
 async function account(mf, subject = "alice", claims) {
   return json(await request(mf, ACCOUNT_PROFILE_PATH, { subject, claims }));
 }
+
+test("Dev imports paired protocols, preserves allocations and renders normalized VLESS-first fallback", async (t) => {
+  const developmentConfig = JSON.parse(await readFile(new URL("../wrangler.development.jsonc", import.meta.url), "utf8"));
+  const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
+    { name: "portal", modules: true, compatibilityDate: "2026-05-12", scriptPath: ".wrangler/test-dist/index.js",
+      d1Databases: { DB: "production", DEV_DB: "development" }, serviceBindings: { DEV_SUBSCRIPTION_SERVICE: "development" },
+      bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
+        ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG } },
+    { name: "development", modules: true, compatibilityDate: "2026-05-12", scriptPath: ".wrangler/test-development/index.js",
+      d1Databases: { DB: "development" }, bindings: developmentConfig.vars },
+  ] }));
+  t.after(() => mf.dispose());
+  const prodDb = await mf.getD1Database("DB", "portal");
+  const devDb = await mf.getD1Database("DB", "development");
+  await applyMigrations(prodDb);
+  await applyMigrations(devDb);
+  await save(mf);
+  await account(mf);
+  const production = await readSubscriptionState({ DB: prodDb });
+  const devApi = (route) => route.replace("/api/", "/api/AtlasRouter-Dev/");
+  const existing = protocolNodes().slice(0, 3);
+  await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT", body: { revision: 0, nodes: existing } }));
+  const accounts = [];
+  for (const subject of ["alice", "bob", "carol", "dave", "erin", "frank"]) {
+    accounts.push(await json(await request(mf, devApi(ACCOUNT_PROFILE_PATH), { subject })));
+  }
+  const before = await readSubscriptionState({ DB: devDb });
+  const text = [1, 2, 3].map((number) => {
+    const query = new URLSearchParams({ security: "reality", type: "tcp", encryption: "none", flow: "xtls-rprx-vision",
+      sni: "target.example.com", pbk: Buffer.alloc(32, number).toString("base64url"), sid: "0123456789abcdef", fp: "chrome", spx: "/" });
+    return `vless://00000000-0000-4000-8000-${String(number).padStart(12, "0")}@node.example.com:8443?${query}#${encodeURIComponent(`🇭🇰 HongKong-ISP-${number}`)}`;
+  }).join("\n");
+  const imported = await json(await request(mf, devApi(POOL_IMPORT_PATH), { subject: "admin", method: "POST", body: { nodes: existing, text } }));
+  assert.equal(imported.added, 3);
+  assert.deepEqual(await readSubscriptionState({ DB: devDb }), before);
+  await json(await request(mf, devApi(POOL_NODES_PATH), { subject: "admin", method: "PUT", body: { revision: 1, nodes: imported.nodes } }));
+  const after = await readSubscriptionState({ DB: devDb });
+  assert.deepEqual(after.rows.users, before.rows.users);
+  assert.deepEqual(after.rows.assignments, before.rows.assignments);
+  assert.equal(after.rows.nodes.reduce((sum, node) => sum + node.assignment_count, 0), 6);
+  const orders = [[1, 2, 3], [2, 3, 1], [3, 1, 2], [1, 3, 2], [2, 1, 3], [3, 2, 1]];
+  for (const [index, user] of accounts.entries()) {
+    assert.equal(new URL(user.subscriptionUrl).pathname, "/AtlasRouter-Dev");
+    const response = await request(mf, user.subscriptionUrl);
+    assert.equal(response.status, 200);
+    const profile = await response.text();
+    const expected = orders[index].flatMap((number) => [`🇭🇰 HongKong ISP-${number}`, `🇭🇰 HK ISP-${number}`]);
+    assert.deepEqual(fallbackMembers(profile, "🇭🇰HK-ISP"), expected);
+    assert.match(profile, /^🇭🇰 HongKong ISP-1 = vless,/m);
+    assert.match(profile, /^🇭🇰 HK ISP-1 = vmess,/m);
+    assert.match(profile, /^FINAL,FINAL,dns-failed$/m);
+    assert.match(profile, /AtlasRouter@develop\/surge\/rule-sets\//);
+    assert.equal(await (await request(mf, user.subscriptionUrl)).text(), profile);
+    const clash = parseYaml(await (await request(mf, user.subscriptionUrl + "&client=clash")).text());
+    assert.deepEqual(clash["proxy-groups"].find((group) => group.name === "🇭🇰HK-ISP").proxies,
+      orders[index].map((number) => `🇭🇰 HK ISP-${number}`));
+  }
+  assert.equal((await request(mf, "/AtlasRouter-Dev?token=invalid")).status, 401);
+  assert.equal((await request(mf, "/AtlasRouter-Dev/modules/missing")).status, 404);
+  assert.equal((await request(mf, devApi(POOL_IMPORT_PATH), { subject: "alice", method: "POST", body: { text, nodes: [] } })).status, 403);
+  assert.deepEqual(await readSubscriptionState({ DB: prodDb }), production);
+});
 
 test("development uses independent identities, tokens and node data with ordered fallback groups", async (t) => {
   const production = await createRuntime(t);

@@ -20,15 +20,16 @@ export async function readSubscriptionState(env) {
 }
 
 // Normal account/subscription reads use the unique email/token index and never
-// load other users' credentials. Co-owner order is needed for fallback rotation.
+// load other users' credentials. Group assignments include co-owners whose
+// legacy primary is stored on the other protocol variant of the same node.
 export async function readUserState(env, column, value) {
   const db = database(env);
   const [users, nodes, assignments] = await db.batch([
     db.prepare(`SELECT * FROM users WHERE ${column} = ?`).bind(value),
-    db.prepare(`SELECT * FROM nodes WHERE enabled = 1
-      AND EXISTS (SELECT 1 FROM users WHERE ${column} = ? AND enabled = 1) ORDER BY sort_order`).bind(value),
+    db.prepare(`SELECT * FROM nodes
+      WHERE EXISTS (SELECT 1 FROM users WHERE ${column} = ? AND enabled = 1) ORDER BY sort_order`).bind(value),
     db.prepare(`SELECT a.* FROM assignments a
-      JOIN assignments own ON own.node_id = a.node_id
+      JOIN assignments own ON own.group_name = a.group_name
       JOIN users u ON u.id = own.user_id
       WHERE u.${column} = ? AND u.enabled = 1 ORDER BY a.node_id, a.owner_order`).bind(value),
   ]);
@@ -86,11 +87,11 @@ export async function writeSubscriptionState(env, stored) {
   const oldNodes = new Map(before.nodes.map((row) => [row.id, row]));
   const newNodeIds = new Set(after.nodes.map((row) => row.id));
   const removedNodes = before.nodes.filter((row) => !newNodeIds.has(row.id));
-  // Remove deleted/renamed/regrouped rows first so name swaps work with UNIQUE/FK
+  // Remove deleted/renamed/regrouped/reordered rows first to satisfy UNIQUE/FK
   // constraints. Reinsert their assignments after the nodes, within this batch.
   const replacedNodes = after.nodes.filter((row) => {
     const old = oldNodes.get(row.id);
-    return old && (old.name !== row.name || old.group_name !== row.group_name);
+    return old && (old.name !== row.name || old.group_name !== row.group_name || old.sort_order !== row.sort_order);
   });
   const replacedIds = new Set(replacedNodes.map((row) => row.id));
   const assignmentKey = (row) => `${row.user_id}\0${row.group_name}`;

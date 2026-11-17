@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { magicRuleUrl } from "../src/magic-rules.js";
-import { identifyNodeGroup, parsePoolNodes, allocateNodes, accountView, userGroups } from "../src/node-pool.js";
+import { identifyNodeGroup, parsePoolNodes, allocateNodes, accountView, groupNodeVariants, userGroups } from "../src/node-pool.js";
 import { renderAccountPage } from "../src/pool-pages.js";
 import { renderSurgeProfile } from "../src/render-surge.js";
 import { surgeSections } from "../src/surge-format.js";
 import { getAdminRoutes } from "../src/routes.js";
+import { protocolNodes } from "../test-helpers/protocol-nodes.js";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 const ICON_BASE = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
@@ -91,6 +92,93 @@ test("shared primaries have distinct deterministic backup orders without changin
     ["ISP-1", "ISP-3", "ISP-2"], ["ISP-2", "ISP-1", "ISP-3"], ["ISP-3", "ISP-2", "ISP-1"],
   ]);
   assert.deepEqual(state.users.map((user) => userGroups(state, user.id)[0].nodes.map((node) => node.id)), orders);
+  assert.deepEqual(state, before);
+});
+
+test("VMess and VLESS for the same client share capacity and fallback visits both before the next node", () => {
+  const state = createState(3, 6);
+  state.nodes = parsePoolNodes(protocolNodes());
+  allocateNodes(state, NOW);
+  const before = structuredClone(state);
+  const orders = [[1, 2, 3], [2, 3, 1], [3, 1, 2], [1, 3, 2], [2, 1, 3], [3, 2, 1]];
+  for (const [index, user] of state.users.entries()) {
+    const [group] = userGroups(state, user.id);
+    assert.equal(group.primaryId, `vless-${orders[index][0]}`);
+    assert.deepEqual(group.nodes.map((node) => node.id), orders[index].flatMap((id) => [`vless-${id}`, `vmess-${id}`]));
+  }
+  assert.deepEqual(groupNodeVariants(state.nodes).map((node) => node.ownerIds.length), [2, 2, 2]);
+  assert.equal(state.nodes.reduce((sum, node) => sum + node.assignmentCount, 0), 6);
+  assert.doesNotMatch(JSON.stringify(accountView(state, state.users[0])), /00000000-0000|node\.example\.com|username|reality-public-key/);
+  assert.deepEqual(state, before);
+});
+
+test("adding, disabling, deleting and restoring protocol variants preserves logical ownership and history", () => {
+  const entries = protocolNodes();
+  const state = createState(3, 8);
+  state.nodes = parsePoolNodes(entries.slice(0, 3));
+  allocateNodes(state, NOW);
+  const ownership = () => groupNodeVariants(state.nodes).map(({ key, ownerIds, assignmentCount, firstAssignedAt }) =>
+    ({ key, ownerIds, assignmentCount, firstAssignedAt }));
+  const before = structuredClone(ownership());
+  state.nodes = parsePoolNodes([...entries].reverse(), state.nodes);
+  allocateNodes(state, NOW);
+  assert.deepEqual(ownership(), before);
+  state.nodes = parsePoolNodes(entries.map((entry) => ({ ...entry, enabled: entry.id !== "vmess-2" })), state.nodes);
+  allocateNodes(state, NOW);
+  assert.deepEqual(ownership(), before);
+  assert.deepEqual(userGroups(state, "user-1")[0].nodes.map((node) => node.id), ["vless-2", "vless-3", "vmess-3", "vless-1", "vmess-1"]);
+  state.nodes = parsePoolNodes(entries.filter((entry) => entry.id !== "vmess-2"), state.nodes);
+  allocateNodes(state, NOW);
+  assert.deepEqual(ownership(), before);
+  state.nodes = parsePoolNodes(entries, state.nodes);
+  allocateNodes(state, NOW);
+  assert.deepEqual(ownership(), before);
+  state.nodes = parsePoolNodes(entries.map((entry) => ({ ...entry, enabled: entry.id !== "vless-2" })), state.nodes);
+  allocateNodes(state, NOW);
+  assert.deepEqual(ownership(), before);
+  assert.equal(userGroups(state, "user-1")[0].primaryId, "vmess-2");
+  state.nodes = parsePoolNodes(entries.map((entry) => ({ ...entry, enabled: !entry.id.endsWith("-2") })), state.nodes);
+  allocateNodes(state, NOW);
+  assert.deepEqual(groupNodeVariants(state.nodes).map((node) => node.ownerIds.length), [4, 0, 4]);
+  assert.ok(userGroups(state, "user-1")[0].nodes.every((node) => !node.id.endsWith("-2")));
+});
+
+test("pairing requires the same server, UUID and group and keeps ambiguous or unrelated entries separate", () => {
+  const pair = protocolNodes(1);
+  assert.equal(groupNodeVariants(parsePoolNodes(pair)).length, 1);
+  const uppercase = pair.map((entry) => ({ ...entry, line: entry.line.replace("node.example.com", "NODE.EXAMPLE.COM") }));
+  assert.equal(groupNodeVariants(parsePoolNodes([pair[0], uppercase[1]])).length, 1);
+  const ipv6 = pair.map((entry, index) => ({ ...entry, line: entry.line.replace("node.example.com", index ? "[2001:db8::1]" : "2001:0db8::1") }));
+  assert.equal(groupNodeVariants(parsePoolNodes(ipv6)).length, 1);
+  for (const [from, to] of [
+    ["node.example.com", "other.example.com"], ["8000-000000000001", "8000-000000000002"],
+    ["🇭🇰", "🇺🇸"], ["ISP", "IDC"], ["00000000-0000-4000-8000-000000000001", "client-alias"],
+  ]) {
+    const changed = { ...pair[1], line: pair[1].line.replace(from, to) };
+    assert.equal(groupNodeVariants(parsePoolNodes([pair[0], changed])).length, 2);
+  }
+  const duplicate = { ...pair[0], id: "alias", line: pair[0].line.replace("HK-ISP", "HK Alias-ISP") };
+  assert.equal(groupNodeVariants(parsePoolNodes([...pair, duplicate])).length, 3);
+  assert.equal(groupNodeVariants(parsePoolNodes([...pair, { ...duplicate, enabled: false }])).length, 3);
+  assert.equal(groupNodeVariants(parsePoolNodes([pair[0], { ...duplicate, line: duplicate.line.replace("vmess,", "trojan,") }])).length, 2);
+});
+
+test("paired subscriptions normalize compact names and keep fallback and DoH references valid", () => {
+  const state = createState(3, 1);
+  state.nodes = parsePoolNodes(protocolNodes().concat(protocolNodes(1).map((node) => ({
+    ...node, id: `idc-${node.id}`, line: node.line.replace("ISP", "IDC"),
+  }))));
+  allocateNodes(state, NOW);
+  const groups = userGroups(state, "user-0");
+  const before = structuredClone(state);
+  const config = renderSurgeProfile({ requestUrl: "https://atlas.example/AtlasRouter-Dev", token: "test-token",
+    groups, nodes: groups.flatMap((group) => group.nodes), repositoryRulesRef: "develop" });
+  assert.match(config, /^🇭🇰HK-ISP = fallback, 🇭🇰 HongKong ISP-1, 🇭🇰 HK ISP-1, 🇭🇰 HongKong ISP-2, 🇭🇰 HK ISP-2, 🇭🇰 HongKong ISP-3, 🇭🇰 HK ISP-3, interval=300$/m);
+  assert.match(config, /^DoH Proxy = smart, 🇭🇰 HongKong IDC-1, 🇭🇰 HK IDC-1,/m);
+  assert.match(config, /^🇭🇰 HongKong ISP-1 = vless,/m);
+  assert.match(config, /^🇭🇰 HK ISP-1 = vmess,/m);
+  assert.match(config, /^FINAL,FINAL,dns-failed$/m);
+  assert.doesNotMatch(config, /HongKong-ISP|HK-ISP-\d|HongKong-IDC|HK-IDC-\d/);
   assert.deepEqual(state, before);
 });
 

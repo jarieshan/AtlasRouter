@@ -1,5 +1,5 @@
 import { HttpError } from "./errors.js";
-import { accountView, allocateNodes, parsePoolNodes, userGroups } from "./node-pool.js";
+import { accountView, allocateNodes, groupNodeVariants, parsePoolNodes, userGroups } from "./node-pool.js";
 import { readSubscriptionState, readUserState, writeSubscriptionState } from "./subscription-db.js";
 import { isPreviewIdentity } from "./page-preview.js";
 import { resetPoolNodes } from "./node-import.js";
@@ -96,9 +96,15 @@ function operate(state, input) {
 }
 
 function inventoryView(state) {
+  const pairs = new Map(groupNodeVariants(state.nodes).filter((node) => node.members.length > 1)
+    .flatMap((node) => node.members.map((member) => [member.id, node])));
   return {
     revision: state.revision,
-    nodes: state.nodes,
+    nodes: state.nodes.map((node) => {
+      const pair = pairs.get(node.id);
+      return pair ? { ...node, allocationId: pair.anchor.id, ownerIds: node.enabled ? pair.ownerIds : [],
+        assignmentCount: pair.assignmentCount, firstAssignedAt: pair.firstAssignedAt } : node;
+    }),
     users: state.users.map((user) => {
       const { subscribeToken, ...view } = accountView(state, user);
       return { ...view, enabled: user.enabled, createdAt: user.createdAt };

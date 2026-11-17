@@ -1,5 +1,6 @@
 import { HttpError } from "./errors.js";
 import { parseNodesConfig } from "./nodes.js";
+import { splitSurgeList, surgeOptions, surgeValue } from "./surge-format.js";
 
 export function identifyNodeGroup(name) {
   const flags = name.match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu) ?? [];
@@ -58,16 +59,82 @@ export function parsePoolNodes(entries, previous = []) {
   }
   // An editor's row ordering must not silently change every user's fallback order.
   const byId = new Map(parsed.map((node) => [node.id, node]));
-  const retained = previous.map((node) => byId.get(node.id)).filter(Boolean);
-  return [...retained, ...parsed.filter((node) => !oldNodes.has(node.id))];
+  const previousGroups = groupNodeVariants(previous);
+  const retained = previousGroups.flatMap((node) => node.members.map((member) => byId.get(member.id))).filter(Boolean);
+  const ordered = [...retained, ...parsed.filter((node) => !oldNodes.has(node.id))];
+  const replacements = new Map(groupNodeVariants(ordered).map((node) => [node.key, node]));
+  for (const previousNode of previousGroups) {
+    const replacement = replacements.get(previousNode.key);
+    if (previousNode.members.length < 2 || !replacement) continue;
+    const removed = previousNode.members.filter((node) => !byId.has(node.id));
+    const anchor = replacement.anchor;
+    anchor.ownerIds = [...new Set([...anchor.ownerIds, ...removed.flatMap((node) => node.ownerIds)])];
+    anchor.assignmentCount += removed.reduce((count, node) => count + node.assignmentCount, 0);
+    anchor.firstAssignedAt = [anchor.firstAssignedAt, ...removed.map((node) => node.firstAssignedAt)].filter(Boolean).sort()[0] ?? null;
+  }
+  return ordered;
+}
+
+// Pair one VMess and one VLESS endpoint for the same server-side client.
+// Ambiguous inventories retain separate entries instead of choosing a pairing.
+export function groupNodeVariants(nodes) {
+  const identities = new Map(nodes.map((node) => [node.id, nodeIdentity(node)]));
+  const candidates = new Map();
+  for (const node of nodes) {
+    const { key } = identities.get(node.id);
+    if (!candidates.has(key)) candidates.set(key, []);
+    candidates.get(key).push(node);
+  }
+  const seen = new Set();
+  const result = [];
+  for (const node of nodes) {
+    if (seen.has(node.id)) continue;
+    const identity = identities.get(node.id);
+    const candidatesForNode = candidates.get(identity.key);
+    const paired = candidatesForNode.length === 2
+      && new Set(candidatesForNode.map((member) => identities.get(member.id).protocol)).size === 2;
+    const members = paired ? candidatesForNode : [node];
+    for (const member of members) seen.add(member.id);
+    const enabled = members.filter((member) => member.enabled);
+    result.push({
+      key: paired || candidatesForNode.length === 1 ? identity.key : `node:${node.id}`,
+      group: node.group,
+      members,
+      anchor: enabled[0] ?? node,
+      variants: [...enabled].sort((a, b) => Number(identities.get(a.id).protocol === "vmess") - Number(identities.get(b.id).protocol === "vmess")),
+      ownerIds: [...new Set(members.flatMap((member) => member.ownerIds))],
+      assignmentCount: members.reduce((count, member) => count + member.assignmentCount, 0),
+      firstAssignedAt: members.map((member) => member.firstAssignedAt).filter(Boolean).sort()[0] ?? null,
+    });
+  }
+  return result;
+}
+
+function nodeIdentity(node) {
+  try {
+    const [type, host, , ...parameters] = splitSurgeList(node.value);
+    const protocol = type.toLowerCase();
+    if (["vless", "vmess"].includes(protocol)) {
+      const username = surgeOptions(parameters).get("username");
+      if (/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(username ?? "")) {
+        const address = surgeValue(host);
+        const authority = address.includes(":") && !address.startsWith("[") ? `[${address}]` : address;
+        const server = new URL(`http://${authority}`).hostname.toLowerCase().replace(/\.$/, "");
+        return { protocol, key: JSON.stringify([node.group, server, username.toLowerCase()]) };
+      }
+    }
+  } catch { /* Invalid or unsupported connection formats keep their own allocation. */ }
+  return { protocol: null, key: `node:${node.id}` };
 }
 
 export function allocateNodes(state, now) {
   const activeUsers = new Set(state.users.filter((user) => user.enabled).map((user) => user.id));
+  const logicalNodes = groupNodeVariants(state.nodes);
+  const previousCounts = new Map(logicalNodes.map((node) => [node.key, node.assignmentCount]));
   const groups = new Map();
-  for (const node of state.nodes) {
-    node.ownerIds = node.enabled ? node.ownerIds.filter((id) => activeUsers.has(id)) : [];
-    if (!node.enabled) continue;
+  for (const node of logicalNodes) {
+    node.ownerIds = node.variants.length ? node.ownerIds.filter((id) => activeUsers.has(id)) : [];
+    if (!node.variants.length) continue;
     if (!groups.has(node.group)) groups.set(node.group, []);
     groups.get(node.group).push(node);
   }
@@ -90,6 +157,12 @@ export function allocateNodes(state, now) {
       assign(least, most.ownerIds.pop(), now);
     }
   }
+  for (const node of logicalNodes) {
+    for (const member of node.members) member.ownerIds = [];
+    node.anchor.ownerIds = node.ownerIds;
+    node.anchor.assignmentCount += node.assignmentCount - previousCounts.get(node.key);
+    node.anchor.firstAssignedAt ??= node.firstAssignedAt;
+  }
 }
 
 function assign(node, userId, now) {
@@ -100,8 +173,8 @@ function assign(node, userId, now) {
 
 export function userGroups(state, userId) {
   const groups = new Map();
-  for (const node of state.nodes) {
-    if (!node.enabled) continue;
+  for (const node of groupNodeVariants(state.nodes)) {
+    if (!node.variants.length) continue;
     if (!groups.has(node.group)) groups.set(node.group, []);
     groups.get(node.group).push(node);
   }
@@ -114,8 +187,8 @@ export function userGroups(state, userId) {
     const offset = backups.length ? primary.ownerIds.indexOf(userId) % backups.length : 0;
     return {
       group,
-      primaryId: primary.id,
-      nodes: [primary, ...backups.slice(offset), ...backups.slice(0, offset)],
+      primaryId: primary.variants[0].id,
+      nodes: [primary, ...backups.slice(offset), ...backups.slice(0, offset)].flatMap((node) => node.variants),
     };
   });
 }

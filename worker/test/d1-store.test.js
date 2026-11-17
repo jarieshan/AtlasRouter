@@ -1,16 +1,87 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createWriteBatch, database } from "../src/d1-store.js";
-import { allocateNodes, parsePoolNodes, userGroups } from "../src/node-pool.js";
+import { allocateNodes, groupNodeVariants, parsePoolNodes, userGroups } from "../src/node-pool.js";
 import { readSubscriptionState, writeSubscriptionState } from "../src/subscription-db.js";
 import { callSubscriptionStore } from "../src/subscription-store.js";
 import { createD1Env } from "../test-helpers/d1.js";
+import { protocolNodes } from "../test-helpers/protocol-nodes.js";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 const user = (index) => ({ id: `user-${index}`, email: `user-${index}@example.com`, subscribeToken: `test-token-${index}`, enabled: true, createdAt: NOW });
 const entries = (count = 3) => Array.from({ length: count }, (_, index) => ({
   id: `node-${index}`, line: `🇺🇸 Example - ISP ${index} = trojan, node-${index}.example.com, 443, password=TEST_ONLY`,
 }));
+
+test("legacy assignments on either protocol retain co-owner order and normalize atomically", async () => {
+  const env = createD1Env();
+  const stored = await readSubscriptionState(env);
+  stored.state.nodes = parsePoolNodes(protocolNodes());
+  stored.state.users = Array.from({ length: 6 }, (_, index) => user(index));
+  for (const [index, node] of stored.state.nodes.entries()) {
+    node.ownerIds = [user(index).id];
+    node.assignmentCount = 1;
+    node.firstAssignedAt = NOW;
+  }
+  assert.equal(await writeSubscriptionState(env, stored), true);
+  const before = await readSubscriptionState(env);
+  for (const person of stored.state.users) {
+    const result = await callSubscriptionStore(env, { action: "subscription", token: person.subscribeToken });
+    assert.deepEqual(result.groups, userGroups(stored.state, person.id));
+  }
+  assert.deepEqual(await readSubscriptionState(env), before, "subscription reads do not rewrite legacy data");
+  const saved = await callSubscriptionStore(env, { action: "save-inventory", revision: 0, nodes: protocolNodes() });
+  const after = await readSubscriptionState(env);
+  assert.equal(after.rows.assignments.length, 6);
+  assert.equal(new Set(after.rows.assignments.map((row) => row.node_id)).size, 3);
+  assert.deepEqual(after.rows.users, before.rows.users);
+  assert.deepEqual(groupNodeVariants(after.state.nodes).map((node) => node.assignmentCount), [2, 2, 2]);
+  for (const node of saved.nodes) {
+    assert.equal(node.ownerIds.length, 2);
+    assert.equal(node.assignmentCount, 2);
+    assert.equal(node.allocationId, node.id.replace("vless", "vmess"));
+  }
+  for (const person of stored.state.users) {
+    const expected = userGroups(stored.state, person.id)[0].nodes.map((node) => node.id);
+    const result = await callSubscriptionStore(env, { action: "subscription", token: person.subscribeToken });
+    assert.deepEqual(result.groups[0].nodes.map((node) => node.id), expected);
+  }
+});
+
+test("paired variants preserve allocation when the stored primary is disabled or removed", async () => {
+  const env = createD1Env();
+  const inventory = protocolNodes();
+  await callSubscriptionStore(env, { action: "save-inventory", revision: 0, nodes: inventory.slice(0, 3) });
+  for (let index = 0; index < 8; index += 1) await callSubscriptionStore(env, { action: "account", identity: { email: user(index).email } });
+  const before = await readSubscriptionState(env);
+  const ownership = (state) => groupNodeVariants(state.nodes).map(({ key, ownerIds, assignmentCount }) => ({ key, ownerIds, assignmentCount }));
+  for (const [index, nodes] of [inventory,
+    inventory.map((node) => ({ ...node, enabled: node.id !== "vmess-2" })),
+    inventory.filter((node) => node.id !== "vmess-2"), inventory,
+  ].entries()) {
+    await callSubscriptionStore(env, { action: "save-inventory", revision: index + 1, nodes });
+    const after = await readSubscriptionState(env);
+    assert.equal(after.rows.assignments.length, 8);
+    assert.deepEqual(ownership(after.state), ownership(before.state));
+    for (const person of after.state.users) {
+      const result = await callSubscriptionStore(env, { action: "subscription", token: person.subscribeToken });
+      assert.deepEqual(result.groups, userGroups(after.state, person.id));
+    }
+  }
+});
+
+test("fast subscription reads apply the same ambiguity rules to disabled variants", async () => {
+  const env = createD1Env();
+  const inventory = protocolNodes();
+  const duplicate = { ...inventory[0], id: "alias", enabled: false, line: inventory[0].line.replace("HK-ISP", "HK Alias-ISP") };
+  await callSubscriptionStore(env, { action: "save-inventory", revision: 0, nodes: [...inventory, duplicate] });
+  for (let index = 0; index < 6; index += 1) await callSubscriptionStore(env, { action: "account", identity: { email: user(index).email } });
+  const stored = await readSubscriptionState(env);
+  for (const person of stored.state.users) {
+    const result = await callSubscriptionStore(env, { action: "subscription", token: person.subscribeToken });
+    assert.deepEqual(result.groups, userGroups(stored.state, person.id));
+  }
+});
 
 test("relational compare-and-swap commits one allocation and leaves no rows from a losing request", async () => {
   const env = createD1Env();

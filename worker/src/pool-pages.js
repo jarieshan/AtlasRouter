@@ -534,16 +534,16 @@ function poolPanel(adminRoutes) {
     </div>
   </div>
   <article class="card">
-    <header class="card-head"><h3>录入节点</h3><p>每行粘贴一个 HTTPS 订阅链接（VMess 内容）、vmess:// 链接或完整 Surge 节点。自动转换并跳过已有连接配置，每次最多 20 个订阅链接。</p></header>
+    <header class="card-head"><h3>录入节点</h3><p>每行粘贴一个 HTTPS 订阅链接、vmess://、vless:// 链接或完整 Surge 节点。VLESS 链接支持 TCP + REALITY + Vision。自动转换并跳过已有连接配置，每次最多 20 个订阅链接。</p></header>
     <div class="card-body">
       <label class="field-label" for="import">节点链接或 Surge 节点清单</label>
-      <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="每行一条：HTTPS 订阅链接、vmess:// 链接或 Surge 节点"></textarea>
+      <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="每行一条 HTTPS 订阅链接、vmess://、vless:// 链接或 Surge 节点"></textarea>
       <p class="hint">按节点名称中的地区旗帜和 IDC / ISP / WARP 关键词分组。可用“节点名 = 链接”指定名称，例如：<code>🇺🇸 LosAngeles - ISP 1 = https://subscription.example.com/node</code></p>
       <div class="actions"><button id="append" class="tonal" disabled>${icon("plus")}转换并加入待保存清单</button></div>
       <ul id="import-notes" class="notes" aria-live="polite"></ul>
       <details class="editor"><summary>编辑完整清单 / 停用或移除节点</summary>
         <div class="editor-body">
-          <p class="hint">编辑已有节点时保留 id，可维持归属与顺序。将 enabled 改为 false 可停用并保留历史；从 JSON 数组中删除整条节点记录，保存后会永久移除该节点及其历史，受影响用户自动重新分配到同组剩余节点。</p>
+          <p class="hint">编辑已有节点时保留 id，可维持归属与顺序。将 enabled 改为 false 可停用并保留历史。删除记录会移除该连接，用户重新分配到剩余启用节点。同一节点的另一协议连接会接续分配历史。</p>
           <label class="field-label" for="inventory">节点 JSON</label>
           <textarea id="inventory" rows="14" spellcheck="false" autocomplete="off"></textarea>
         </div>
@@ -613,7 +613,9 @@ function poolPanel(adminRoutes) {
           let draft;
           try { draft = JSON.parse(editor.value); } catch { throw new Error("完整清单的 JSON 有误，请先修正后再删除。"); }
           if (!Array.isArray(draft)) throw new Error("完整清单必须为 JSON 数组，请先修正后再删除。");
-          if (!confirm("确定永久删除「" + node.name + "」？\n该节点当前分配给 " + node.ownerIds.length + " 位用户，历史统计也会删除。用户将重新分配到同组剩余节点；同组无可用节点时移除该组。")) return;
+          const impact = node.allocationId ? "其分配和历史统计将保留在同一节点的另一协议连接上，并重新计算主备顺序。"
+            : "该节点当前分配给 " + node.ownerIds.length + " 位用户，历史统计也会删除。用户将重新分配到同组剩余节点；同组无可用节点时移除该组。";
+          if (!confirm("确定永久删除「" + node.name + "」？\n" + impact)) return;
           const data = await api(${JSON.stringify(adminRoutes.nodes)}, "PUT", {
             revision: editorRevision,
             nodes: state.nodes.filter((candidate) => candidate.id !== node.id).map(({ id, line, enabled }) => ({ id, line, enabled })),
@@ -662,7 +664,7 @@ function poolPanel(adminRoutes) {
         users.append(row);
       }
       if (!state.users.length) users.append(emptyRow(4, "暂无用户。"));
-      const enabled = state.nodes.filter((node) => node.enabled);
+      const enabled = [...new Map(state.nodes.filter((node) => node.enabled).map((node) => [node.allocationId || node.id, node])).values()];
       root.querySelector("#counts").replaceChildren(metric("启用节点", enabled.length), metric("空闲节点", enabled.filter((node) => !node.ownerIds.length).length), metric("用户", state.users.length));
     }
     async function run(action) {

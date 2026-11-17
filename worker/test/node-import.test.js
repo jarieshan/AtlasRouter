@@ -15,7 +15,51 @@ function vmess(overrides = {}, encoding = "base64") {
 function native(name = "🇺🇸 Existing - ISP 1", extras = "") {
   return `${name} = vmess, node.example.com, 443, username=${UUID}, tls=true, vmess-aead=true${extras}`;
 }
+function vless(overrides = {}, name = "🇭🇰 HongKong-ISP-1", host = "node.example.com:8443") {
+  const query = new URLSearchParams({ type: "tcp", security: "reality", encryption: "none", flow: "xtls-rprx-vision",
+    sni: "target.example.com", pbk: Buffer.alloc(32, 1).toString("base64url"), sid: "0123456789abcdef",
+    fp: "chrome", spx: "/", ...overrides });
+  return `vless://${UUID}@${host}?${query}#${encodeURIComponent(name)}`;
+}
 function unreachable() { assert.fail("must not fetch"); }
+
+test("converts REALITY Vision links and mixed Base64 subscriptions with both protocols", async () => {
+  const result = await importPoolNodes({ text: URL, nodes: [] }, async () => new Response(Buffer.from([
+    vmess({ ps: "🇭🇰 HK-ISP-1" }), vless(),
+  ].join("\n")).toString("base64")));
+  assert.equal(result.added, 2);
+  assert.equal(result.nodes[1].line, `🇭🇰 HongKong-ISP-1 = vless, node.example.com, 8443, username=${UUID}, flow=xtls-rprx-vision, sni=target.example.com, reality-public-key=${Buffer.alloc(32, 1).toString("base64url")}, reality-short-id=0123456789abcdef`);
+  assert.ok(result.warnings.some((warning) => warning.includes("iOS 6.0.0+ / Mac 6.12.0+")));
+  assert.doesNotMatch(result.nodes[1].line, /fp=|spx=/);
+  assert.deepEqual(parsePoolNodes(result.nodes).map((node) => node.group), ["🇭🇰HK-ISP", "🇭🇰HK-ISP"]);
+  const repeated = await importPoolNodes({ text: vless({ type: "raw" }), nodes: result.nodes }, unreachable);
+  assert.equal(repeated.added, 0);
+  assert.equal(repeated.duplicates, 1);
+  assert.deepEqual(repeated.nodes, result.nodes);
+});
+
+test("VLESS imports support explicit names, IPv6, empty short IDs and quoted ALPN", async () => {
+  const result = await importPoolNodes({
+    text: `🇭🇰 HK-IDC-1 = ${vless({ sid: "", alpn: "h2,http/1.1" }, "bad,name", "[2001:db8::1]:8443")}`, nodes: [],
+  }, unreachable);
+  assert.match(result.nodes[0].line, /^🇭🇰 HK-IDC-1 = vless, \[2001:db8::1\], 8443,/);
+  assert.match(result.nodes[0].line, /reality-short-id=, alpn="h2,http\/1.1"$/);
+});
+
+test("rejects invalid or unsupported VLESS parameters without echoing connection credentials", async () => {
+  for (const text of [
+    vless({ type: "ws" }), vless({ type: "grpc" }), vless({ security: "tls" }), vless({ flow: "" }),
+    vless({ encryption: "PRIVATE_TEST_ONLY" }), vless({ headerType: "http" }), vless({ extra: "PRIVATE_TEST_ONLY" }),
+    vless({ pbk: "PRIVATE_TEST_ONLY" }), vless({ sid: "abc" }), vless({ sid: "000000000000000000" }),
+    vless({ sni: "target.example.com\n[Rule]" }), vless({ alpn: "h2,,http/1.1" }),
+    vless().replace(UUID, "PRIVATE_TEST_ONLY"), vless().replace(":8443", ":0"),
+    vless().replace(":8443", ":70000"), vless().replace("?", "?security=reality&"),
+    vless().replace("@", ":PRIVATE_TEST_ONLY@"), vless().replace("?", "/path?"),
+  ]) {
+    await assert.rejects(importPoolNodes({ text, nodes: [] }, unreachable), (error) =>
+      error.status === 400 && !error.message.includes("PRIVATE_TEST_ONLY") && !error.message.includes(UUID));
+  }
+});
 
 test("resetting keeps every production definition in order with fresh identities and no source history", () => {
   const source = [
@@ -280,7 +324,7 @@ test("rejects non-public URLs and recursive subscription URLs without making req
   await assert.rejects(importPoolNodes({ text: URL, nodes: [] }, async () => {
     calls += 1;
     return new Response("https://another.example.com/PRIVATE_TEST_ONLY");
-  }), /仅支持/);
+  }), /支持 HTTPS 订阅/);
   assert.equal(calls, 1);
 });
 

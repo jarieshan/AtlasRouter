@@ -1,4 +1,5 @@
 import { HttpError } from "./errors.js";
+import { splitSurgeList, surgeValue } from "./surge-format.js";
 
 export function parseNodesConfig(value) {
   const entries = expandNodesConfig(value);
@@ -29,6 +30,36 @@ export function serializeNodesConfig(nodes) {
 
 export function renderProxyLines(nodes) {
   return nodes.map((node) => node.line).join("\n");
+}
+
+export function subscriptionNodes(nodes) {
+  const names = new Map();
+  const used = new Set(nodes.flatMap((node) => [node.name, node.group]));
+  // Resolve collisions independently of each user's fallback order.
+  for (const node of [...nodes].sort((a, b) => a.name.localeCompare(b.name))) {
+    const base = node.name.replace(/([^\s-])-(?=(?:ISP|IDC|WARP)(?=$|[^a-z0-9]))/i, "$1 ");
+    let name = base;
+    if (name !== node.name) {
+      let suffix = 2;
+      while (used.has(name)) name = `${base} (${suffix++})`;
+    }
+    used.add(name);
+    names.set(node.name, name);
+  }
+  return nodes.map((node) => {
+    const name = names.get(node.name);
+    let value = node.value;
+    if (/(?:^|,)\s*underlying-proxy\s*=/i.test(value)) {
+      value = splitSurgeList(value).map((part) => {
+        const option = part.match(/^underlying-proxy\s*=\s*(.+)$/i);
+        if (!option) return part;
+        const previous = surgeValue(option[1]);
+        const replacement = names.get(previous);
+        return replacement && replacement !== previous ? `underlying-proxy=${JSON.stringify(replacement)}` : part;
+      }).join(", ");
+    }
+    return { ...node, name, value, line: `${name} = ${value}` };
+  });
 }
 
 function parseNodeConfig(node, index, nodeNames) {

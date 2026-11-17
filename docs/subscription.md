@@ -103,6 +103,8 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 正式与开发配置均按地区/IP 类型生成 `fallback` 组，ISP、WARP、IDC 组的成员依照每位用户的主节点、备用节点排列，选择首个可用节点。Surge 与 Clash 均配置 `interval=300`，Surge 将该值作为测速结果有效期，Clash 按自身健康检查调度执行。节点不足时允许共享主节点。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则，最终保留 `FINAL` 兜底规则。订阅省略 `[MITM]` 段。分配规则见 [multi-user.md](multi-user.md)。
 
+同组、同服务器、同 UUID 的一对 VLESS / VMess 连接共享分配，Surge 按当前节点的 VLESS → VMess → 下一节点的 VLESS → VMess 顺序回退。Clash 输出当前转换器支持的 VMess 连接，沿用配对后的节点顺序。生成两种订阅时，`🇭🇰 HongKong-ISP-1` 这类名称转换为 `🇭🇰 HongKong ISP-1`，同步更新节点引用。[协议配对与命名规则](multi-user.md)
+
 Surge 的直连测速地址为 `http://bing.com/`，代理测速地址为 `http://cp.cloudflare.com/generate_204`，全局 `test-timeout=10`，DIRECT 测速也使用客户端内置的 10 秒超时。Clash 自动代理组使用同一代理测速地址，配置 `timeout: 10000`、`interval: 300` 和 `expected-status: 204`。Clash 界面中的 DIRECT 单节点测速通过客户端请求传入地址与超时，使用 Bing 和 10 秒超时需要客户端传入对应参数。[ProjectClash 测速接口](https://github.com/ProjectClash/Clash/blob/master/hub/route/proxies.go)
 
 正式和开发订阅的兜底规则指向独立可见的手动选择组：`FINAL,FINAL,dns-failed`。`FINAL` 组选项按 Auto → Proxy → IDC → WARP → ISP → DIRECT 排列，地区/IP 类型分组内部保持现有地区顺序，缺少的类型跳过。首次使用默认 `Auto`。这里是手动选项顺序，不是故障自动回退顺序；客户端会保留仍有效的手动选择。Clash 对应可见的 `select` 组和 `MATCH,FINAL`。

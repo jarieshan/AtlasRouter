@@ -1,7 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseNodesConfig, renderProxyLines, serializeNodesConfig } from "../src/nodes.js";
+import { parseNodesConfig, renderProxyLines, serializeNodesConfig, subscriptionNodes } from "../src/nodes.js";
+
+test("subscription names replace compact region/type separators and retain numbered suffixes", () => {
+  const names = ["🇭🇰 HongKong-ISP-1", "🇭🇰 HK-IDC-1", "🇺🇸 US(LA)-WARP-1", "🇭🇰 Hong-Kong-isp-2",
+    "🇭🇰 HongKong - ISP 1", "🇭🇰 HongKong-ISPs-1"];
+  const nodes = parseNodesConfig({ group: "test", value: names.map((name) => `${name} = direct`) });
+  const before = structuredClone(nodes);
+  assert.deepEqual(subscriptionNodes(nodes).map((node) => node.name), ["🇭🇰 HongKong ISP-1", "🇭🇰 HK IDC-1",
+    "🇺🇸 US(LA) WARP-1", "🇭🇰 Hong-Kong isp-2", "🇭🇰 HongKong - ISP 1", "🇭🇰 HongKong-ISPs-1"]);
+  assert.deepEqual(nodes, before);
+});
+
+test("subscription names resolve collisions consistently and update underlying proxy references", () => {
+  const nodes = parseNodesConfig({ group: "test", value: [
+    "🇭🇰 HK-ISP-1 = socks5, node.example.com, 1080",
+    '🇭🇰 HK ISP-1 = socks5, other.example.com, 1080, underlying-proxy="🇭🇰 HK-ISP-1"',
+    "🇭🇰 HK ISP-1 (2) = direct",
+  ] });
+  const rendered = subscriptionNodes(nodes);
+  assert.equal(rendered[0].name, "🇭🇰 HK ISP-1 (3)");
+  assert.match(rendered[1].value, /underlying-proxy="🇭🇰 HK ISP-1 \(3\)"/);
+  assert.deepEqual(subscriptionNodes([...nodes].reverse()).reverse(), rendered);
+  assert.deepEqual(subscriptionNodes(rendered), rendered);
+});
 
 test("parses grouped node object config", () => {
   const nodes = parseNodesConfig({

@@ -259,3 +259,18 @@ test("inventory updates refresh the account without rotating its token or resett
   assert.match(fields.get(".status").textContent, /配置已就绪/);
   assert.equal(fields.get("#subscription").value, "https://atlas.example/AtlasRouter?token=TEST_ONLY&client=clash&doh=0&wifi_assist=1");
 });
+
+test("inventory counts paired protocols once and displays shared owners on both connections", async () => {
+  const nodes = ["vmess", "vless", "spare"].map((id) => ({
+    id, name: id, line: `${id} = direct`, enabled: true, group: "test",
+    allocationId: id === "spare" ? undefined : "vmess", ownerIds: id === "spare" ? [] : ["member"],
+    assignmentCount: id === "spare" ? 0 : 1,
+  }));
+  const page = await openPage({ respond: (url) => url.pathname.endsWith("/pool/state")
+    ? Response.json({ revision: 1, nodes, users: [{ id: "member", email: "member@example.com", enabled: true, groups: [] }] }) : null });
+  assert.deepEqual(page.pool.get("#counts").children.map((metric) => metric.children.map((item) => String(item.textContent))),
+    [["启用节点", "2"], ["空闲节点", "1"], ["用户", "1"]]);
+  const rows = page.pool.get("#nodes").children;
+  for (const row of rows.slice(0, 2)) assert.equal(row.children[2].children[0].textContent, "member@example.com");
+  assert.ok(JSON.parse(page.pool.get("#inventory").value).every((node) => Object.keys(node).sort().join() === "enabled,id,line"));
+});

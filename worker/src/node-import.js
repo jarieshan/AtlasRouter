@@ -27,7 +27,7 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
 
   const sources = inputs.map((entry) => {
     const named = !/^[a-z][a-z0-9+.-]*:\/\//i.test(entry.text)
-      && entry.text.match(/^(.+?)\s*=\s*((?:https|vmess):\/\/.+)$/i);
+      && entry.text.match(/^(.+?)\s*=\s*((?:https|vmess|vless):\/\/.+)$/i);
     return { ...entry, name: named ? validName(named[1].trim()) : null, source: named ? named[2] : entry.text };
   });
   const urls = new Set(sources.filter((entry) => /^https:\/\//i.test(entry.source)).map((entry) => subscriptionUrl(entry.source)));
@@ -110,8 +110,48 @@ function parseContent(content, name) {
   if (!lines.length || lines.length > MAX_NODES) throw invalid("订阅需包含 1 至 1000 个节点。");
   return lines.map((line) => {
     if (/^vmess:\/\//i.test(line)) return convertVmess(line, name);
+    if (/^vless:\/\//i.test(line)) return convertVless(line, name);
     return parseLine(name && line.indexOf("=") > 0 ? `${name} = ${line.slice(line.indexOf("=") + 1)}` : line);
   });
+}
+
+function convertVless(link, name) {
+  let url;
+  try { url = new URL(link); }
+  catch { throw invalid("VLESS 链接格式不正确。"); }
+  const id = decodeURIComponent(url.username);
+  if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)) throw invalid("VLESS UUID 不正确。");
+  if (url.password || !["", "/"].includes(url.pathname)) throw invalid("VLESS 链接格式不正确。");
+  const port = Number(url.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw invalid("VLESS 端口不正确。");
+  const query = url.searchParams;
+  const known = new Set(["type", "security", "encryption", "flow", "sni", "pbk", "sid", "fp", "spx", "headerType", "alpn"]);
+  for (const key of query.keys()) {
+    if (!known.has(key) || query.getAll(key).length !== 1) throw invalid("VLESS 含有尚未支持或重复的参数。");
+  }
+  if (!["tcp", "raw"].includes(query.get("type") || "tcp")
+    || query.get("security") !== "reality" || (query.get("encryption") || "none") !== "none"
+    || !["xtls-rprx-vision", "xtls-rprx-vision-udp443"].includes(query.get("flow"))
+    || !["", "none"].includes(query.get("headerType") || "")) {
+    throw invalid("VLESS 链接导入支持 TCP / RAW + REALITY + Vision。");
+  }
+  const publicKey = query.get("pbk") || "";
+  if (!/^[A-Za-z0-9+/_-]{43}=?$/.test(publicKey)) throw invalid("REALITY 公钥格式不正确。");
+  const shortId = query.get("sid") || "";
+  if (!/^(?:[a-f0-9]{2}){0,8}$/i.test(shortId)) throw invalid("REALITY short ID 格式不正确。");
+  const params = {
+    username: id.toLowerCase(), flow: query.get("flow"), sni: validHost(query.get("sni")),
+    "reality-public-key": publicKey, "reality-short-id": shortId.toLowerCase(),
+  };
+  if (query.get("alpn")) {
+    const alpn = query.get("alpn").split(",");
+    if (alpn.some((value) => !/^[a-z0-9./_-]+$/i.test(value))) throw invalid("ALPN 格式不正确。");
+    params.alpn = alpn.join(",");
+  }
+  const value = ["vless", validHost(url.hostname), String(port),
+    ...Object.entries(params).map(([key, value]) => `${key}=${quoteValue(value)}`)].join(", ");
+  const warnings = ["VLESS + REALITY + Vision 需要 Surge iOS 6.0.0+ / Mac 6.12.0+，REALITY 使用内置 Chrome ClientHello。"];
+  return { ...parseLine(`${validName(name || decodeURIComponent(url.hash.slice(1)) || "导入节点")} = ${value}`), warnings };
 }
 
 function convertVmess(link, name) {
@@ -194,7 +234,7 @@ function validHost(host) {
 
 function parseLine(line) {
   if (typeof line !== "string" || line.length > 4096 || /[\r\n]/.test(line)) throw invalid("Surge 节点必须是最多 4096 字符的单行配置。");
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(line)) throw invalid("仅支持 HTTPS 订阅、vmess:// 链接和 Surge 节点行。");
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(line)) throw invalid("支持 HTTPS 订阅、vmess://、vless:// 链接和 Surge 节点行。");
   const separator = line.indexOf("=");
   if (separator < 1) throw invalid("需要完整的“节点名 = 配置”Surge 节点行。");
   const name = validName(line.slice(0, separator));
