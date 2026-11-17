@@ -103,7 +103,7 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 正式与开发配置均按地区/IP 类型生成 `fallback` 组，ISP、WARP、IDC 组的成员依照每位用户的主节点、备用节点排列，选择首个可用节点。Surge 与 Clash 均配置 `interval=300`，Surge 将该值作为测速结果有效期，Clash 按自身健康检查调度执行。节点不足时允许共享主节点。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则，最终保留 `FINAL` 兜底规则。订阅省略 `[MITM]` 段。分配规则见 [multi-user.md](multi-user.md)。
 
-同组、同服务器、同 UUID 的 VLESS / VMess 共享分配，带 Hy2 协议标记的连接按唯一匹配的客户端名加入同一节点。Surge 按 VLESS → VMess → Hy2 回退，再尝试下一节点。Clash 按相同节点顺序输出 VMess → Hy2。生成两种订阅时，`🇭🇰 HongKong-ISP-1` 这类名称转换为 `🇭🇰 HongKong ISP-1`，同步更新节点引用。[协议配对与命名规则](multi-user.md)
+同组、同服务器、同 UUID 的 VLESS / VMess 共享分配，带 Hy2 协议标记的连接按唯一匹配的客户端名加入同一节点。Surge 和 Clash（Mihomo）的回退组都按 VLESS → VMess → Hy2 尝试当前节点已启用的协议，再尝试下一个节点。生成两种订阅时，`🇭🇰 HongKong-ISP-1` 这类名称转换为 `🇭🇰 HongKong ISP-1`，同步更新节点引用。[协议配对与命名规则](multi-user.md)
 
 Surge 的直连测速地址为 `http://bing.com/`，代理测速地址为 `http://cp.cloudflare.com/generate_204`，全局 `test-timeout=10`，DIRECT 测速也使用客户端内置的 10 秒超时。Clash 自动代理组使用同一代理测速地址，配置 `timeout: 10000`、`interval: 300` 和 `expected-status: 204`。Clash 界面中的 DIRECT 单节点测速通过客户端请求传入地址与超时，使用 Bing 和 10 秒超时需要客户端传入对应参数。[ProjectClash 测速接口](https://github.com/ProjectClash/Clash/blob/master/hub/route/proxies.go)
 
@@ -195,7 +195,8 @@ AppleTV 仍在 Apple 完整规则之前，其余 5 项位于 ISP First 之后、
 
 Surge 是唯一配置源：先按原逻辑生成完整 Surge 配置，再解析为结构化对象并用 YAML 序列化器输出 Clash。没有另一份需要同步维护的 Clash 分流模板。已支持的配置值、节点和规则变动会自动进入两种订阅。
 
-- 支持 VMess AEAD（TCP / WebSocket）、Hysteria 2、Trojan、常用 Shadowsocks、HTTP / HTTPS、SOCKS5 / SOCKS5-TLS。保留可映射的认证、TLS 校验、证书指纹、ALPN、WebSocket、UDP 和 TCP Fast Open 参数；未知连接参数或不支持的协议会移除整个节点，并清理无效成员、空组和相关规则。`sni=off` 无等价映射时移除节点，不能把 `off` 当成服务器名称。
+- 支持 VLESS（TCP + REALITY + Vision）、VMess AEAD（TCP / WebSocket）、Hysteria 2、Trojan、常用 Shadowsocks、HTTP / HTTPS、SOCKS5 / SOCKS5-TLS。保留可映射的认证、TLS 校验、证书指纹、ALPN、WebSocket、UDP 和 TCP Fast Open 参数。未知连接参数或不支持的协议会移除整个节点，并清理无效成员、空组和相关规则。`sni=off` 无等价映射时移除节点。
+- VLESS 使用节点的 SNI、公钥和字符串形式的 short ID，保留前导零。Mihomo 订阅启用 TLS、Vision、Chrome 指纹和 X25519MLKEM768，默认通过 XUDP 转发 UDP。[Mihomo VLESS](https://wiki.metacubex.one/config/proxies/vless/) · [Mihomo REALITY 参数](https://wiki.metacubex.one/config/proxies/tls/#reality-opts)
 - VMess、Trojan 按 [Surge 的协议默认能力](https://manual.nssurge.com/policies/udp.html)输出 `udp: true`；转换器将显式 `udp-relay=false` 保留为关闭，但不能依赖该开关在 Surge 的 VMess / Trojan 上禁用 UDP；Surge 官方将它列为其他协议的可选能力。Shadowsocks、SOCKS5 / SOCKS5-TLS 仍需显式启用。缺少 UDP 支持时，[Mihomo 跳过指向该代理的 UDP 规则](https://wiki.metacubex.one/config/rules/#%E4%BC%98%E5%85%88%E7%BA%A7)继续匹配，没有规则可用时直连；Surge 按 [`udp-policy-not-supported-behaviour`](https://manual.nssurge.com/policies/udp.html) 处理，默认 REJECT。因此规则的策略可能选中不支持 UDP 的节点时（含经策略组间接选中），转换器在该规则后追加只匹配 UDP 的 `AND,((NETWORK,UDP),(<原条件>)),REJECT`，`MATCH` 后追加 `NETWORK,UDP,REJECT`。只有当前选中节点不支持 UDP、原规则被跳过时才会命中，TCP 和支持 UDP 的选择不受影响；条件含括号时改用同条件的普通规则，效果相同。Surge 显式设为 `DIRECT` 时改用 DIRECT。全部节点支持 UDP 时不追加；YAML 注释记录追加数量。
 - 保留节点与策略组的排列、用户主备顺序、`select` / `fallback` / `url-test`。当前地区/IP 类型组直接转换为同顺序的 `fallback`，`Auto` 直接转换为 `url-test`。转换器兼容旧格式的 Smart 组，将受支持的 `policy-priority` 主备顺序映射为 `fallback`，无权重的 Smart（如 `DoH Proxy`）近似为仅含代理节点的 `url-test`，并输出注释说明评分差异。`FINAL` 转为 `MATCH`，省略 Surge 专有的 `dns-failed`，缺少可用兜底策略时拒绝生成配置。
 - 映射普通 / 加密 DNS、系统 hosts、IPv6、GeoIP 数据库、全局代理测试地址和测试超时。`tun.dns-hijack` 劫持全部 53 端口 DNS，对应 Surge 接管系统 DNS，并追加 `hijack-dns` 中非 53 端口的目标；TUN 是否启用由客户端决定。

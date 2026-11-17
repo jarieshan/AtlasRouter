@@ -31,7 +31,7 @@ Client、DoH、Tencent OA、复制和重置链接在当前页面内存中模拟�
 5. 保存清单、启停节点或用户时重新平衡。保留仍然均衡的归属，只移动过量分配的用户；同一节点上较晚分配的用户先移动。新增容量可减少主节点共享。编辑凭据、重排清单不会自行改变节点环顺序。用户增减或节点启停可能调整备用顺序；同一状态下重复生成或重启服务后，顺序保持一致。
 6. 没有任何启用节点时仍生成用户链接，订阅返回 `503 Waiting for node allocation`。管理员启用节点后自动完成分配。
 
-同一节点在 Surge 中按 VLESS → VMess → Hy2 回退，再尝试下一个节点。添加协议连接沿用已有归属与历史次数。停用或删除某个协议时，剩余连接继续承担该节点的分配。全部连接停用或删除时，用户重新分配到同组其余启用节点。旧数据中分散在不同协议上的归属会合并，保存清单或触发分配时按合并后的容量重新平衡。[Surge fallback 优先顺序](https://manual.nssurge.com/policy-groups/fallback.html)
+Surge 和 Mihomo 订阅都按 VLESS → VMess → Hy2 的顺序回退，再尝试下一个节点。添加协议连接沿用已有归属与历史次数。停用或删除某个协议时，剩余连接继续承担该节点的分配。全部连接停用或删除时，用户重新分配到同组其余启用节点。旧数据中分散在不同协议上的归属会合并，保存清单或触发分配时按合并后的容量重新平衡。[Surge fallback 优先顺序](https://manual.nssurge.com/policy-groups/fallback.html)
 
 用户、节点和归属分别保存在 D1 的 `users`、`nodes`、`assignments` 表中，字段与约束见 [env.md](env.md)。`assignments` 的 `(user_id, group_name)` 主键保证每人每组最多一个主节点，外键保证该节点属于同组；共享主节点不受此限制。当前分配人数由关系表统计，历史次数单独保存在节点表。节点录入顺序和同一主节点的 `owner_order` 持久化保存，备用列表按两层轮转规则生成。
 
@@ -66,7 +66,7 @@ ISP-1	https://subscription.example.com/isp-1
 
 VMess 转换支持 AEAD（`aid` 为 0 或省略）、普通 TCP / WebSocket、可选 TLS、SNI 和 ALPN。`auto` 加密映射为 `aes-128-gcm`；不支持的协议、传输方式或加密方式会拒绝导入。TLS 浏览器指纹 `fp` 没有对应的 Surge 参数，省略并提示；ALPN 需要 Surge iOS 5.20.0+ / Mac 6.7.0+，证书校验名称需要 iOS 5.21.0+ / Mac 6.8.0+，参见 [VMess](https://manual.nssurge.com/policies/vmess.html) 和 [TLS 参数](https://manual.nssurge.com/policies/tls.html)。
 
-VLESS 链接转换支持 UUID、TCP / RAW + REALITY + Vision、`encryption=none`、SNI、公钥、short ID 和 ALPN。Surge iOS 6.0.0+ / Mac 6.12.0+ 支持这套配置，REALITY 使用内置 Chrome ClientHello，`fp` / `spx` 的处理遵循 Surge 分享链接语义。3x-ui 导出链接中的 `support-x25519mlkem768=true` 可直接导入，Surge 会自动协商 REALITY 密钥交换方式。当前 Clash 转换器支持的协议见订阅说明，Clash 订阅按顺序输出已有的 VMess 和 Hy2 连接。[Surge VLESS](https://manual.nssurge.com/policies/vless.html)、[Clash 转换范围](subscription.md)
+VLESS 链接转换支持 UUID、TCP / RAW + REALITY + Vision、`encryption=none`、SNI、公钥、short ID 和 ALPN。Surge iOS 6.0.0+ / Mac 6.12.0+ 支持这套配置，REALITY 使用内置 Chrome ClientHello，`fp` / `spx` 的处理遵循 Surge 分享链接语义。3x-ui 导出链接中的 `support-x25519mlkem768=true` 可直接导入。Surge 自动协商 REALITY 密钥交换，Mihomo 订阅使用 Chrome 指纹并启用 X25519MLKEM768。[Surge VLESS](https://manual.nssurge.com/policies/vless.html) · [Mihomo 转换范围](subscription.md)
 
 已有 VMess 连接的上游名称如果只是在客户端名前增加 `-VMess`，重新导入会在待保存清单中同步这个标记，并保留节点 ID 和启停状态。自定义别名继续保留。
 

@@ -4,7 +4,7 @@ import { positiveInteger, splitSurgeList, surgeAssignment, surgeBoolean, surgeOp
 export function convertClashNode(line, warn = () => {}) {
   const [name, value] = surgeAssignment(line);
   const [protocol, host, port, ...params] = splitSurgeList(value);
-  const type = { vmess: "vmess", hysteria2: "hysteria2", trojan: "trojan", ss: "ss", http: "http", https: "http", socks5: "socks5", "socks5-tls": "socks5" }[protocol?.toLowerCase()];
+  const type = { vless: "vless", vmess: "vmess", hysteria2: "hysteria2", trojan: "trojan", ss: "ss", http: "http", https: "http", socks5: "socks5", "socks5-tls": "socks5" }[protocol?.toLowerCase()];
   if (typeof type !== "string" || !host) throw new Error("Unsupported protocol");
   const node = { name, type, server: host.replace(/^\[|\]$/g, ""), port: positiveInteger(port) };
   if (node.port > 65535) throw new Error("Invalid port");
@@ -14,11 +14,29 @@ export function convertClashNode(line, warn = () => {}) {
   if (options.has("tfo")) node.tfo = surgeBoolean(take("tfo"));
   omitTestOverrides(options, warn);
   if (options.has("udp-relay")) node.udp = surgeBoolean(take("udp-relay"));
-  else if (["vmess", "trojan", "hysteria2"].includes(type)) node.udp = true;
-  if (type === "vmess") {
+  else if (["vless", "vmess", "trojan", "hysteria2"].includes(type)) node.udp = true;
+  if (type === "vless" || type === "vmess") {
     node.uuid = required("username");
-    if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(node.uuid)
-      || !surgeBoolean(take("vmess-aead", "false"))) throw new Error("Unsupported VMess authentication");
+    if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(node.uuid)) throw new Error("Invalid UUID");
+  }
+  if (type === "vless") {
+    if (!["xtls-rprx-vision", "xtls-rprx-vision-udp443"].includes(required("flow"))
+      || take("encryption", "none") !== "none") throw new Error("Unsupported VLESS mode");
+    const publicKey = required("reality-public-key");
+    const shortId = take("reality-short-id", "");
+    if (!/^[A-Za-z0-9+/_-]{43}=?$/.test(publicKey) || !/^(?:[a-f0-9]{2}){0,8}$/i.test(shortId)
+      || !options.get("sni")) throw new Error("Invalid REALITY settings");
+    node.network = "tcp";
+    node.flow = "xtls-rprx-vision";
+    node["packet-encoding"] = "xudp";
+    node["client-fingerprint"] = "chrome";
+    node["reality-opts"] = {
+      "public-key": publicKey.replaceAll("+", "-").replaceAll("/", "_").replace(/=$/, ""),
+      "short-id": shortId,
+      "support-x25519mlkem768": true,
+    };
+  } else if (type === "vmess") {
+    if (!surgeBoolean(take("vmess-aead", "false"))) throw new Error("Unsupported VMess authentication");
     node.alterId = 0;
     node.cipher = { "aes-128-gcm": "aes-128-gcm", "chacha20-ietf-poly1305": "chacha20-poly1305" }[take("encrypt-method", "aes-128-gcm")];
     if (typeof node.cipher !== "string") throw new Error("Unsupported cipher");
@@ -49,7 +67,7 @@ export function convertClashNode(line, warn = () => {}) {
     for (const key of ["username", "password"]) if (options.has(key)) node[key] = take(key);
   }
 
-  const tlsProtocol = ["trojan", "https", "socks5-tls", "hysteria2"].includes(protocol.toLowerCase());
+  const tlsProtocol = ["vless", "trojan", "https", "socks5-tls", "hysteria2"].includes(protocol.toLowerCase());
   const tls = surgeBoolean(take("tls", String(tlsProtocol)));
   if ((tlsProtocol && !tls) || (type === "ss" && tls)) throw new Error("Unsupported TLS mode");
   if (tls) {
@@ -58,7 +76,7 @@ export function convertClashNode(line, warn = () => {}) {
       const sni = take("sni");
       // Surge's sentinel disables SNI; a literal hostname in Mihomo would not.
       if (sni.toLowerCase() === "off") throw new Error("Unsupported SNI mode");
-      node[type === "vmess" ? "servername" : "sni"] = sni;
+      node[type === "vmess" || type === "vless" ? "servername" : "sni"] = sni;
     }
     if (options.has("skip-cert-verify")) node["skip-cert-verify"] = surgeBoolean(take("skip-cert-verify"));
     if (options.has("server-cert-verify-name")) node["name-cert-verify"] = take("server-cert-verify-name");

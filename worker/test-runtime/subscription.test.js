@@ -183,8 +183,15 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
     assert.match(profile, /AtlasRouter@develop\/surge\/rule-sets\//);
     assert.equal(await (await request(mf, user.subscriptionUrl)).text(), profile);
     const clash = parseYaml(await (await request(mf, user.subscriptionUrl + "&client=clash")).text());
-    assert.deepEqual(clash["proxy-groups"].find((group) => group.name === "🇭🇰HK-ISP").proxies,
-      orders[index].flatMap((number) => [`🇭🇰 HK ISP-${number}`, `🇭🇰 HK-Hy2 ISP-${number}`]));
+    const fallback = clash["proxy-groups"].find((group) => group.name === "🇭🇰HK-ISP");
+    assert.equal(fallback.type, "fallback");
+    assert.deepEqual(fallback.proxies, expected);
+    for (const number of orders[index]) {
+      const vless = clash.proxies.find((node) => node.name === `🇭🇰 HongKong ISP-${number}`);
+      assert.equal(vless.type, "vless");
+      assert.equal(vless.uuid, `00000000-0000-4000-8000-${String(number).padStart(12, "0")}`);
+      assert.equal(vless["reality-opts"]["public-key"], Buffer.alloc(32, number).toString("base64url"));
+    }
   }
   assert.equal((await request(mf, "/AtlasRouter-Dev?token=invalid")).status, 401);
   assert.equal((await request(mf, "/AtlasRouter-Dev/modules/missing")).status, 404);

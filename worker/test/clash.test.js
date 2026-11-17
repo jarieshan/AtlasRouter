@@ -713,6 +713,42 @@ test("UDP relay defaults preserve VMess and Trojan support and explicit opt-outs
   }
 });
 
+test("VLESS REALITY Vision exports a Mihomo TCP proxy with XUDP and string short IDs", async () => {
+  const key = Buffer.alloc(32, 0xfb);
+  const line = `node = vless, [2001:db8::1], 8443, username=${uuid}, flow=xtls-rprx-vision, sni=target.example.com, reality-public-key=${key.toString("base64")}`;
+  const yaml = await renderClashProfile(`[Proxy]\n${line}, reality-short-id=001234, alpn="h2,http/1.1"\n[Rule]\nFINAL,node`, context);
+  assert.deepEqual(parse(yaml).proxies, [{
+    name: "node", type: "vless", server: "2001:db8::1", port: 8443, uuid, network: "tcp",
+    flow: "xtls-rprx-vision", tls: true, servername: "target.example.com", "client-fingerprint": "chrome",
+    "reality-opts": { "public-key": key.toString("base64url"), "short-id": "001234", "support-x25519mlkem768": true },
+    alpn: ["h2", "http/1.1"], udp: true, "packet-encoding": "xudp",
+  }]);
+  const variant = convertClashNode(line.replace("xtls-rprx-vision,", "xtls-rprx-vision-udp443,") + ", udp-relay=false");
+  assert.equal(variant.flow, "xtls-rprx-vision");
+  assert.equal(variant.udp, false);
+  assert.equal(variant["reality-opts"]["short-id"], "");
+  assert.equal(convertClashNode(line + ", encryption=none, reality-short-id=")["reality-opts"]["short-id"], "");
+});
+
+test("invalid VLESS REALITY settings omit the node and its fallback entry without exposing credentials", async () => {
+  const key = Buffer.alloc(32, 3).toString("base64url");
+  const line = `bad = vless, node.example.com, 8443, username=${uuid}, flow=xtls-rprx-vision, sni=target.example.com, reality-public-key=${key}`;
+  for (const invalid of [
+    line.replace(uuid, "NEVER_LOG_THIS"), line.replace("xtls-rprx-vision", "other"),
+    line.replace(", sni=target.example.com", ""), line.replace("target.example.com", "off"),
+    line.replace(`, reality-public-key=${key}`, ""), line.replace(key, "NEVER_LOG_THIS"),
+    line + ", reality-short-id=abc", line + ", reality-short-id=112233445566778899",
+    line + ", tls=false", line + ", ws=true", line + ", encryption=unsupported", line + ", sni=other.example.com",
+  ]) {
+    const source = `[Proxy]\n${invalid}\ngood = ${vmess}\n[Proxy Group]\nbackup = fallback, bad, good\n[Rule]\nFINAL,backup`;
+    const { config, warnings } = await convertSurgeToClash(source, context);
+    assert.deepEqual(config.proxies.map((node) => node.name), ["good"]);
+    assert.deepEqual(config["proxy-groups"][0].proxies, ["good"]);
+    assert.ok(warnings.some((warning) => warning.includes("node omitted")));
+    assert.doesNotMatch(warnings.join("\n"), /NEVER_LOG_THIS|reality-public-key|target\.example\.com/);
+  }
+});
+
 test("QUIC blocking uses ProjectClash's final-outbound setting without replacing UDP support or routing", async () => {
   const source = `[Proxy]\nnode = ${vmess}\n[Proxy Group]\nAIProxy = select, node, DIRECT\nDirectFirst = select, DIRECT, node\n[Rule]\nDOMAIN-SUFFIX,local,DIRECT\nDOMAIN-SUFFIX,claude.ai,AIProxy\nFINAL,DirectFirst`;
   const baseline = await convertSurgeToClash(source, context);

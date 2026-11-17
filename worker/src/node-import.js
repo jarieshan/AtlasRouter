@@ -270,7 +270,7 @@ function convertVless(link, name) {
   const value = ["vless", validHost(url.hostname), String(port),
     ...Object.entries(params).map(([key, value]) => `${key}=${quoteValue(value)}`)].join(", ");
   const warnings = ["VLESS + REALITY + Vision 需要 Surge iOS 6.0.0+ / Mac 6.12.0+，REALITY 使用内置 Chrome ClientHello。"];
-  if (mlkemHint === "false") warnings.push("Surge 会自动协商 REALITY 密钥交换，无法通过此链接强制关闭 X25519MLKEM768。");
+  if (mlkemHint === "false") warnings.push("链接要求关闭 X25519MLKEM768。Surge 会自动协商 REALITY 密钥交换，Mihomo 订阅默认启用 X25519MLKEM768。");
   return { ...parseLine(`${validName(name || decodeURIComponent(url.hash.slice(1)) || "导入节点")} = ${value}`), warnings };
 }
 
