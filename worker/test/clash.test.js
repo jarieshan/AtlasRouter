@@ -9,7 +9,8 @@ import { renderSurgeProfile } from "../src/render-surge.js";
 import { allocateNodes, parsePoolNodes, userGroups } from "../src/node-pool.js";
 import { buildSubscriptionUrl, readSubscriptionOptions } from "../src/subscription-options.js";
 import { magicRuleUrl } from "../src/magic-rules.js";
-import { orderedSmartPriority, splitSurgeList, surgeAssignment, surgeOptions } from "../src/surge-format.js";
+import { ASSETS } from "../src/generated/assets.js";
+import { orderedSmartPriority, splitSurgeList, surgeAssignment, surgeOptions, surgeSections } from "../src/surge-format.js";
 
 const context = { requestUrl: "https://atlas.example/AtlasRouter", token: `ar_${"a".repeat(64)}` };
 const wechatUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/WeChat.list";
@@ -38,6 +39,39 @@ function profile() {
   return { ...context, groups, nodes: groups.flatMap((group) => group.nodes) };
 }
 
+test("subscription DNS follows policy changes and new external DIRECT domain sets", async (t) => {
+  const template = ASSETS.template;
+  t.after(() => { ASSETS.template = template; });
+  const domainSet = "https://rules.example/direct-domains.txt?revision=2";
+  ASSETS.template = template
+    .replace("{{RULESET_IBKR}},DIRECT", "{{RULESET_IBKR}},Proxy")
+    .replace("{{RULESET_LongBridge}},Proxy", "{{RULESET_LongBridge}},DIRECT")
+    .replace("{{RULE_LINES}}", [
+      "{{RULE_LINES}}",
+      `DOMAIN-SET,${domainSet},DIRECT`,
+      `DOMAIN-SET,${domainSet},DIRECT,no-resolve`,
+    ].join("\n"));
+
+  const surge = renderSurgeProfile({ ...profile(), options: { doh: false } });
+  const hosts = surgeSections(surge).get("host");
+  const servers = ["223.5.5.5", "119.29.29.29"];
+  const longBridge = magicRuleUrl("LongBridge", "surge", context.requestUrl);
+  const ibkr = magicRuleUrl("IBKR", "surge", context.requestUrl);
+  assert.ok(hosts.includes(`RULE-SET:${longBridge} = server:${servers.join(", ")}`));
+  assert.ok(!hosts.some((line) => line.startsWith(`RULE-SET:${ibkr} =`)));
+  assert.deepEqual(hosts.filter((line) => line.startsWith(`DOMAIN-SET:${domainSet} =`)), [
+    `DOMAIN-SET:${domainSet} = server:${servers.join(", ")}`,
+  ]);
+  assert.ok(!hosts.some((line) => /^RULE-SET:(?:SYSTEM|LAN) =/.test(line)));
+
+  const { config } = await convertSurgeToClash(surge, context);
+  const policies = config.dns["nameserver-policy"];
+  const provider = await ruleSource(["DOMAIN-SET", domainSet]);
+  assert.deepEqual(policies[`rule-set:${provider.id}`], servers);
+  assert.deepEqual(policies["rule-set:LongBridge"], servers);
+  assert.ok(!Object.hasOwn(policies, "rule-set:IBKR"));
+});
+
 test("subscription options default to Surge, validate duplicates, and preserve only supported options in managed URLs", () => {
   assert.deepEqual(readSubscriptionOptions(new URLSearchParams()), { client: "surge", doh: true, tencentOa: false, wifiAssist: false });
   assert.deepEqual(readSubscriptionOptions(new URLSearchParams("client=clash&doh=1")), { client: "clash", doh: true, tencentOa: false, wifiAssist: false });
@@ -52,7 +86,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   assert.deepEqual(plain.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
   assert.match(encrypted, /^encrypted-dns-server = https:\/\/cloudflare-dns\.com\/dns-query, https:\/\/dns\.google\/dns-query$/m);
   assert.match(encrypted, /^encrypted-dns-follow-outbound-mode = true$/m);
-  for (const url of [customDirectUrl, ...["IBKR", "Direct", "Apple"].map((name) => magicRuleUrl(name, "surge", context.requestUrl)), directUrl]) {
+  for (const url of [customDirectUrl, wechatUrl, ...["IBKR", "Direct", "iCloud", "Apple"].map((name) => magicRuleUrl(name, "surge", context.requestUrl)), directUrl]) {
     assert.ok(plain.split("\n").includes(`RULE-SET:${url} = server:223.5.5.5, 119.29.29.29`));
     assert.ok(encrypted.split("\n").includes(`RULE-SET:${url} = server:https://dns.alidns.com/dns-query, https://doh.pub/dns-query`));
   }
@@ -262,7 +296,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
       ...dohCanary,
       "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
       "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-      ...Object.fromEntries([customDirectSource.id, "IBKR", "Direct", "Apple", "China"].map((provider) => [`rule-set:${provider}`, doh
+      ...Object.fromEntries([customDirectSource.id, "IBKR", "Direct", wechatSource.id, "iCloud", "Apple", "China"].map((provider) => [`rule-set:${provider}`, doh
         ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
         : ["223.5.5.5", "119.29.29.29"]])),
     });

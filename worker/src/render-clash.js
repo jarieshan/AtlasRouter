@@ -172,7 +172,9 @@ async function convertHostDns(lines, providers, general, requestUrl, warn) {
   const policies = Object.create(null);
   for (const [index, line] of lines.entries()) {
     try {
-      const [name, value] = surgeAssignment(line);
+      // A rule-set URL can contain "=" in its query. Generated Host entries use a spaced separator.
+      const assignment = line.match(/^(\S+)\s+=\s*(.+)$/);
+      const [name, value] = assignment ? assignment.slice(1) : surgeAssignment(line);
       if (!value.startsWith("server:")) throw new Error();
       const servers = splitSurgeList(value.slice(7)).map((server) => {
         if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(server)
