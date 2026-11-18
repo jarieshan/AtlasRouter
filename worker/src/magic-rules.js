@@ -24,7 +24,7 @@ export function magicRuleSources() {
     .map(([client, { extension }]) => findMagicRuleSource(`magicrule/${client}/${name}.${extension}`))).filter(Boolean);
 }
 
-// No token: [Host] keys reference these URLs, and the Clash converter splits Host lines at the first "=".
+// Public rule-set URLs are shared by [Rule] and [Host] and carry no subscription token.
 export function magicRuleUrl(name, client, requestUrl) {
   const filename = `magicrule/${client}/${name}.${CLIENTS[client]?.extension}`;
   if (!findMagicRuleSource(filename)) throw new Error("Unregistered MagicRule source");

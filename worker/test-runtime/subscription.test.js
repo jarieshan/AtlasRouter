@@ -747,7 +747,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
           "use-application-dns.net": "rcode://name_error",
           "zslab.ai": ["223.5.5.5", "119.29.29.29"], ".zslab.ai": ["223.5.5.5", "119.29.29.29"],
           "dns.alidns.com": ["223.5.5.5", "119.29.29.29"], "doh.pub": ["223.5.5.5", "119.29.29.29"],
-          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "IBKR", "Direct", "Apple", "China"].map((id) => [`rule-set:${id}`, encrypted
+          ...Object.fromEntries([CUSTOM_DIRECT_RULE_ID, "IBKR", "Direct", WECHAT_RULE_ID, "iCloud", "Apple", "China"].map((id) => [`rule-set:${id}`, encrypted
             ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
             : ["223.5.5.5", "119.29.29.29"]])),
         });
@@ -830,8 +830,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
         assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = encrypted ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
-        for (const url of [CUSTOM_DIRECT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
-        for (const name of ["IBKR", "Direct", "Apple"]) assert.ok(text.split("\n").some((line) => {
+        for (const url of [CUSTOM_DIRECT_URL, WECHAT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
+        for (const name of ["IBKR", "Direct", "iCloud", "Apple"]) assert.ok(text.split("\n").some((line) => {
           const [, url, servers] = line.match(/^RULE-SET:(\S+) = server:(.+)$/) ?? [];
           return url && magicRuleRelay(url, name, "surge") && servers === directDns;
         }), name);

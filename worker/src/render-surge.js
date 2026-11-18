@@ -6,6 +6,7 @@ import { magicRuleUrl } from "./magic-rules.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { inheritBranch } from "./branch-query.js";
 import { repositoryTemplate } from "./repository-rules.js";
+import { splitSurgeList, surgeSections, surgeValue } from "./surge-format.js";
 
 const REGION_ORDER = { US: 0, HK: 1, SG: 2, JP: 3 };
 const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
@@ -26,9 +27,6 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
     RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT"),
     US_ISP_POLICY: groups.find(({ nodes }) => nodes[0]?.region === "US" && nodes[0]?.ipType === "ISP")?.group ?? "REJECT",
-    DIRECT_DNS_SERVERS: (doh
-      ? ["https://dns.alidns.com/dns-query", "https://doh.pub/dns-query"]
-      : ["223.5.5.5", "119.29.29.29"]).join(", "),
     ...Object.fromEntries(Object.keys(ASSETS.magicRules).map((name) => [
       `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl),
     ])),
@@ -38,7 +36,11 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => ASSETS.tencentOa.match(/^skip-proxy[ \t]*=.*$/m)[0]);
     return heading + general;
   });
-  return applyRuleSetVisibility(replaceTemplate(template, replacements), { showAllGroups });
+  const profile = replaceTemplate(template, {
+    ...replacements,
+    DOMESTIC_RULESET_DNS_LINES: (rendered) => renderDomesticRuleSetDns(rendered, doh),
+  });
+  return applyRuleSetVisibility(profile, { showAllGroups });
 }
 
 function renderPoolTemplate(groups, idcNames, repositoryRulesRef) {
@@ -81,6 +83,19 @@ function renderPoolRules(rules, dohPolicy) {
   }).join("\n");
 }
 
+function renderDomesticRuleSetDns(profile, doh) {
+  const servers = doh ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
+  const mappings = new Set();
+  for (const line of surgeSections(profile).get("rule") ?? []) {
+    if (!/^(?:RULE-SET|DOMAIN-SET)\s*,/.test(line)) continue;
+    const [type, source, policy] = splitSurgeList(line);
+    if (!/^("?)(?:DIRECT|WeChat|iCloud)\1(?=$|\s*[#;]|\s*\/\/)/.test(policy)) continue;
+    const url = surgeValue(source);
+    if (/^https?:\/\//i.test(url)) mappings.add(`${type}:${url} = server:${servers}`);
+  }
+  return [...mappings].join("\n");
+}
+
 export function getModule(name) {
   return ASSETS.modules[name] ?? null;
 }
@@ -113,7 +128,8 @@ function buildUrl(requestUrl, pathname, token) {
 function replaceTemplate(template, replacements) {
   let output = template;
   for (const [name, value] of Object.entries(replacements)) {
-    output = output.replaceAll(`{{${name}}}`, () => value);
+    const replacement = typeof value === "function" ? value(output) : value;
+    output = output.replaceAll(`{{${name}}}`, () => replacement);
   }
 
   const unresolved = output.match(/{{[A-Za-z0-9_]+}}/g);
