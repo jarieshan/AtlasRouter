@@ -21,13 +21,13 @@ const RELAY_EXITS = {
 
 // Import only prepares a draft. Saving, classification and allocation still use
 // the existing inventory endpoint and its revision check.
-export async function importPoolNodes({ text, nodes, exits }, fetcher = fetch, env = {}) {
+export async function importPoolNodes({ text, nodes, exits, replace = false }, fetcher = fetch, env = {}) {
   if (typeof text !== "string" || new TextEncoder().encode(text).length > MAX_BYTES
-    || !Array.isArray(nodes) || nodes.length > MAX_NODES) {
+    || !Array.isArray(nodes) || nodes.length > MAX_NODES || typeof replace !== "boolean") {
     throw invalid("请提供导入文本和待保存节点清单。");
   }
   const manualExits = readManualExits(exits);
-  const result = nodes.map((node) => {
+  const draft = nodes.map((node) => {
     if (!node || typeof node.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(node.id)
       || (node.enabled !== undefined && typeof node.enabled !== "boolean")) {
       throw invalid("待保存节点清单格式不正确。");
@@ -35,6 +35,17 @@ export async function importPoolNodes({ text, nodes, exits }, fetcher = fetch, e
     parseLine(node.line);
     return { id: node.id, line: node.line, enabled: node.enabled ?? true };
   });
+  // A replacement keeps the ID and enabled state of each uniquely matched
+  // connection, so saving preserves its allocation.
+  const reusable = new Map();
+  if (replace) {
+    for (const node of draft) {
+      const key = connectionKey(parseLine(node.line));
+      reusable.set(key, reusable.has(key) ? null : node);
+    }
+  }
+  const result = replace ? [] : draft;
+  let kept = 0;
   const inputs = text.split(/\r?\n/).map((line, index) => ({ text: line.trim(), index: index + 1 }))
     .filter((entry) => entry.text && !/^[#;]/.test(entry.text));
   if (!inputs.length || inputs.length > MAX_NODES) throw invalid("每次请导入 1 至 1000 行节点。");
@@ -120,7 +131,9 @@ export async function importPoolNodes({ text, nodes, exits }, fetcher = fetch, e
         if (item.name !== originalName) warn(entry.index, "同名节点的连接配置不同，已为新节点名称追加序号。");
         const line = `${item.name} = ${item.value}`;
         parseLine(line);
-        const node = { id: crypto.randomUUID(), line, enabled: true };
+        const match = reusable.get(key);
+        if (match) kept += 1;
+        const node = { id: match?.id ?? crypto.randomUUID(), line, enabled: match?.enabled ?? true };
         result.push(node);
         keys.set(key, node);
         names.set(item.name, node);
@@ -139,7 +152,11 @@ export async function importPoolNodes({ text, nodes, exits }, fetcher = fetch, e
   if (unclassifiedNodes.length) {
     warnings.push(`待保存清单第 ${formatPositions(unclassifiedNodes)} 个节点：名称需包含一个地区旗帜和唯一一种 IDC / ISP / WARP 关键词，请补全后保存。`);
   }
-  return { nodes: result, added: result.length - nodes.length, duplicates, warnings, unknownExits: [...unknownExits.values()] };
+  const retained = replace ? kept : nodes.length;
+  return {
+    nodes: result, added: result.length - retained, duplicates, removed: nodes.length - retained,
+    warnings, unknownExits: [...unknownExits.values()],
+  };
 }
 
 // Stored names keep the subscription's flag and region unless the client name

@@ -17,13 +17,13 @@ export async function openPage({ respond = () => null, confirm = () => true, hre
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
   function parse(html) {
     const account = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#enable-dev", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
-    const pool = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
+    const pool = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#replace", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
     account.get("#subscription-client").value = "surge";
     const development = /id="enable-dev"[^>]* checked/.test(html);
     account.get("#enable-dev").checked = development;
     const notice = { hidden: !development };
     const roots = { "account-panel": html.includes('id="account-panel"') ? { querySelector: (id) => account.get(id) } : null,
-      "pool-panel": { querySelector: (id) => pool.get(id), querySelectorAll: () => [pool.get("#save"), pool.get("#append"), pool.get("#pool-reload")] } };
+      "pool-panel": { querySelector: (id) => pool.get(id), querySelectorAll: () => [pool.get("#save"), pool.get("#append"), pool.get("#replace"), pool.get("#pool-reload")] } };
     const styles = html.match(/<style id="page-styles">([\s\S]*?)<\/style>/)?.[1];
     const style = styles === undefined ? null : { textContent: styles, replaceWith(next) { this.textContent = next.textContent; } };
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, textContent]) => ({ textContent, attributes: [], remove() {} }));

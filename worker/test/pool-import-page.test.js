@@ -16,10 +16,10 @@ async function portal(respond, {
   initialState = { nodes: [], users: [], revision: 3 }, confirm = () => true, prompt = () => assert.fail("unexpected prompt"),
 } = {}) {
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
-  const fields = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#replace", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
   const details = { open: false };
   fields.get("#inventory").closest = () => details;
-  const buttons = ["#save", "#append", "#pool-reload"].map((id) => fields.get(id));
+  const buttons = ["#save", "#append", "#replace", "#pool-reload"].map((id) => fields.get(id));
   const nestedButtons = (node) => [...(node.tagName === "button" ? [node] : []), ...node.children.flatMap(nestedButtons)];
   const root = { querySelector: (id) => fields.get(id), querySelectorAll: () => [
     ...buttons, ...nestedButtons(fields.get("#nodes")), ...nestedButtons(fields.get("#users")),
@@ -75,6 +75,9 @@ test("the import button converts before updating the draft, shows warnings and p
   assert.equal(fields.get("#inventory").readOnly, true);
   assert.equal(fields.get("#import").readOnly, true);
   assert.equal(fields.get("#save").disabled, true);
+  assert.equal(fields.get("#replace").disabled, true);
+  await fields.get("#replace").onclick();
+  assert.equal(calls.length, 2, "concurrent clicks must not start another conversion");
   assert.equal(fields.get("#inventory").value, "[]");
   const options = calls.at(-1).options;
   assert.equal(options.method, "POST");
@@ -90,6 +93,7 @@ test("the import button converts before updating the draft, shows warnings and p
   assert.match(fields.get(".status").textContent, /已加入 1 条节点，跳过 2 条/);
   assert.equal(fields.get("#inventory").readOnly, false);
   assert.equal(fields.get("#save").disabled, false);
+  assert.equal(fields.get("#replace").disabled, false);
   assert.equal(calls.length, 2, "preview must not save automatically");
 });
 
@@ -150,6 +154,79 @@ test("cancelled exit prompts keep the first conversion, while malformed answers 
     assert.equal(fields.get("#import").value, text);
     assert.match(fields.get(".status").textContent, /请按“旗帜代码 简称 全称”填写 XY/);
   }
+});
+
+test("replacing converts with filled-in exits and confirms before dropping existing nodes from the draft", async () => {
+  const text = "https://subscription.example.com/node";
+  const converted = [
+    { id: "assigned", line: "🇬🇧 UK-VMess ISP-1 = vmess, node-1.example.com, 443", enabled: true },
+    { id: "fresh", line: "🇭🇰 HK-Hy2 ISP-1 = hysteria2, node-9.example.com, 443", enabled: true },
+  ];
+  const responses = [
+    { nodes: [], added: 2, duplicates: 0, removed: 2, warnings: [], unknownExits: [{ code: "XY", name: "🇭🇰 HK-VMess-ISP-XY-1" }] },
+    { nodes: converted, added: 1, duplicates: 3, removed: 2, warnings: ["已识别中转节点"], unknownExits: [] },
+  ];
+  const confirmations = [];
+  const { fields, details, calls, html } = await portal(() => Response.json(responses.shift()), {
+    initialState: inventory(), confirm: (message) => { confirmations.push(message); return true; }, prompt: () => "GB UK UnitedKingdom",
+  });
+  assert.ok(html.includes("转换并追加到待保存清单</button>"));
+  assert.ok(html.includes("转换并替换已有节点</button>"));
+  assert.equal(fields.get("#replace").disabled, false);
+  const draft = JSON.parse(fields.get("#inventory").value);
+  fields.get("#import").value = text;
+  await fields.get("#replace").onclick();
+  assert.deepEqual(calls.slice(1).map(({ options }) => JSON.parse(options.body)), [
+    { text, nodes: draft, replace: true },
+    { text, nodes: draft, replace: true, exits: { XY: { flag: "GB", code: "UK", name: "UnitedKingdom" } } },
+  ]);
+  assert.equal(confirmations.length, 1);
+  assert.match(confirmations[0], /移除 2 个未出现在本次导入中的已有节点/);
+  assert.deepEqual(JSON.parse(fields.get("#inventory").value), converted);
+  assert.equal(fields.get("#import").value, "");
+  assert.equal(fields.get("#import-notes").children[0].textContent, "已识别中转节点");
+  assert.equal(details.open, true);
+  assert.match(fields.get(".status").textContent, /已替换待保存清单：保留 1 个已有节点的 ID 和启停状态，新增 1 条，移除 2 条，跳过 3 条重复节点/);
+  assert.equal(calls.length, 3, "replacement must not save automatically");
+});
+
+test("cancelled replacement keeps the draft and links, and nothing is asked when no node is dropped", async () => {
+  const text = "https://subscription.example.com/node";
+  const converted = [{ id: "assigned", line: "🇺🇸 US ISP-1 = vmess, node-1.example.com, 443", enabled: true }];
+  const cancelled = await portal(() => Response.json({ nodes: converted, added: 0, duplicates: 0, removed: 2, warnings: ["ignored"], unknownExits: [] }), {
+    initialState: inventory(), confirm: () => false,
+  });
+  const draft = cancelled.fields.get("#inventory").value;
+  cancelled.fields.get("#import").value = text;
+  await cancelled.fields.get("#replace").onclick();
+  assert.equal(cancelled.fields.get("#inventory").value, draft);
+  assert.equal(cancelled.fields.get("#import").value, text);
+  assert.equal(cancelled.fields.get("#import-notes").children.length, 0);
+  assert.match(cancelled.fields.get(".status").textContent, /已取消替换，待保存清单未改变/);
+  assert.equal(cancelled.fields.get("#replace").disabled, false);
+
+  const { fields } = await portal(() => Response.json({ nodes: converted, added: 1, duplicates: 0, removed: 0, warnings: [], unknownExits: [] }), {
+    confirm: () => assert.fail("nothing is dropped from an empty draft"),
+  });
+  fields.get("#import").value = text;
+  await fields.get("#replace").onclick();
+  assert.deepEqual(JSON.parse(fields.get("#inventory").value), converted);
+  assert.match(fields.get(".status").textContent, /保留 0 个已有节点的 ID 和启停状态，新增 1 条，移除 0 条/);
+});
+
+test("replacing through an import API without replacement support fails before prompting and keeps the draft", async () => {
+  const text = "https://subscription.example.com/node";
+  const { fields, calls } = await portal(() => Response.json({
+    nodes: [{ id: "appended", line: "🇺🇸 US ISP-1 = direct", enabled: true }], added: 1, duplicates: 0, warnings: [],
+    unknownExits: [{ code: "XY", name: "🇭🇰 HK-VMess-ISP-XY-1" }],
+  }), { initialState: inventory(), confirm: () => assert.fail("unexpected confirmation") });
+  const draft = fields.get("#inventory").value;
+  fields.get("#import").value = text;
+  await fields.get("#replace").onclick();
+  assert.equal(calls.length, 2);
+  assert.equal(fields.get("#inventory").value, draft);
+  assert.equal(fields.get("#import").value, text);
+  assert.match(fields.get(".status").textContent, /导入接口尚未支持替换/);
 });
 
 test("each node has a delete button; confirmed deletion saves only that removal and preserves other draft edits", async () => {

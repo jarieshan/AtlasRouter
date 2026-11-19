@@ -14,7 +14,7 @@ Dev 开关在当前页面切换环境，不跳转或整页刷新。关闭时生�
 | `/api/account/token` | POST | Access JWT + 同源 JSON；重置本人的订阅 token |
 | `/api/<slug>/pool/state` | GET | 管理员；节点清单、归属、当前人数与累计分配次数 |
 | `/api/<slug>/pool/nodes` | PUT | 管理员 + 同源 JSON；保存 `{ revision, nodes: [{ id, line, enabled }] }` |
-| `/api/<slug>/pool/import` | POST | 管理员 + 同源 JSON；解析 `{ text, nodes }`，返回去重后的待保存清单与提示，不写入数据库 |
+| `/api/<slug>/pool/import` | POST | 管理员 + 同源 JSON；解析 `{ text, nodes, exits?, replace? }`，返回去重后的待保存清单与提示，`replace: true` 时以导入结果替换清单，不写入数据库 |
 | `/api/<slug>/pool/users` | PATCH | 管理员 + 同源 JSON；启停 `{ id, enabled }` |
 | `/api/AtlasRouter-Dev/...` | 同正式接口 | 使用相同 Access 与管理员校验，读写独立测试库 |
 | `/AtlasRouter?token=<token>` | GET | 用户专属 token；输出完整 Surge 配置 |

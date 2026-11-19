@@ -9,6 +9,7 @@ const ICONS = {
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
 };
 
@@ -549,8 +550,8 @@ function poolPanel(adminRoutes) {
     <div class="card-body">
       <label class="field-label" for="import">节点链接或 Surge 节点清单</label>
       <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="ISP-1&#9;https://subscription.example.com/isp-1"></textarea>
-      <p class="hint">导入时把类型关键词前的横杠换成空格；客户端名带出口国家代码的中转节点改用出口国家命名，例如 <code>🇭🇰 HK-Hy2-ISP-AU</code> → <code>🇦🇺 AU-Hy2 ISP</code>，无法识别的代码会弹窗请你填写。节点按地区旗帜和 IDC / ISP / WARP 关键词分组，可用 <code>节点名 = 链接</code> 指定名称。</p>
-      <div class="actions"><button id="append" class="tonal" disabled>${icon("plus")}转换并加入待保存清单</button></div>
+      <p class="hint">导入时把类型关键词前的横杠换成空格；客户端名带出口国家代码的中转节点改用出口国家命名，例如 <code>🇭🇰 HK-Hy2-ISP-AU</code> → <code>🇦🇺 AU-Hy2 ISP</code>，无法识别的代码会弹窗请你填写。节点按地区旗帜和 IDC / ISP / WARP 关键词分组，可用 <code>节点名 = 链接</code> 指定名称。替换以本次导入为准：连接相同的已有节点保留 ID 和启停状态，其余已有节点移除。</p>
+      <div class="actions"><button id="append" class="tonal" disabled>${icon("plus")}转换并追加到待保存清单</button><button id="replace" class="secondary" disabled>${icon("repeat")}转换并替换已有节点</button></div>
       <ul id="import-notes" class="notes" aria-live="polite"></ul>
       <details class="editor"><summary>编辑完整清单 / 停用或移除节点</summary>
         <div class="editor-body">
@@ -584,6 +585,7 @@ function poolPanel(adminRoutes) {
     const importNotes = root.querySelector("#import-notes");
     const save = root.querySelector("#save");
     const append = root.querySelector("#append");
+    const replace = root.querySelector("#replace");
     function emptyRow(columns, text) {
       const row = element("tr");
       const node = cell(row, text);
@@ -691,7 +693,7 @@ function poolPanel(adminRoutes) {
       busy = locked;
       editor.readOnly = locked; importer.readOnly = locked;
       root.querySelectorAll("button").forEach((button) => { button.disabled = locked; });
-      save.disabled = locked || !state; append.disabled = locked || !state;
+      save.disabled = append.disabled = replace.disabled = locked || !state;
     }
     pageState.panels.push({
       lock,
@@ -706,13 +708,14 @@ function poolPanel(adminRoutes) {
       if (state && !confirm("重新加载将丢弃尚未保存的清单编辑，继续？")) return;
       load();
     };
-    append.onclick = () => run(async () => {
+    const convert = (replacing) => run(async () => {
       const nodes = JSON.parse(editor.value);
       if (!Array.isArray(nodes) || !importer.value.trim()) throw new Error("请填写节点清单，并确保 JSON 为数组。");
       importNotes.replaceChildren();
       message("正在解析并转换节点…");
-      const input = { text: importer.value, nodes };
+      const input = { text: importer.value, nodes, ...(replacing ? { replace: true } : {}) };
       let result = await api(${JSON.stringify(adminRoutes.import)}, "POST", input);
+      if (replacing && result.removed === undefined) throw new Error("导入接口尚未支持替换，请合并到 master 并部署后再试。");
       const exits = {};
       for (const exit of result.unknownExits) {
         const answer = prompt("无法识别中转出口 " + exit.code + "（" + exit.name + "）。\n请填写旗帜代码、简称和全称，用空格分隔，例如 DE DE Germany。\n取消则新节点去掉入口旗帜，需在清单中补全名称后保存。", exit.code + " " + exit.code + " ");
@@ -725,12 +728,20 @@ function poolPanel(adminRoutes) {
         message("正在按填写的出口国家重新转换…");
         result = await api(${JSON.stringify(adminRoutes.import)}, "POST", { ...input, exits });
       }
+      if (result.removed && !confirm("替换后将移除 " + result.removed + " 个未出现在本次导入中的已有节点，保存并分配后生效。继续？")) {
+        message("已取消替换，待保存清单未改变。");
+        return;
+      }
       editor.value = JSON.stringify(result.nodes, null, 2);
       importer.value = "";
       for (const warning of result.warnings) importNotes.append(element("li", warning));
-      if (result.added) editor.closest("details").open = true;
-      message("已加入 " + result.added + " 条节点，跳过 " + result.duplicates + " 条重复节点。核对名称后点击保存并分配。");
+      if (result.added || replacing) editor.closest("details").open = true;
+      message(replacing
+        ? "已替换待保存清单：保留 " + (result.nodes.length - result.added) + " 个已有节点的 ID 和启停状态，新增 " + result.added + " 条，移除 " + result.removed + " 条，跳过 " + result.duplicates + " 条重复节点。核对名称后点击保存并分配。"
+        : "已加入 " + result.added + " 条节点，跳过 " + result.duplicates + " 条重复节点。核对名称后点击保存并分配。");
     });
+    append.onclick = () => convert(false);
+    replace.onclick = () => convert(true);
     save.onclick = () => run(async () => {
       const nodes = JSON.parse(editor.value);
       render(await api(${JSON.stringify(adminRoutes.nodes)}, "PUT", { revision: editorRevision, nodes }));

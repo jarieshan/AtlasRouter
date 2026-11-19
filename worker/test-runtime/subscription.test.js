@@ -1111,6 +1111,15 @@ test("imported drafts deduplicate and reach subscriptions only after an explicit
   const config = await (await request(mf, profile.subscriptionUrl)).text();
   assert.ok(config.includes(draft.nodes[0].line));
   assert.match(config, /^FINAL,FINAL,dns-failed$/m);
+  const manual = { id: "manual", line: "🇺🇸 Manual - ISP 2 = trojan, manual.example.com, 443, password=TEST_ONLY", enabled: true };
+  const grown = await save(mf, [...draft.nodes, manual], (await json(await request(mf, POOL_STATE_PATH, { subject: "admin" }))).revision);
+  assert.equal(grown.nodes.find((node) => node.id === draft.nodes[0].id).ownerIds.length, 1);
+  const replaced = await json(await request(mf, POOL_IMPORT_PATH, {
+    subject: "admin", method: "POST", body: { text: link, nodes: [...draft.nodes, manual], replace: true },
+  }));
+  assert.deepEqual([replaced.added, replaced.removed, replaced.nodes], [0, 1, draft.nodes]);
+  const kept = await save(mf, replaced.nodes, grown.revision);
+  assert.deepEqual(kept.nodes.map(({ id, ownerIds }) => [id, ownerIds.length]), [[draft.nodes[0].id, 1]]);
   assert.equal((await request(mf, POOL_IMPORT_PATH, {
     subject: "admin", method: "POST", body: { text: link, nodes: [] }, headers: { origin: "https://foreign.example" },
   })).status, 403);

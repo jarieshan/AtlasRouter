@@ -461,6 +461,32 @@ test("a saved relay VMess that still has an upstream name follows its protocol v
   }
 });
 
+test("replacing keeps the ID and enabled state of matching connections, takes converted names and drops the rest", async () => {
+  const hy2 = "hy2://TEST_ONLY@hy2.example.com#" + encodeURIComponent("🇭🇰 HK-Hy2-ISP-1");
+  const text = [vmess({ ps: "🇭🇰 HK-VMess-ISP-DE-1" }), hy2, hy2].join("\n");
+  const custom = { id: "custom", enabled: false, line: native("🇦🇺 Custom-ISP-9") };
+  const gone = { id: "gone", enabled: true, line: "🇺🇸 Example - ISP 1 = trojan, gone.example.com, 443, password=TEST_ONLY" };
+  const nodes = [gone, custom];
+  const snapshot = structuredClone(nodes);
+  const result = await importPoolNodes({ text, nodes, replace: true }, unreachable);
+  assert.deepEqual(draftNames(result), ["🇩🇪 DE-VMess ISP-1", "🇭🇰 HK-Hy2 ISP-1"]);
+  assert.deepEqual([result.nodes[0].id, result.nodes[0].enabled], ["custom", false]);
+  assert.ok(![custom.id, gone.id].includes(result.nodes[1].id));
+  assert.equal(result.nodes[1].enabled, true);
+  assert.deepEqual([result.added, result.removed, result.duplicates], [1, 1, 1]);
+  assert.deepEqual(nodes, snapshot);
+  const appended = await importPoolNodes({ text, nodes }, unreachable);
+  assert.deepEqual(draftNames(appended), ["🇺🇸 Example - ISP 1", "🇦🇺 Custom-ISP-9", "🇭🇰 HK-Hy2 ISP-1"]);
+  assert.deepEqual([appended.added, appended.removed, appended.duplicates], [1, 0, 2]);
+  const twin = { id: "twin", enabled: true, line: native("🇦🇺 Custom-ISP-10") };
+  const twins = await importPoolNodes({ text, nodes: [custom, twin], replace: true }, unreachable);
+  assert.ok(twins.nodes.every((node) => ![custom.id, twin.id].includes(node.id)));
+  assert.deepEqual([twins.added, twins.removed], [2, 2]);
+  for (const replace of ["yes", 1, null]) {
+    await assert.rejects(importPoolNodes({ text, nodes: [], replace }, unreachable), (error) => error.status === 400);
+  }
+});
+
 test("does not merge different credentials, TLS/AEAD options or quoted values on the same endpoint", async () => {
   const result = await importPoolNodes({ text: [
     vmess(), vmess({ id: "00000000-0000-4000-8000-000000000002" }),
