@@ -11,6 +11,7 @@ const ICONS = {
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
 };
 
 function icon(name) {
@@ -54,6 +55,7 @@ const styles = `
       color: var(--text); background: var(--bg);
     }
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     html { scroll-behavior: smooth; }
     body { margin: 0; min-height: 100vh; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; background: radial-gradient(1200px 420px at 50% -200px, rgba(99, 102, 241, .14), transparent 70%) no-repeat; }
     h1, h2, h3, p { margin: 0; }
@@ -83,9 +85,11 @@ const styles = `
     .card-head { padding: 20px 24px 16px; }
     .card-head h2, .card-head h3 { font-size: 15px; font-weight: 600; line-height: 1.4; }
     .card-head p { margin-top: 3px; color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+    .card-head.split { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .card-head.split > button { flex: none; margin: -3px -10px 0 0; }
     .card-body { padding: 0 24px 24px; }
     .card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding: 12px 24px; border-top: 1px solid var(--line); background: var(--subtle); }
-    .account-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 20px; align-items: start; }
+    .account-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
     .account-main { display: grid; gap: 20px; min-width: 0; }
     .account-grid .card + .card { margin-top: 0; }
     .link-card .card-body { padding-bottom: 20px; }
@@ -114,6 +118,9 @@ const styles = `
     button.ghost.danger:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
     button.small { height: 30px; padding: 0 10px; border-radius: 8px; font-size: 13px; }
     button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    button.icon-only { width: 30px; padding: 0; }
+    .chevron::after { content: ""; flex: none; width: 6px; height: 6px; margin-top: -3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform .15s, margin-top .15s; }
+    .chevron.open::after { margin-top: 3px; transform: rotate(-135deg); }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
     .settings { border-top: 1px solid var(--line); }
@@ -141,12 +148,13 @@ const styles = `
     .note .icon { margin-top: 2px; color: var(--faint); }
     code { padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--subtle); color: var(--text-2); font: 12px var(--mono); overflow-wrap: anywhere; }
 
-    .groups > .group { padding: 14px 24px 16px; border-top: 1px solid var(--line); }
-    .group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .group-name { font-weight: 600; }
-    .group-head .muted { font-size: 12px; }
-    .group > .muted { display: block; margin-top: 6px; font-size: 13px; }
-    .chain { margin: 8px 0 0; padding: 0; list-style: none; }
+    .groups > .group { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) 30px; align-items: start; column-gap: 12px; padding: 12px 24px; border-top: 1px solid var(--line); }
+    .group-title { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding-top: 5px; }
+    .group-name { font-weight: 600; overflow-wrap: anywhere; }
+    .group-title .muted { font-size: 12px; }
+    .group > .muted { padding-top: 5px; font-size: 13px; }
+    .chain { margin: 0; padding: 0; list-style: none; }
+    .group:not(.open) .chain li + li, .group:not(.open) .chain li::after { display: none; }
     .chain li { position: relative; display: flex; align-items: center; gap: 10px; min-height: 32px; padding-left: 24px; }
     .chain li::before { content: ""; position: absolute; z-index: 1; top: 50%; left: 4px; width: 10px; height: 10px; margin-top: -5px; border: 2px solid var(--line-strong); border-radius: 50%; background: var(--surface); }
     .chain li:not(:last-child)::after { content: ""; position: absolute; top: 50%; left: 8px; width: 2px; height: 100%; background: var(--line); }
@@ -179,6 +187,14 @@ const styles = `
     .editor-body .hint { margin: 0; }
     .editor-body .field-label { margin-top: 12px; }
 
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 0 24px 16px; }
+    .search { position: relative; flex: 1 1 260px; min-width: 0; }
+    .search .icon { position: absolute; top: 50%; left: 12px; margin-top: -8px; color: var(--faint); pointer-events: none; }
+    .search input { padding-left: 36px; -webkit-appearance: none; appearance: none; }
+    .toolbar select { flex: none; width: auto; min-width: 120px; }
+    .toolbar-note { color: var(--muted); font-size: 13px; }
+    .toolbar > button { margin-left: auto; }
+
     .table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
     table { width: 100%; min-width: 760px; border-collapse: collapse; }
     th { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--subtle); color: var(--muted); font-size: 12px; font-weight: 500; text-align: left; white-space: nowrap; }
@@ -188,8 +204,20 @@ const styles = `
     th:first-child, td:first-child { padding-left: 24px; }
     th:last-child, td:last-child { padding-right: 24px; }
     .end { text-align: right; }
-    .user-table td { vertical-align: middle; }
+    .user-table .badge { margin-top: 5px; }
     .node-table td:first-child { min-width: 220px; }
+    .node-table .node-row td:first-child { padding-left: 42px; }
+    .node-table .group-row td { padding: 0; background: var(--subtle); }
+    .node-table tbody .group-row:hover td { background: var(--hover); }
+    .group-toggle { width: 100%; height: auto; min-height: 46px; justify-content: flex-start; flex-wrap: wrap; gap: 4px 10px; padding: 10px 24px; border: 0; border-radius: 0; background: none; color: var(--text-2); font-weight: 500; text-align: left; white-space: normal; box-shadow: none; }
+    .group-toggle:hover:not(:disabled) { background: none; }
+    .group-toggle:disabled { opacity: 1; cursor: default; }
+    .group-toggle.chevron::after { order: -1; margin-right: 2px; }
+    .group-toggle .muted { font-size: 13px; font-weight: 400; }
+    button.more { height: 22px; margin: 0 6px 6px 0; padding: 0 8px; border-radius: 999px; color: var(--brand); font-size: 12px; vertical-align: top; }
+    .assignment { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 30px; }
+    .assignment .pending { color: var(--warn); font-size: 13px; }
+    .assignment + .orders { margin-top: 10px; }
     td .node-name { display: block; font-weight: 600; }
     td summary { display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--brand); font-size: 12px; font-weight: 500; list-style: none; cursor: pointer; }
     td summary::-webkit-details-marker { display: none; }
@@ -211,6 +239,7 @@ const styles = `
     .orders > * { justify-self: start; }
     .hops { display: flex; flex-wrap: wrap; column-gap: 6px; }
     .hops > span { white-space: nowrap; }
+    .hops > :first-child { font-weight: 600; }
 
     @media (max-width: 960px) { .account-grid { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 640px) {
@@ -224,8 +253,15 @@ const styles = `
       .page-head p { font-size: 14px; }
       .card-head { padding: 16px 16px 12px; }
       .card-body { padding: 0 16px 16px; }
-      .card-foot, .setting, .groups > .group { padding-left: 16px; padding-right: 16px; }
+      .card-foot, .setting, .groups > .group, .toolbar { padding-left: 16px; padding-right: 16px; }
       th:first-child, td:first-child { padding-left: 16px; }
+      .card-head.split > button { margin-right: -6px; }
+      .groups > .group { grid-template-columns: minmax(0, 1fr) 30px; row-gap: 2px; }
+      .group-title { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+      .group > .chain, .group > .muted { grid-row: 2; grid-column: 1 / -1; }
+      .group-toggle { padding-left: 16px; padding-right: 16px; }
+      .node-table .node-row td:first-child { padding-left: 34px; }
+      .search { flex-basis: 100%; }
       .setting:not(label) { flex-direction: column; align-items: stretch; gap: 10px; }
       .setting select { width: 100%; }
       .link-field { flex-wrap: wrap; }
@@ -349,7 +385,10 @@ function accountPanel(preview, { development, developmentAvailable }) {
       </article>
     </div>
     <article class="card">
-      <header class="card-head"><h2>${preview?.nodeSource === "database" ? "节点池预览" : "我的节点与备份顺序"}</h2><p>${preview?.nodeSource === "database" ? "当前启用节点；主备顺序仅用于页面展示。" : "每组首个为主节点，其余为备份。"}</p></header>
+      <header class="card-head split">
+        <div><h2>${preview?.nodeSource === "database" ? "节点池预览" : "我的节点与备份顺序"}</h2><p>${preview?.nodeSource === "database" ? "当前启用节点；主备顺序仅用于页面展示。" : "每组首个为主节点，其余为备份；展开分组查看完整顺序。"}</p></div>
+        <button id="groups-toggle" class="ghost small" hidden>全部展开</button>
+      </header>
       <div id="groups" class="groups"><span class="empty">正在加载…</span></div>
     </article>
   </div>`, script: String.raw`
@@ -362,6 +401,9 @@ function accountPanel(preview, { development, developmentAvailable }) {
     const tencentOa = root.querySelector("#enable-tencent-oa");
     const wifiAssist = root.querySelector("#enable-wifi-assist");
     const development = root.querySelector("#enable-dev");
+    const groupsToggle = root.querySelector("#groups-toggle");
+    const openGroups = new Set();
+    let collapsible = [];
     let baseSubscriptionUrl;
     if (!previewData) {
       const params = new URL(location.href).searchParams;
@@ -471,6 +513,25 @@ function accountPanel(preview, { development, developmentAvailable }) {
         pageState.panels.forEach((panel) => panel.lock(false));
       }
     };
+    function showGroups() {
+      for (const { name, entry, toggle, backups } of collapsible) {
+        const open = openGroups.has(name);
+        entry.className = open ? "group open" : "group";
+        toggle.className = open ? "ghost small icon-only chevron open" : "ghost small icon-only chevron";
+        toggle.title = (open ? "收起 " : "展开 ") + name + " 的 " + backups + " 个备份节点";
+        toggle.ariaExpanded = String(open);
+      }
+      groupsToggle.hidden = !collapsible.length;
+      groupsToggle.textContent = collapsible.every(({ name }) => openGroups.has(name)) ? "全部收起" : "全部展开";
+    }
+    groupsToggle.onclick = () => {
+      const allOpen = collapsible.every(({ name }) => openGroups.has(name));
+      for (const { name } of collapsible) {
+        if (allOpen) openGroups.delete(name);
+        else openGroups.add(name);
+      }
+      showGroups();
+    };
     function render(profile) {
       root.querySelector("#identity").textContent = profile.email;
       baseSubscriptionUrl = profile.subscriptionUrl;
@@ -479,13 +540,14 @@ function accountPanel(preview, { development, developmentAvailable }) {
       rotate.disabled = false;
       const groups = root.querySelector("#groups");
       groups.replaceChildren();
+      collapsible = [];
       for (const group of profile.groups) {
         const entry = element("div");
         entry.className = "group";
-        const head = element("div");
-        head.className = "group-head";
-        head.append(span(group.group, "group-name"), group.primaryId ? span(group.nodes.length + " 个节点", "muted") : span("待分配", "badge warn"));
-        entry.append(head);
+        const title = element("div");
+        title.className = "group-title";
+        title.append(span(group.group, "group-name"), group.primaryId ? span(group.nodes.length + " 个节点", "muted") : span("待分配", "badge warn"));
+        entry.append(title);
         if (group.primaryId) {
           const chain = element("ol");
           chain.className = "chain";
@@ -496,10 +558,20 @@ function accountPanel(preview, { development, developmentAvailable }) {
             chain.append(item);
           });
           entry.append(chain);
+          if (group.nodes.length > 1) {
+            const toggle = element("button");
+            toggle.onclick = () => {
+              if (!openGroups.delete(group.group)) openGroups.add(group.group);
+              showGroups();
+            };
+            entry.append(toggle);
+            collapsible.push({ name: group.group, entry, toggle, backups: group.nodes.length - 1 });
+          }
         } else entry.append(span("该组暂无启用节点", "muted"));
         groups.append(entry);
       }
       if (!profile.groups.length) groups.append(span(previewData?.nodeSource === "database" ? "当前没有启用节点。" : "等待管理员录入节点。", "empty"));
+      showGroups();
       message(previewData ? (previewData.nodeSource === "database" ? "已加载当前启用的真实节点。主备顺序仅供预览，不参与分配和统计。" : "当前为页面预览：所有节点均为模拟数据，操作不会保存。")
         : profile.status === "active" ? "配置已就绪。每组第一个节点为你的主节点，其余为公共备份；节点不足时主节点会共享。"
         : profile.status === "partial" ? "部分节点组待分配，订阅已包含可用的节点组。"
@@ -570,22 +642,44 @@ function poolPanel(adminRoutes) {
     </footer>
   </article>
   <article class="card">
-    <header class="card-head"><h3>节点归属</h3><p>累计分配包含初次分配与重新分配，不代表连接次数。</p></header>
-    <div class="table-wrap"><table class="node-table"><thead><tr><th>节点 / 配置详情</th><th>分组</th><th>已分配用户</th><th>当前人数 / 累计分配</th><th>状态</th><th class="end">操作</th></tr></thead><tbody id="nodes"></tbody></table></div>
+    <header class="card-head"><h3>节点归属</h3><p>按分组折叠，点击分组查看连接；搜索或筛选时自动展开有结果的分组。累计分配包含初次分配与重新分配，不代表连接次数。</p></header>
+    <div class="toolbar">
+      <label class="search">${icon("search")}<input id="node-search" type="search" placeholder="搜索节点、分组或用户邮箱" aria-label="搜索节点、分组或用户邮箱" autocomplete="off" spellcheck="false"></label>
+      <select id="node-status" aria-label="按状态筛选连接"><option value="" selected>全部状态</option><option value="enabled">启用</option><option value="disabled">停用</option><option value="idle">空闲（无人分配）</option></select>
+      <span id="node-summary" class="toolbar-note"></span>
+      <button id="nodes-toggle" class="secondary small" disabled>全部展开</button>
+    </div>
+    <div class="table-wrap"><table class="node-table"><thead><tr><th>节点 / 配置详情</th><th>已分配用户</th><th>当前人数 / 累计分配</th><th>状态</th><th class="end">操作</th></tr></thead><tbody id="nodes"></tbody></table></div>
   </article>
   <article class="card">
     <header class="card-head"><h3>用户与回退顺序</h3><p>用户通过 Google 登录后自动加入。停用用户将撤销订阅链接并释放主节点；重新启用后需获取新链接。</p></header>
-    <div class="table-wrap"><table class="user-table"><thead><tr><th>用户</th><th>节点顺序 / 待分配组</th><th>状态</th><th class="end">操作</th></tr></thead><tbody id="users"></tbody></table></div>
+    <div class="toolbar">
+      <label class="search">${icon("search")}<input id="user-search" type="search" placeholder="搜索用户邮箱" aria-label="搜索用户邮箱" autocomplete="off" spellcheck="false"></label>
+      <span id="user-summary" class="toolbar-note"></span>
+    </div>
+    <div class="table-wrap"><table class="user-table"><thead><tr><th>用户</th><th>节点分配 / 回退顺序</th><th>状态</th><th class="end">操作</th></tr></thead><tbody id="users"></tbody></table></div>
   </article>`, script: String.raw`
     let state;
     let editorRevision;
     let busy = false;
+    let nodeGroups = [];
+    let userRows = [];
+    let noNodeMatch;
+    let noUserMatch;
+    const openNodeGroups = new Set();
+    const openUsers = new Set();
     const editor = root.querySelector("#inventory");
     const importer = root.querySelector("#import");
     const importNotes = root.querySelector("#import-notes");
     const save = root.querySelector("#save");
     const append = root.querySelector("#append");
     const replace = root.querySelector("#replace");
+    const nodeSearch = root.querySelector("#node-search");
+    const nodeStatus = root.querySelector("#node-status");
+    const nodeSummary = root.querySelector("#node-summary");
+    const nodesToggle = root.querySelector("#nodes-toggle");
+    const userSearch = root.querySelector("#user-search");
+    const userSummary = root.querySelector("#user-summary");
     function emptyRow(columns, text) {
       const row = element("tr");
       const node = cell(row, text);
@@ -599,6 +693,83 @@ function poolPanel(adminRoutes) {
       node.append(element("span", text), element("strong", String(value)));
       return node;
     }
+    function nodeFilter() {
+      const terms = nodeSearch.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const status = nodeStatus.value;
+      return {
+        terms,
+        active: Boolean(terms.length || status),
+        matches: ({ node, text }) => terms.every((term) => text.includes(term))
+          && (!status || (status === "disabled" ? !node.enabled : node.enabled && (status === "enabled" || !node.ownerIds.length))),
+      };
+    }
+    function showNodes() {
+      const filter = nodeFilter();
+      let matched = 0;
+      for (const group of nodeGroups) {
+        const open = filter.active || openNodeGroups.has(group.name);
+        let visible = 0;
+        for (const entry of group.rows) {
+          const match = filter.matches(entry);
+          entry.row.hidden = !match || !open;
+          if (match) visible += 1;
+          if (match && entry.reveal && filter.terms.some((term) => entry.overflow.includes(term))) entry.reveal();
+        }
+        matched += visible;
+        group.header.hidden = !visible;
+        group.header.className = open ? "group-row open" : "group-row";
+        group.toggle.className = open ? "group-toggle chevron open" : "group-toggle chevron";
+        group.toggle.ariaExpanded = String(open);
+        group.toggle.disabled = busy || filter.active;
+      }
+      if (noNodeMatch) noNodeMatch.hidden = Boolean(matched);
+      const total = state ? state.nodes.length : 0;
+      nodeSummary.textContent = !state ? "" : filter.active ? "匹配 " + matched + " / " + total + " 个连接"
+        : "共 " + total + " 个连接 · " + nodeGroups.length + " 个分组";
+      nodesToggle.textContent = nodeGroups.length && nodeGroups.every((group) => openNodeGroups.has(group.name)) ? "全部收起" : "全部展开";
+      nodesToggle.disabled = busy || filter.active || !nodeGroups.length;
+    }
+    function showUsers() {
+      const query = userSearch.value.trim().toLowerCase();
+      let matched = 0;
+      for (const { row, email } of userRows) {
+        row.hidden = !email.includes(query);
+        if (!row.hidden) matched += 1;
+      }
+      if (noUserMatch) noUserMatch.hidden = Boolean(matched);
+      userSummary.textContent = !state ? "" : query ? "匹配 " + matched + " / " + userRows.length + " 位用户" : "共 " + userRows.length + " 位用户";
+    }
+    nodesToggle.onclick = () => {
+      const allOpen = nodeGroups.every((group) => openNodeGroups.has(group.name));
+      for (const group of nodeGroups) {
+        if (allOpen) openNodeGroups.delete(group.name);
+        else openNodeGroups.add(group.name);
+      }
+      showNodes();
+    };
+    nodeSearch.oninput = showNodes;
+    nodeStatus.onchange = showNodes;
+    userSearch.oninput = showUsers;
+    function nodeGroup(name, rows) {
+      const header = element("tr");
+      const members = rows.map(({ node }) => node);
+      const enabled = members.filter((node) => node.enabled);
+      const logical = (list) => new Set(list.map((node) => node.allocationId || node.id)).size;
+      const stats = [members.length + " 个连接", logical(enabled) + " 个启用节点", new Set(members.flatMap((node) => node.ownerIds)).size + " 位用户"];
+      const idle = logical(enabled.filter((node) => !node.ownerIds.length));
+      if (idle) stats.push(idle + " 个空闲");
+      if (members.length > enabled.length) stats.push(members.length - enabled.length + " 个连接停用");
+      const toggle = element("button");
+      toggle.append(span(name, "chip"), span(stats.join(" · "), "muted"));
+      toggle.onclick = () => {
+        if (!openNodeGroups.delete(name)) openNodeGroups.add(name);
+        showNodes();
+      };
+      const heading = cell(header);
+      heading.colSpan = 5;
+      heading.append(toggle);
+      return { name, header, toggle, rows };
+    }
     function render(data, updateEditor = true) {
       state = data;
       if (updateEditor) {
@@ -608,15 +779,30 @@ function poolPanel(adminRoutes) {
       const usersById = new Map(state.users.map((user) => [user.id, user.email]));
       const nodes = root.querySelector("#nodes");
       nodes.replaceChildren();
+      const groups = new Map();
       for (const node of state.nodes) {
         const row = element("tr");
+        row.className = "node-row";
         const details = element("details");
         details.append(element("summary", "查看配置"), element("pre", node.line));
         cell(row).append(span(node.name, "node-name"), details);
-        cell(row).append(span(node.group, "chip"));
         const owners = cell(row);
-        for (const id of node.ownerIds) owners.append(span(usersById.get(id), "owner"));
-        if (!node.ownerIds.length) owners.append(span("未分配", "muted"));
+        const emails = node.ownerIds.map((id) => usersById.get(id));
+        const overflow = emails.slice(4).map((email) => span(email, "owner"));
+        let reveal;
+        for (const email of emails.slice(0, 4)) owners.append(span(email, "owner"));
+        if (overflow.length) {
+          const more = element("button", "+" + overflow.length + " 人");
+          more.className = "ghost small more";
+          more.title = "显示全部 " + emails.length + " 位用户";
+          reveal = more.onclick = () => {
+            for (const owner of overflow) owner.hidden = false;
+            more.hidden = true;
+          };
+          for (const owner of overflow) owner.hidden = true;
+          owners.append(...overflow, more);
+        }
+        if (!emails.length) owners.append(span("未分配", "muted"));
         cell(row).append(span(node.ownerIds.length + " 人", "count"), span(node.assignmentCount ? "累计 " + node.assignmentCount + " 次" : "从未分配", "muted"));
         cell(row).append(span(node.enabled ? "启用" : "停用", node.enabled ? "badge ok" : "badge"));
         const button = element("button", "删除");
@@ -641,28 +827,60 @@ function poolPanel(adminRoutes) {
         const action = cell(row);
         action.className = "end";
         action.append(button);
-        nodes.append(row);
+        if (!groups.has(node.group)) groups.set(node.group, []);
+        groups.get(node.group).push({ row, node, reveal, text: [node.name, node.group, ...emails].join("\n").toLowerCase(),
+          overflow: emails.slice(4).join("\n").toLowerCase() });
       }
-      if (!state.nodes.length) nodes.append(emptyRow(6, "暂无节点，请先在上方录入。"));
+      nodeGroups = [...groups].map(([name, rows]) => nodeGroup(name, rows));
+      for (const group of nodeGroups) nodes.append(group.header, ...group.rows.map(({ row }) => row));
+      noNodeMatch = emptyRow(5, state.nodes.length ? "没有符合条件的连接。" : "暂无节点，请先在上方录入。");
+      nodes.append(noNodeMatch);
       const users = root.querySelector("#users");
       users.replaceChildren();
+      userRows = [];
       for (const user of state.users) {
         const row = element("tr");
         const person = element("div");
         person.className = "person";
         person.append(span(user.email.slice(0, 1).toUpperCase(), "avatar"), span(user.email));
         cell(row).append(person);
-        const orders = element("div");
-        orders.className = "orders";
-        for (const group of user.groups) {
-          const hops = span(undefined, "hops");
-          for (const [index, node] of group.nodes.entries()) {
-            if (index) hops.append(span("→", "muted"));
-            hops.append(span(node.name));
+        const assignment = cell(row);
+        const summary = element("div");
+        summary.className = "assignment";
+        assignment.append(summary);
+        const allocated = user.groups.filter((group) => group.primaryId);
+        const pending = user.groups.filter((group) => !group.primaryId).map((group) => group.group);
+        if (!user.enabled) summary.append(span("已停用，不分配节点", "muted"));
+        else if (!user.groups.length) summary.append(span("暂无可分配的节点组", "muted"));
+        else summary.append(span("已分配 " + allocated.length + " / " + user.groups.length + " 组", "muted"));
+        if (user.enabled && pending.length) summary.append(span("待分配：" + pending.join("、"), "pending"));
+        if (user.enabled && allocated.length) {
+          const orders = element("div");
+          orders.className = "orders";
+          for (const group of allocated) {
+            const hops = span(undefined, "hops");
+            for (const [index, node] of group.nodes.entries()) {
+              if (index) hops.append(span("→", "muted"));
+              hops.append(span(node.name));
+            }
+            orders.append(span(group.group, "chip"), hops);
           }
-          orders.append(span(group.group, "chip"), group.primaryId ? hops : span("待分配", "badge warn"));
+          const toggle = element("button");
+          const show = () => {
+            const open = openUsers.has(user.id);
+            orders.hidden = !open;
+            toggle.textContent = open ? "收起回退顺序" : "查看回退顺序";
+            toggle.className = open ? "ghost small chevron open" : "ghost small chevron";
+            toggle.ariaExpanded = String(open);
+          };
+          toggle.onclick = () => {
+            if (!openUsers.delete(user.id)) openUsers.add(user.id);
+            show();
+          };
+          show();
+          summary.append(toggle);
+          assignment.append(orders);
         }
-        cell(row).append(orders);
         cell(row).append(span(user.enabled ? ({ active: "已分配", partial: "部分待分配", pending: "待分配" }[user.status]) : "已停用",
           !user.enabled ? "badge" : user.status === "active" ? "badge ok" : "badge warn"));
         const button = element("button", user.enabled ? "停用" : "启用");
@@ -675,10 +893,14 @@ function poolPanel(adminRoutes) {
         action.className = "end";
         action.append(button);
         users.append(row);
+        userRows.push({ row, email: user.email.toLowerCase() });
       }
-      if (!state.users.length) users.append(emptyRow(4, "暂无用户。"));
+      noUserMatch = emptyRow(4, state.users.length ? "没有匹配的用户。" : "暂无用户。");
+      users.append(noUserMatch);
       const enabled = [...new Map(state.nodes.filter((node) => node.enabled).map((node) => [node.allocationId || node.id, node])).values()];
       root.querySelector("#counts").replaceChildren(metric("启用节点", enabled.length), metric("空闲节点", enabled.filter((node) => !node.ownerIds.length).length), metric("用户", state.users.length));
+      showNodes();
+      showUsers();
     }
     async function run(action) {
       if (busy || pageState.changing) return;
@@ -694,6 +916,7 @@ function poolPanel(adminRoutes) {
       editor.readOnly = locked; importer.readOnly = locked;
       root.querySelectorAll("button").forEach((button) => { button.disabled = locked; });
       save.disabled = append.disabled = replace.disabled = locked || !state;
+      showNodes();
     }
     pageState.panels.push({
       lock,

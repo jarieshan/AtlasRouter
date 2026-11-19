@@ -16,7 +16,7 @@ async function portal(respond, {
   initialState = { nodes: [], users: [], revision: 3 }, confirm = () => true, prompt = () => assert.fail("unexpected prompt"),
 } = {}) {
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
-  const fields = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#replace", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#replace", "#pool-reload", "#nodes", "#users", "#counts", "#node-search", "#node-status", "#node-summary", "#nodes-toggle", "#user-search", "#user-summary"].map((id) => [id, element()]));
   const details = { open: false };
   fields.get("#inventory").closest = () => details;
   const buttons = ["#save", "#append", "#replace", "#pool-reload"].map((id) => fields.get(id));
@@ -55,8 +55,12 @@ function inventory() {
   };
 }
 
+function nodeRows(fields) {
+  return fields.get("#nodes").children.filter((row) => row.className === "node-row");
+}
+
 function deleteButton(fields, index = 0) {
-  return fields.get("#nodes").children[index].children.at(-1).children[0];
+  return nodeRows(fields)[index].children.at(-1).children[0];
 }
 
 test("management reads and mutations use production endpoints without a branch selector", async () => {
@@ -269,7 +273,7 @@ test("each node has a delete button; confirmed deletion saves only that removal 
   await removing;
   assert.deepEqual(JSON.parse(fields.get("#inventory").value), draft.slice(1));
   assert.equal(fields.get("#import").value, "https://subscription.example.com/pending");
-  assert.equal(fields.get("#nodes").children.length, 2);
+  assert.equal(nodeRows(fields).length, 2);
   assert.equal(deleteButton(fields).title, "删除 " + remaining[0].name);
   assert.equal(fields.get("#inventory").readOnly, false);
   assert.equal(deleteButton(fields).disabled, false);
@@ -292,7 +296,7 @@ test("cancelled deletion leaves the node and unsaved editor unchanged without a 
   await deleteButton(fields).onclick();
   assert.equal(calls.length, 1);
   assert.equal(fields.get("#inventory").value, before);
-  assert.equal(fields.get("#nodes").children.length, 3);
+  assert.equal(nodeRows(fields).length, 3);
   assert.equal(deleteButton(fields).disabled, false);
 });
 
@@ -305,22 +309,134 @@ test("failed deletions preserve rows, editor and revision and can be retried", a
     await deleteButton(fields).onclick();
     assert.equal(JSON.parse(calls.at(-1).options.body).revision, 3);
     assert.equal(fields.get("#inventory").value, before);
-    assert.equal(fields.get("#nodes").children.length, 3);
+    assert.equal(nodeRows(fields).length, 3);
     assert.equal(deleteButton(fields).disabled, false);
     assert.match(fields.get(".status").textContent, /Inventory changed/);
   }
 });
 
-test("deleting the last node renders an empty six-column table and an empty editor", async () => {
+test("deleting the last node renders an empty five-column table and an empty editor", async () => {
   const initialState = inventory();
   initialState.nodes = initialState.nodes.slice(0, 1);
   const { fields, calls } = await portal(() => Response.json({ ...initialState, nodes: [], revision: 4 }), { initialState });
   await deleteButton(fields).onclick();
   assert.deepEqual(JSON.parse(calls.at(-1).options.body), { revision: 3, nodes: [] });
   assert.equal(fields.get("#inventory").value, "[]");
+  assert.equal(fields.get("#nodes").children.length, 1);
   const row = fields.get("#nodes").children[0];
-  assert.equal(row.children[0].colSpan, 6);
+  assert.equal(row.hidden, false);
+  assert.equal(row.children[0].colSpan, 5);
   assert.match(row.children[0].textContent, /暂无节点/);
+});
+
+test("node table groups connections, starts collapsed and filters by search and status", async () => {
+  const initialState = inventory();
+  initialState.nodes.push({ id: "hk", name: "🇭🇰 Example - IDC 1", group: "🇭🇰HK-IDC", line: "🇭🇰 Example - IDC 1 = direct",
+    enabled: true, ownerIds: [], assignmentCount: 0 });
+  const { fields, calls } = await portal(() => assert.fail("filters must not send requests"), { initialState });
+  const rows = fields.get("#nodes").children;
+  const headers = rows.filter((row) => row.className?.startsWith("group-row"));
+  const visible = () => nodeRows(fields).filter((row) => !row.hidden).map((row) => row.children[0].children[0].textContent);
+  const search = (value, status = "") => {
+    fields.get("#node-search").value = value;
+    fields.get("#node-status").value = status;
+    fields.get("#node-search").oninput();
+  };
+  assert.deepEqual(headers.map((row) => row.children[0].children[0].children[0].textContent), ["🇺🇸USA-ISP", "🇭🇰HK-IDC"]);
+  assert.equal(headers[0].children[0].colSpan, 5);
+  assert.equal(headers[0].children[0].children[0].children[1].textContent, "3 个连接 · 2 个启用节点 · 1 位用户 · 1 个空闲 · 1 个连接停用");
+  assert.deepEqual(visible(), []);
+  assert.equal(fields.get("#node-summary").textContent, "共 4 个连接 · 2 个分组");
+  headers[1].children[0].children[0].onclick();
+  assert.deepEqual(visible(), ["🇭🇰 Example - IDC 1"]);
+  assert.equal(headers[1].children[0].children[0].ariaExpanded, "true");
+  fields.get("#nodes-toggle").onclick();
+  assert.equal(visible().length, 4);
+  assert.equal(fields.get("#nodes-toggle").textContent, "全部收起");
+  fields.get("#nodes-toggle").onclick();
+  assert.deepEqual(visible(), []);
+
+  search("  MEMBER@example ");
+  assert.deepEqual(visible(), [initialState.nodes[0].name]);
+  assert.equal(headers[1].hidden, true);
+  assert.equal(headers[0].children[0].children[0].disabled, true);
+  assert.equal(fields.get("#nodes-toggle").disabled, true);
+  assert.equal(fields.get("#node-summary").textContent, "匹配 1 / 4 个连接");
+  search("isp", "idle");
+  assert.deepEqual(visible(), [initialState.nodes[1].name]);
+  search("", "disabled");
+  assert.deepEqual(visible(), [initialState.nodes[2].name]);
+  search("idc", "disabled");
+  assert.deepEqual(visible(), []);
+  assert.deepEqual([rows.at(-1).hidden, rows.at(-1).children[0].textContent], [false, "没有符合条件的连接。"]);
+  search("");
+  assert.deepEqual(visible(), []);
+  assert.equal(rows.at(-1).hidden, true);
+  assert.equal(fields.get("#nodes-toggle").disabled, false);
+  assert.equal(calls.length, 1);
+});
+
+test("node owners list four users and fold the rest behind a counter", async () => {
+  const initialState = inventory();
+  initialState.users = Array.from({ length: 6 }, (_, index) => ({ id: "user-" + index, email: `user-${index}@example.com`,
+    enabled: true, status: "active", groups: [] }));
+  initialState.nodes[0].ownerIds = initialState.users.map(({ id }) => id);
+  const { fields } = await portal(() => assert.fail("unexpected request"), { initialState });
+  const owners = nodeRows(fields)[0].children[1].children;
+  const shown = () => owners.filter(({ hidden }) => !hidden).map(({ textContent }) => textContent);
+  const emails = initialState.users.map(({ email }) => email);
+  assert.deepEqual(shown(), emails.slice(0, 4).concat("+2 人"));
+  assert.equal(owners.at(-1).tagName, "button");
+  assert.equal(owners.at(-1).title, "显示全部 6 位用户");
+  assert.equal(nodeRows(fields)[0].children[2].children[0].textContent, "6 人");
+  fields.get("#node-search").value = "user-0";
+  fields.get("#node-search").oninput();
+  assert.deepEqual(shown(), emails.slice(0, 4).concat("+2 人"));
+  fields.get("#node-search").value = "user-5";
+  fields.get("#node-search").oninput();
+  assert.equal(nodeRows(fields)[0].hidden, false);
+  assert.deepEqual(shown(), emails, "a search matching a folded owner reveals the full list");
+});
+
+test("the owner counter reveals the remaining users in place", async () => {
+  const initialState = inventory();
+  initialState.users = Array.from({ length: 5 }, (_, index) => ({ id: "user-" + index, email: `user-${index}@example.com`,
+    enabled: true, status: "active", groups: [] }));
+  initialState.nodes[0].ownerIds = initialState.users.map(({ id }) => id);
+  const { fields } = await portal(() => assert.fail("unexpected request"), { initialState });
+  const owners = nodeRows(fields)[0].children[1].children;
+  owners.at(-1).onclick();
+  assert.deepEqual(owners.filter(({ hidden }) => !hidden).map(({ textContent }) => textContent), initialState.users.map(({ email }) => email));
+});
+
+test("user rows summarize allocations, reveal fallback order on demand and filter by email", async () => {
+  const initialState = inventory();
+  initialState.users = [
+    { id: "member", email: "member@example.com", enabled: true, status: "partial", groups: [
+      { group: "🇺🇸USA-ISP", primaryId: "assigned", nodes: [{ id: "assigned", name: "Primary" }, { id: "available", name: "Backup" }] },
+      { group: "🇭🇰HK-IDC", primaryId: null, nodes: [] },
+    ] },
+    { id: "paused", email: "paused@example.com", enabled: false, status: "pending", groups: [{ group: "🇺🇸USA-ISP", primaryId: null, nodes: [] }] },
+  ];
+  const { fields } = await portal(() => assert.fail("unexpected request"), { initialState });
+  const [member, paused, empty] = fields.get("#users").children;
+  const [summary, orders] = member.children[1].children;
+  const toggle = summary.children.at(-1);
+  assert.deepEqual(summary.children.map(({ textContent }) => textContent), ["已分配 1 / 2 组", "待分配：🇭🇰HK-IDC", "查看回退顺序"]);
+  assert.deepEqual([orders.hidden, toggle.ariaExpanded], [true, "false"]);
+  assert.deepEqual(orders.children.map(({ textContent }) => textContent), ["🇺🇸USA-ISP", ""]);
+  assert.deepEqual(orders.children[1].children.map(({ textContent }) => textContent), ["Primary", "→", "Backup"]);
+  toggle.onclick();
+  assert.deepEqual([orders.hidden, toggle.ariaExpanded, toggle.textContent], [false, "true", "收起回退顺序"]);
+  assert.deepEqual(paused.children[1].children.map(({ children }) => children.map(({ textContent }) => textContent)), [["已停用，不分配节点"]]);
+  assert.equal(fields.get("#user-summary").textContent, "共 2 位用户");
+  fields.get("#user-search").value = " PAUSED ";
+  fields.get("#user-search").oninput();
+  assert.deepEqual([member.hidden, paused.hidden, empty.hidden], [true, false, true]);
+  assert.equal(fields.get("#user-summary").textContent, "匹配 1 / 2 位用户");
+  fields.get("#user-search").value = "nobody";
+  fields.get("#user-search").oninput();
+  assert.deepEqual([empty.hidden, empty.children[0].textContent], [false, "没有匹配的用户。"]);
 });
 
 test("invalid draft JSON is preserved and must be fixed before deleting a node", async () => {
@@ -332,7 +448,7 @@ test("invalid draft JSON is preserved and must be fixed before deleting a node",
     await deleteButton(fields).onclick();
     assert.equal(calls.length, 1);
     assert.equal(fields.get("#inventory").value, value);
-    assert.equal(fields.get("#nodes").children.length, 3);
+    assert.equal(nodeRows(fields).length, 3);
     assert.match(fields.get(".status").textContent, /请先修正后再删除/);
   }
 });

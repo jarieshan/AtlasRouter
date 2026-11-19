@@ -60,7 +60,7 @@ test("Tencent OA, Wi-Fi Assist and VLESS choices survive hot-loading both enviro
 });
 
 test("subscription controls customize copied URLs and retain choices across token rotation", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups", "#groups-toggle"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   let token = "ar_TEST_ONLY";
   let copied;
@@ -140,7 +140,7 @@ test("subscription controls customize copied URLs and retain choices across toke
 });
 
 test("production account calls and copied links retain token rotation", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups", "#groups-toggle"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   let copied;
   let calls = 0;
@@ -177,7 +177,7 @@ test("page previews keep all interactions in memory and reset on a new page load
   let storageAccesses = 0;
   let copied;
   async function openPage() {
-    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+    const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups", "#groups-toggle"].map((id) => [id, element()]));
     fields.get("#subscription-client").value = "surge";
     fields.get("#enable-doh").checked = true;
     const storage = new Proxy({}, { get() { storageAccesses += 1; throw new Error("Preview must not use browser storage"); } });
@@ -229,7 +229,7 @@ test("database node labels render as text and preview interactions stay in the p
   assert.match(html, /只读展示当前启用的真实节点/);
   assert.equal(html.match(/<script>/g).length, 1);
   assert.ok(!html.includes(name));
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups", "#groups-toggle"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
     document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
@@ -245,9 +245,42 @@ test("database node labels render as text and preview interactions stay in the p
   assert.equal(new URL(fields.get("#subscription").value).hostname, "preview.invalid");
 });
 
+test("account groups start with the primary node and expand backups on demand", async () => {
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups", "#groups-toggle"].map((id) => [id, element()]));
+  fields.get("#subscription-client").value = "surge";
+  vm.runInNewContext(renderAccountPage().match(/<script>([\s\S]*?)<\/script>/)[1], {
+    document: { getElementById: () => ({ querySelector: (id) => fields.get(id) }), createElement: element, addEventListener() {} },
+    URL, location: { href: "https://atlas.example/" },
+    fetch: async () => Response.json({ email: "member@example.com", status: "active", subscriptionUrl: "https://atlas.example/AtlasRouter?token=TEST_ONLY",
+      groups: [
+        { group: "🇭🇰HK-ISP", primaryId: "a", nodes: ["a", "b", "c"].map((id) => ({ id, name: "HK " + id })) },
+        { group: "🇯🇵JP-IDC", primaryId: "d", nodes: [{ id: "d", name: "JP d" }] },
+        { group: "🇺🇸USA-ISP", primaryId: null, nodes: [] },
+      ] }),
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const [hongKong, japan, pending] = fields.get("#groups").children;
+  const all = fields.get("#groups-toggle");
+  const toggle = hongKong.children[2];
+  assert.equal(hongKong.className, "group");
+  assert.equal(hongKong.children[1].children.length, 3, "the full fallback order stays in the page");
+  assert.equal(toggle.title, "展开 🇭🇰HK-ISP 的 2 个备份节点");
+  assert.equal(toggle.ariaExpanded, "false");
+  assert.equal(japan.children.length, 2, "a group without backups has nothing to expand");
+  assert.equal(pending.children[1].textContent, "该组暂无启用节点");
+  assert.deepEqual([all.hidden, all.textContent], [false, "全部展开"]);
+  toggle.onclick();
+  assert.deepEqual([hongKong.className, toggle.ariaExpanded, toggle.title], ["group open", "true", "收起 🇭🇰HK-ISP 的 2 个备份节点"]);
+  assert.equal(all.textContent, "全部收起");
+  all.onclick();
+  assert.deepEqual([hongKong.className, all.textContent], ["group", "全部展开"]);
+  all.onclick();
+  assert.equal(hongKong.className, "group open");
+});
+
 
 test("inventory updates refresh the account without rotating its token or resetting options", async () => {
-  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups"].map((id) => [id, element()]));
+  const fields = new Map([".status", "#subscription", "#copy", "#rotate", "#subscription-client", "#enable-doh", "#enable-vless", "#enable-tencent-oa", "#tencent-oa-help", "#enable-wifi-assist", "#wifi-assist-help", "#client-help", "#identity", "#groups", "#groups-toggle"].map((id) => [id, element()]));
   fields.get("#subscription-client").value = "surge";
   const listeners = new Map();
   let requests = 0;
@@ -284,7 +317,7 @@ test("inventory counts paired protocols once and displays shared owners on both 
     ? Response.json({ revision: 1, nodes, users: [{ id: "member", email: "member@example.com", enabled: true, groups: [] }] }) : null });
   assert.deepEqual(page.pool.get("#counts").children.map((metric) => metric.children.map((item) => String(item.textContent))),
     [["启用节点", "2"], ["空闲节点", "1"], ["用户", "1"]]);
-  const rows = page.pool.get("#nodes").children;
-  for (const row of rows.slice(0, 2)) assert.equal(row.children[2].children[0].textContent, "member@example.com");
+  const rows = page.pool.get("#nodes").children.filter((row) => row.className === "node-row");
+  for (const row of rows.slice(0, 2)) assert.equal(row.children[1].children[0].textContent, "member@example.com");
   assert.ok(JSON.parse(page.pool.get("#inventory").value).every((node) => Object.keys(node).sort().join() === "enabled,id,line"));
 });
