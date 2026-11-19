@@ -538,7 +538,7 @@ function poolPanel(adminRoutes) {
     <div class="card-body">
       <label class="field-label" for="import">节点链接或 Surge 节点清单</label>
       <textarea id="import" rows="5" spellcheck="false" autocomplete="off" placeholder="ISP-1&#9;https://subscription.example.com/isp-1"></textarea>
-      <p class="hint">导出清单沿用订阅内的节点名称，按地区旗帜和 IDC / ISP / WARP 关键词分组。可用 <code>节点名 = 链接</code> 指定名称。</p>
+      <p class="hint">导入时把类型关键词前的横杠换成空格；客户端名带出口国家代码的中转节点改用出口国家命名，例如 <code>🇭🇰 HK-Hy2-ISP-AU</code> → <code>🇦🇺 AU-Hy2 ISP</code>，无法识别的代码会弹窗请你填写。节点按地区旗帜和 IDC / ISP / WARP 关键词分组，可用 <code>节点名 = 链接</code> 指定名称。</p>
       <div class="actions"><button id="append" class="tonal" disabled>${icon("plus")}转换并加入待保存清单</button></div>
       <ul id="import-notes" class="notes" aria-live="polite"></ul>
       <details class="editor"><summary>编辑完整清单 / 停用或移除节点</summary>
@@ -700,7 +700,20 @@ function poolPanel(adminRoutes) {
       if (!Array.isArray(nodes) || !importer.value.trim()) throw new Error("请填写节点清单，并确保 JSON 为数组。");
       importNotes.replaceChildren();
       message("正在解析并转换节点…");
-      const result = await api(${JSON.stringify(adminRoutes.import)}, "POST", { text: importer.value, nodes });
+      const input = { text: importer.value, nodes };
+      let result = await api(${JSON.stringify(adminRoutes.import)}, "POST", input);
+      const exits = {};
+      for (const exit of result.unknownExits) {
+        const answer = prompt("无法识别中转出口 " + exit.code + "（" + exit.name + "）。\n请填写旗帜代码、简称和全称，用空格分隔，例如 DE DE Germany。\n取消则新节点去掉入口旗帜，需在清单中补全名称后保存。", exit.code + " " + exit.code + " ");
+        if (!answer?.trim()) continue;
+        const [flag, code, name, ...extra] = answer.trim().split(/\s+/);
+        if (!name || extra.length) throw new Error("请按“旗帜代码 简称 全称”填写 " + exit.code + "，各项不含空格。");
+        exits[exit.code] = { flag, code, name };
+      }
+      if (Object.keys(exits).length) {
+        message("正在按填写的出口国家重新转换…");
+        result = await api(${JSON.stringify(adminRoutes.import)}, "POST", { ...input, exits });
+      }
       editor.value = JSON.stringify(result.nodes, null, 2);
       importer.value = "";
       for (const warning of result.warnings) importNotes.append(element("li", warning));

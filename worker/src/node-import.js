@@ -1,18 +1,32 @@
 import { HttpError } from "./errors.js";
 import { groupNodeVariants, identifyNodeGroup } from "./node-pool.js";
+import { spaceBeforeIpType } from "./nodes.js";
 
 const MAX_NODES = 1000;
 const MAX_LINKS = 20;
 const MAX_BYTES = 512 * 1024;
 const FETCH_TIMEOUT_MS = 10_000;
+// 3x-ui joins an inbound remark such as "🇭🇰 HK-Hy2" and a client such as
+// "ISP-AU-1". Two capitals after the type name the exit the inbound relays to.
+const RELAY_NAME = /^(?:[\u{1F1E6}-\u{1F1FF}]{2}\s*)?([^\s-]+)((?:-[^\s-]+)*?)[- ](ISP|IDC|WARP)-([A-Z]{2})(-.*)?$/u;
+// Full names follow full-name inbounds such as HongKong. Administrators enter
+// any other exit during the import that needs it.
+const RELAY_EXITS = {
+  AE: "UnitedArabEmirates", AR: "Argentina", AU: "Australia", BR: "Brazil", CA: "Canada", CH: "Switzerland",
+  DE: "Germany", ES: "Spain", FR: "France", GB: "UnitedKingdom", HK: "HongKong", ID: "Indonesia", IN: "India",
+  IT: "Italy", JP: "Japan", KR: "Korea", MO: "Macau", MY: "Malaysia", NL: "Netherlands", PH: "Philippines",
+  RU: "Russia", SE: "Sweden", SG: "Singapore", TH: "Thailand", TR: "Turkey", TW: "Taiwan", UK: "UnitedKingdom",
+  US: "UnitedStates", VN: "Vietnam",
+};
 
 // Import only prepares a draft. Saving, classification and allocation still use
 // the existing inventory endpoint and its revision check.
-export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}) {
+export async function importPoolNodes({ text, nodes, exits }, fetcher = fetch, env = {}) {
   if (typeof text !== "string" || new TextEncoder().encode(text).length > MAX_BYTES
     || !Array.isArray(nodes) || nodes.length > MAX_NODES) {
     throw invalid("请提供导入文本和待保存节点清单。");
   }
+  const manualExits = readManualExits(exits);
   const result = nodes.map((node) => {
     if (!node || typeof node.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(node.id)
       || (node.enabled !== undefined && typeof node.enabled !== "boolean")) {
@@ -57,9 +71,13 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
   const names = new Map(result.map((node) => [parseLine(node.line).name, node]));
   const warningLines = new Map();
   const unclassifiedNodes = [];
+  const unknownExits = new Map();
   function warn(line, message) {
     if (!warningLines.has(message)) warningLines.set(message, new Set());
     warningLines.get(message).add(line);
+  }
+  function askExit(item) {
+    if (!unknownExits.has(item.unknownExit)) unknownExits.set(item.unknownExit, { code: item.unknownExit, name: item.sourceName });
   }
   let duplicates = 0;
   for (const entry of sources) {
@@ -70,22 +88,32 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
         if (response.error) throw response.error;
         content = response.text;
       }
-      const imported = parseContent(content, entry.name);
+      const imported = parseContent(content, entry.name).map((item) => convertName(item, manualExits));
       if (/^https:\/\//i.test(entry.source) && keys.size && imported.length >= 3) {
         for (const message of alignSubscriptionVariants(imported, keys, names)) warn(entry.index, message);
       }
       for (const item of imported) {
         const key = connectionKey(item);
         if (keys.has(key)) {
-          const tagged = /^vmess\s*,/i.test(item.value) && item.name.match(/^(.+)-VMess([- ](?:ISP|IDC|WARP)\b.*)$/i);
-          const oldName = tagged && tagged[1] + tagged[2];
-          const previous = names.get(oldName);
-          if (previous && connectionKey(parseLine(previous.line)) === key && renameDraftNode(previous, item.name, names)) {
-            warn(entry.index, "已将已有 VMess 节点的协议标记加入待保存名称，保留原 ID 和启停状态。");
+          const [sourceName, legacyName] = sourceNames(item);
+          for (const oldName of [sourceName, legacyName]) {
+            const previous = oldName && oldName !== item.name && names.get(oldName);
+            if (!previous || connectionKey(parseLine(previous.line)) !== key) continue;
+            if (item.unknownExit) askExit(item);
+            else if (renameDraftNode(previous, item.name, names)) {
+              warn(entry.index, oldName === legacyName ? "已将已有 VMess 节点的协议标记加入待保存名称，保留原 ID 和启停状态。"
+                : "已有节点仍使用上游原名，已在待保存清单中改为转换后的名称，保留原 ID 和启停状态。");
+            }
+            break;
           }
           duplicates += 1; continue;
         }
         if (result.length >= MAX_NODES) throw invalid("节点总数不能超过 1000。");
+        if (item.unknownExit) {
+          askExit(item);
+          warn(entry.index, `无法识别中转出口 ${item.unknownExit}，新节点已去掉入口旗帜，请在待保存清单中补全出口国家后保存。`);
+        }
+        if (item.relay) warn(entry.index, "已识别中转节点，改用出口国家的旗帜和名称。");
         const originalName = item.name;
         let suffix = 2;
         while (names.has(item.name)) item.name = `${originalName} (${suffix++})`;
@@ -111,7 +139,48 @@ export async function importPoolNodes({ text, nodes }, fetcher = fetch, env = {}
   if (unclassifiedNodes.length) {
     warnings.push(`待保存清单第 ${formatPositions(unclassifiedNodes)} 个节点：名称需包含一个地区旗帜和唯一一种 IDC / ISP / WARP 关键词，请补全后保存。`);
   }
-  return { nodes: result, added: result.length - nodes.length, duplicates, warnings };
+  return { nodes: result, added: result.length - nodes.length, duplicates, warnings, unknownExits: [...unknownExits.values()] };
+}
+
+// Stored names keep the subscription's flag and region unless the client name
+// identifies a relay exit. An unknown exit drops the inbound flag, so saving
+// needs a completed name instead of joining the inbound's group.
+function convertName(item, manualExits) {
+  const converted = { ...item, sourceName: item.name, name: spaceBeforeIpType(item.name) };
+  const relay = item.name.match(RELAY_NAME);
+  if (!relay) return converted;
+  const [, inbound, tags, type, code, rest = ""] = relay;
+  const exit = manualExits.get(code)
+    ?? (RELAY_EXITS[code] && { flag: flagOf(code === "UK" ? "GB" : code), code, name: RELAY_EXITS[code] });
+  if (!exit) return { ...converted, name: `${inbound}${tags} ${type}-${code}${rest}`, unknownExit: code };
+  const region = /^[A-Z]{2,3}(?:\(.+\))?$/.test(inbound) ? exit.code : exit.name;
+  return { ...converted, name: `${exit.flag} ${region}${tags} ${type}${rest}`, relay: true };
+}
+
+// An unedited saved node still carries an upstream name; older VMess remarks
+// had no "-VMess" tag.
+function sourceNames(item) {
+  const tagged = /^vmess\s*,/i.test(item.value) && item.sourceName.match(/^(.+)-VMess([- ](?:ISP|IDC|WARP)\b.*)$/i);
+  return tagged ? [item.sourceName, tagged[1] + tagged[2]] : [item.sourceName];
+}
+
+function readManualExits(exits) {
+  if (exits === undefined) return new Map();
+  if (!exits || typeof exits !== "object" || Array.isArray(exits) || Object.keys(exits).length > 50) {
+    throw invalid("手动填写的中转出口格式不正确。");
+  }
+  return new Map(Object.entries(exits).map(([code, exit]) => {
+    if (!/^[A-Z]{2}$/.test(code)) throw invalid("手动填写的中转出口格式不正确。");
+    if (!exit || typeof exit.flag !== "string" || !/^[A-Za-z]{2}$/.test(exit.flag)
+      || ![exit.code, exit.name].every((value) => typeof value === "string" && /^[\p{L}\p{N}().]{1,32}$/u.test(value))) {
+      throw invalid(`中转出口 ${code} 需要两位字母的旗帜代码，以及不含空格、横杠和分隔符的简称与全称。`);
+    }
+    return [code, { flag: flagOf(exit.flag.toUpperCase()), code: exit.code, name: exit.name }];
+  }));
+}
+
+function flagOf(code) {
+  return String.fromCodePoint(...Array.from(code, (letter) => 0x1F1E6 + letter.charCodeAt(0) - 65));
 }
 
 // Both input lines and draft nodes are collected in ascending order.
@@ -156,7 +225,9 @@ function alignSubscriptionVariants(items, keys, names) {
     let saved;
     try { saved = identifyNodeGroup(oldName); } catch { continue; }
     if (saved.ipType !== vmess.ipType) continue;
-    if (saved.region !== vmess.region) {
+    // A saved source name records no chosen exit and follows the conversion.
+    const unedited = variants.some(({ item }) => sourceNames(item).includes(oldName));
+    if (!unedited && saved.region !== vmess.region) {
       const flag = /[\u{1F1E6}-\u{1F1FF}]{2}/u;
       const oldFlag = oldName.match(flag)[0];
       for (const { item } of variants) {
@@ -169,7 +240,7 @@ function alignSubscriptionVariants(items, keys, names) {
     }
     // Older inventories used today's VLESS name for VMess. Free that name
     // before appending any new line, even when VLESS arrives first.
-    if (oldName === vless.item.name && renameDraftNode(existing, vmess.item.name, names)) {
+    if ([vless.item.sourceName, vless.item.name].includes(oldName) && renameDraftNode(existing, vmess.item.name, names)) {
       warnings.push("已同步 VMess 协议标记，保留原节点 ID 和启停状态。");
     }
   }

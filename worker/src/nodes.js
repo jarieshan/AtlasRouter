@@ -32,12 +32,16 @@ export function renderProxyLines(nodes) {
   return nodes.map((node) => node.line).join("\n");
 }
 
+export function spaceBeforeIpType(name) {
+  return name.replace(/([^\s-])-(?=(?:ISP|IDC|WARP)(?=$|[^a-z0-9]))/i, "$1 ");
+}
+
 export function subscriptionNodes(nodes) {
   const names = new Map();
   const used = new Set(nodes.flatMap((node) => [node.name, node.group]));
   // Resolve collisions independently of each user's fallback order.
   for (const node of [...nodes].sort((a, b) => a.name.localeCompare(b.name))) {
-    const base = node.name.replace(/([^\s-])-(?=(?:ISP|IDC|WARP)(?=$|[^a-z0-9]))/i, "$1 ");
+    const base = spaceBeforeIpType(node.name);
     let name = base;
     if (name !== node.name) {
       let suffix = 2;
