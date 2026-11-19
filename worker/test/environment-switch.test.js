@@ -11,6 +11,7 @@ test("switching hot-loads the page and its panels use the selected environment",
   page.account.get("#subscription-client").value = "clash";
   page.account.get("#enable-doh").checked = false;
   page.account.get("#enable-wifi-assist").checked = true;
+  page.account.get("#enable-vless").checked = true;
   const switching = page.change(true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.match(page.account.get("#subscription").value, /PROD_TEST/);
@@ -18,6 +19,7 @@ test("switching hot-loads the page and its panels use the selected environment",
   assert.equal(page.account.get("#copy").disabled, true);
   assert.equal(page.pool.get("#save").disabled, true);
   assert.equal(page.account.get("#enable-wifi-assist").disabled, true);
+  assert.equal(page.account.get("#enable-vless").disabled, true);
   assert.equal(page.swaps, 0);
   await page.pool.get("#save").onclick();
   assert.equal(page.calls.filter(({ options }) => options.method === "PUT").length, 0);
@@ -30,6 +32,7 @@ test("switching hot-loads the page and its panels use the selected environment",
   assert.equal(subscription.searchParams.get("client"), "clash");
   assert.equal(subscription.searchParams.get("doh"), "0");
   assert.equal(subscription.searchParams.get("wifi_assist"), "1");
+  assert.equal(subscription.searchParams.get("vless"), "1");
   assert.match(devPage.pool.get("#inventory").value, /dev-node/);
   assert.equal(devPage.notice.hidden, false);
   await devPage.pool.get("#save").onclick();
@@ -43,6 +46,7 @@ test("switching hot-loads the page and its panels use the selected environment",
   assert.match(productionPage.pool.get("#inventory").value, /prod-node/);
   assert.equal(productionPage.notice.hidden, true);
   assert.equal(productionPage.account.get("#enable-wifi-assist").checked, true);
+  assert.equal(productionPage.account.get("#enable-vless").checked, true);
   assert.equal(productionPage.document.atlasrouterEnvironment.pending, 0);
 });
 
@@ -61,6 +65,7 @@ test("a failed page request keeps the old environment, URL, account and unsaved 
   assert.equal(page.notice.hidden, true);
   assert.equal(page.pool.get("#save").disabled, false);
   assert.equal(page.account.get("#enable-wifi-assist").disabled, false);
+  assert.equal(page.account.get("#enable-vless").disabled, false);
   assert.match(page.account.get(".status").textContent, /仍使用正式环境/);
 });
 

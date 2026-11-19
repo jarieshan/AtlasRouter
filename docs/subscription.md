@@ -30,16 +30,19 @@ Dev 开关在当前页面切换环境，不跳转或整页刷新。关闭时生�
 
 ## 自定义订阅
 
-网页提供 Client（默认 Surge，可选 Clash）、启用 DoH（默认开启）、Wi-Fi Assist（默认关闭）和 Tencent OA Compatibility（默认关闭，仅 Surge）四个订阅选项。选项即时更新待复制的 URL，不修改账号、token 或节点分配；修改后将新链接复制到客户端。刷新分配或重置 token 时保留当前页面上的选项。Tencent OA Compatibility 见下文。
+网页提供 Client（默认 Surge，可选 Clash）、启用 DoH（默认开启）、包含 VLESS 节点（默认关闭）、Wi-Fi Assist（默认关闭）和 Tencent OA Compatibility（默认关闭，仅 Surge）五个订阅选项。选项即时更新待复制的 URL，不修改账号、token 或节点分配；修改后将新链接复制到客户端。刷新分配或重置 token 时保留当前页面上的选项。Tencent OA Compatibility 见下文。
 
 | 参数 | 默认值 | 可选值 |
 | --- | --- | --- |
 | `client` | `surge` | `surge`、`clash`；Clash 以 Mihomo（Clash Meta）为兼容目标 |
 | `doh` | `1` | `0`、`1`；默认启用 DoH，`0` 关闭 |
+| `vless` | `0` | `0`、`1`；默认不输出 VLESS 节点，`1` 输出 |
 | `tencent_oa` | `0` | `0`、`1`；`1` 在 `skip-proxy` 中加入腾讯公司内网例外，仅适用于 Surge |
 | `wifi_assist` | `0` | `0`、`1`，`1` 开启 Wi-Fi Assist，适用于 Surge iOS 或支持网络回退扩展的 ProjectClash |
 
 例如 `/AtlasRouter?token=<token>&client=clash&doh=0` 输出 Clash 并关闭 DoH。这些参数重复、为空或使用其他值时返回 400；无效 token 仍先返回 401。页面生成的 URL 省略默认选项。不带 `doh` 参数的现有订阅会在下次更新时启用 DoH；需要保持关闭时，在页面取消“启用 DoH”后重新复制链接，或在链接中加上 `doh=0`。原有 `doh=1` 链接继续有效。
+
+“包含 VLESS 节点”关闭或省略 `vless` 参数时，Surge 和 Clash 订阅都不输出 VLESS 节点，回退组只保留同一节点的其他协议；某组只有 VLESS 节点时省略该组，全部节点都是 VLESS 时返回 503。开启后链接带 `vless=1`，托管更新地址也保留该参数，回退顺序为 VLESS → VMess → Hy2。现有链接没有该参数，下次更新后不再包含 VLESS 节点；需要时在页面开启后重新复制链接。节点分配不受影响，页面的节点与备份列表仍显示全部协议。页面切换 Client、切换 Dev、刷新节点和重置 token 时保留当前选择。
 
 Wi-Fi Assist 开关开启时，链接带 `wifi_assist=1`，Surge 的 `[General]` 写入 `wifi-assist = true`，托管更新地址也保留该参数。关闭或省略参数时写入 `wifi-assist = false`。这是 Surge iOS 的功能，Wi-Fi 连接不佳时会尝试使用蜂窝数据。页面切换 Client、切换 Dev、刷新节点和重置 token 时保留当前选择。[Surge Wi-Fi Assist](https://manual.nssurge.com/profile/general.html#wifi-assist)
 
@@ -107,7 +110,7 @@ Access 边缘可能先要求这些路径登录；通过 Access 不会恢复旧�
 
 正式与开发配置均按地区/IP 类型生成 `fallback` 组，ISP、WARP、IDC 组的成员依照每位用户的主节点、备用节点排列，选择首个可用节点。Surge 与 Clash 均配置 `interval=300`，Surge 将该值作为测速结果有效期，Clash 按自身健康检查调度执行。节点不足时允许共享主节点。`surge/template.conf` 提供通用设置和规则区，`surge/pool-groups.conf` 提供动态策略组，`surge/rules.list` 放零散规则，最终保留 `FINAL` 兜底规则。订阅省略 `[MITM]` 段。分配规则见 [multi-user.md](multi-user.md)。
 
-同组、同服务器、同 UUID 的 VLESS / VMess 共享分配，带 Hy2 协议标记的连接按唯一匹配的客户端名加入同一节点。Surge 和 Clash（Mihomo）的回退组都按 VLESS → VMess → Hy2 尝试当前节点已启用的协议，再尝试下一个节点。导入时已将 `🇭🇰 HongKong-ISP-1` 这类名称转换为 `🇭🇰 HongKong ISP-1`，生成两种订阅时对较早保存的名称做同样转换，同步更新节点引用。[协议配对与命名规则](multi-user.md)
+同组、同服务器、同 UUID 的 VLESS / VMess 共享分配，带 Hy2 协议标记的连接按唯一匹配的客户端名加入同一节点。Surge 和 Clash（Mihomo）的回退组都按 VLESS → VMess → Hy2 尝试当前节点已启用的协议（VLESS 仅在 `vless=1` 时输出），再尝试下一个节点。导入时已将 `🇭🇰 HongKong-ISP-1` 这类名称转换为 `🇭🇰 HongKong ISP-1`，生成两种订阅时对较早保存的名称做同样转换，同步更新节点引用。[协议配对与命名规则](multi-user.md)
 
 Surge 的直连测速地址为 `http://bing.com/`，代理测速地址为 `http://cp.cloudflare.com/generate_204`，全局 `test-timeout=10`，DIRECT 测速也使用客户端内置的 10 秒超时。Clash 自动代理组使用同一代理测速地址，配置 `timeout: 10000`、`interval: 300` 和 `expected-status: 204`。Clash 界面中的 DIRECT 单节点测速通过客户端请求传入地址与超时，使用 Bing 和 10 秒超时需要客户端传入对应参数。[ProjectClash 测速接口](https://github.com/ProjectClash/Clash/blob/master/hub/route/proxies.go)
 

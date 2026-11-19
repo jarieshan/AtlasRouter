@@ -126,7 +126,7 @@ async function account(mf, subject = "alice", claims) {
   return json(await request(mf, ACCOUNT_PROFILE_PATH, { subject, claims }));
 }
 
-test("Dev imports paired protocols, preserves allocations and renders normalized VLESS-first fallback", async (t) => {
+test("Dev imports paired protocols, preserves allocations and renders normalized VLESS-first fallback with vless=1", async (t) => {
   const developmentConfig = JSON.parse(await readFile(new URL("../wrangler.development.jsonc", import.meta.url), "utf8"));
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
     { name: "portal", modules: true, compatibilityDate: "2026-05-12", scriptPath: ".wrangler/test-dist/index.js",
@@ -172,7 +172,8 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
   const orders = [[1, 2, 3], [2, 3, 1], [3, 1, 2], [1, 3, 2], [2, 1, 3], [3, 2, 1]];
   for (const [index, user] of accounts.entries()) {
     assert.equal(new URL(user.subscriptionUrl).pathname, "/AtlasRouter-Dev");
-    const response = await request(mf, user.subscriptionUrl);
+    const withVless = user.subscriptionUrl + "&vless=1";
+    const response = await request(mf, withVless);
     assert.equal(response.status, 200);
     const profile = await response.text();
     const expected = orders[index].flatMap((number) => [`🇭🇰 HongKong ISP-${number}`, `🇭🇰 HK ISP-${number}`, `🇭🇰 HK-Hy2 ISP-${number}`]);
@@ -181,8 +182,9 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
     assert.match(profile, /^🇭🇰 HK ISP-1 = vmess,/m);
     assert.match(profile, /^FINAL,FINAL,dns-failed$/m);
     assert.match(profile, /AtlasRouter@develop\/surge\/rule-sets\//);
-    assert.equal(await (await request(mf, user.subscriptionUrl)).text(), profile);
-    const clash = parseYaml(await (await request(mf, user.subscriptionUrl + "&client=clash")).text());
+    assert.equal(new URL(profile.match(/^#!MANAGED-CONFIG (\S+)/m)[1]).searchParams.get("vless"), "1");
+    assert.equal(await (await request(mf, withVless)).text(), profile);
+    const clash = parseYaml(await (await request(mf, withVless + "&client=clash")).text());
     const fallback = clash["proxy-groups"].find((group) => group.name === "🇭🇰HK-ISP");
     assert.equal(fallback.type, "fallback");
     assert.deepEqual(fallback.proxies, expected);
@@ -192,6 +194,14 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
       assert.equal(vless.uuid, `00000000-0000-4000-8000-${String(number).padStart(12, "0")}`);
       assert.equal(vless["reality-opts"]["public-key"], Buffer.alloc(32, number).toString("base64url"));
     }
+    const withoutVless = orders[index].flatMap((number) => [`🇭🇰 HK ISP-${number}`, `🇭🇰 HK-Hy2 ISP-${number}`]);
+    const plain = await (await request(mf, user.subscriptionUrl)).text();
+    assert.deepEqual(fallbackMembers(plain, "🇭🇰HK-ISP"), withoutVless);
+    assert.doesNotMatch(plain, /^[^=\n]+= vless,/m);
+    assert.equal(new URL(plain.match(/^#!MANAGED-CONFIG (\S+)/m)[1]).searchParams.has("vless"), false);
+    const plainClash = parseYaml(await (await request(mf, user.subscriptionUrl + "&client=clash")).text());
+    assert.deepEqual(plainClash["proxy-groups"].find((group) => group.name === "🇭🇰HK-ISP").proxies, withoutVless);
+    assert.ok(plainClash.proxies.every((node) => node.type !== "vless"));
   }
   assert.equal((await request(mf, "/AtlasRouter-Dev?token=invalid")).status, 401);
   assert.equal((await request(mf, "/AtlasRouter-Dev/modules/missing")).status, 404);
@@ -878,13 +888,35 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
       }
     }
   }
-  for (const query of ["client=other", "client=clash&client=surge", "doh=true", "doh=1&doh=0", "wifi_assist=", "wifi_assist=true", "wifi_assist=1&wifi_assist=0"]) {
+  for (const query of ["client=other", "client=clash&client=surge", "doh=true", "doh=1&doh=0", "wifi_assist=", "wifi_assist=true", "wifi_assist=1&wifi_assist=0",
+    "vless=", "vless=true", "vless=1&vless=0"]) {
     assert.equal((await request(mf, `${profile.subscriptionUrl}&${query}`)).status, 400);
   }
   assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?token=invalid&client=clash&doh=1&wifi_assist=1`)).status, 401);
   assert.deepEqual(await json(await request(mf, POOL_STATE_PATH, { subject: "admin" })), before);
   await json(await request(mf, ACCOUNT_TOKEN_PATH, { subject: "alice", method: "POST", body: {} }));
   assert.equal((await request(mf, `${profile.subscriptionUrl}&client=clash&doh=1&wifi_assist=1`)).status, 401);
+});
+
+test("subscriptions omit VLESS-only groups unless vless=1 and refuse to render without other nodes", async (t) => {
+  const mf = await createRuntime(t);
+  await save(mf, [...protocolNodes().slice(3), ...nodes(1, "IDC", "🇭🇰")]);
+  const profile = await account(mf);
+  const plain = await (await request(mf, profile.subscriptionUrl)).text();
+  assert.doesNotMatch(plain, /^🇭🇰HK-ISP = /m);
+  assert.doesNotMatch(plain, /^[^=\n]+= vless,/m);
+  assert.match(plain, /^Proxy = select, 🇭🇰HK-IDC, Auto, DIRECT, /m);
+  const clash = parseYaml(await (await request(mf, `${profile.subscriptionUrl}&client=clash`)).text());
+  assert.ok(clash.proxies.length && clash.proxies.every((node) => node.type !== "vless"));
+  assert.equal(clash["proxy-groups"].some(({ name }) => name === "🇭🇰HK-ISP"), false);
+  const enabled = await (await request(mf, `${profile.subscriptionUrl}&vless=1`)).text();
+  assert.equal(fallbackMembers(enabled, "🇭🇰HK-ISP").length, 3);
+  assert.match(enabled, /^Proxy = select, 🇭🇰HK-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
+  await save(mf, protocolNodes().slice(3), 1);
+  const empty = await request(mf, profile.subscriptionUrl);
+  assert.equal(empty.status, 503);
+  assert.match(await empty.text(), /vless=1/);
+  assert.equal((await request(mf, `${profile.subscriptionUrl}&vless=1`)).status, 200);
 });
 
 test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token checks", async (t) => {

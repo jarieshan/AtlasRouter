@@ -73,9 +73,9 @@ test("subscription DNS follows policy changes and new external DIRECT domain set
 });
 
 test("subscription options default to Surge, validate duplicates, and preserve only supported options in managed URLs", () => {
-  assert.deepEqual(readSubscriptionOptions(new URLSearchParams()), { client: "surge", doh: true, tencentOa: false, wifiAssist: false });
-  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("client=clash&doh=1")), { client: "clash", doh: true, tencentOa: false, wifiAssist: false });
-  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("doh=0")), { client: "surge", doh: false, tencentOa: false, wifiAssist: false });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams()), { client: "surge", doh: true, tencentOa: false, wifiAssist: false, vless: false });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("client=clash&doh=1")), { client: "clash", doh: true, tencentOa: false, wifiAssist: false, vless: false });
+  assert.deepEqual(readSubscriptionOptions(new URLSearchParams("doh=0")), { client: "surge", doh: false, tencentOa: false, wifiAssist: false, vless: false });
   for (const query of ["client=", "client=other", "client=clash&client=surge", "doh=true", "doh=", "doh=1&doh=0"]) {
     assert.throws(() => readSubscriptionOptions(new URLSearchParams(query)), (error) => error.status === 400);
   }
@@ -173,6 +173,20 @@ test("Wi-Fi Assist defaults off, persists in managed URLs and maps to ProjectCla
   const invalid = await convertSurgeToClash(plain.replace("wifi-assist = false", "wifi-assist = invalid"), context);
   assert.ok(invalid.warnings.includes("General wifi-assist: invalid value omitted"));
   assert.equal(invalid.config["network-strategy"], undefined);
+});
+
+test("vless defaults off, accepts only 0 or 1 and persists in managed URLs", () => {
+  const input = profile();
+  for (const client of ["surge", "clash"]) for (const value of ["0", "1"]) {
+    const options = readSubscriptionOptions(new URLSearchParams({ client, vless: value }));
+    assert.equal(options.vless, value === "1");
+    const managed = new URL(renderSurgeProfile({ ...input, options }).match(/^#!MANAGED-CONFIG (\S+)/)[1]);
+    assert.equal(managed.searchParams.get("vless"), value === "1" ? "1" : null);
+    assert.equal(managed.href, buildSubscriptionUrl(context.requestUrl, context.token, options));
+  }
+  for (const query of ["vless=", "vless=true", "vless=2", "vless=1&vless=1", "vless=0&vless=1"]) {
+    assert.throws(() => readSubscriptionOptions(new URLSearchParams(query)), (error) => error.status === 400);
+  }
 });
 
 test("Clash output is derived from the rendered Surge profile and retains sorting, allocation and rules", async () => {

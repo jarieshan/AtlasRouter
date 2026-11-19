@@ -32,6 +32,12 @@ export function renderProxyLines(nodes) {
   return nodes.map((node) => node.line).join("\n");
 }
 
+// A fallback group needs at least one member, so groups left empty are omitted.
+export function excludeVless(groups) {
+  return groups.map((group) => ({ ...group, nodes: group.nodes.filter((node) => !/^vless\s*,/i.test(node.value)) }))
+    .filter((group) => group.nodes.length);
+}
+
 export function spaceBeforeIpType(name) {
   return name.replace(/([^\s-])-(?=(?:ISP|IDC|WARP)(?=$|[^a-z0-9]))/i, "$1 ");
 }

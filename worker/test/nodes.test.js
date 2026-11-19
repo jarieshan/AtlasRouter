@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseNodesConfig, renderProxyLines, serializeNodesConfig, subscriptionNodes } from "../src/nodes.js";
+import { excludeVless, parseNodesConfig, renderProxyLines, serializeNodesConfig, subscriptionNodes } from "../src/nodes.js";
 
 test("subscription names replace compact region/type separators and retain numbered suffixes", () => {
   const names = ["🇭🇰 HongKong-ISP-1", "🇭🇰 HK-IDC-1", "🇺🇸 US(LA)-WARP-1", "🇭🇰 Hong-Kong-isp-2",
@@ -24,6 +24,18 @@ test("subscription names resolve collisions consistently and update underlying p
   assert.match(rendered[1].value, /underlying-proxy="🇭🇰 HK ISP-1 \(3\)"/);
   assert.deepEqual(subscriptionNodes([...nodes].reverse()).reverse(), rendered);
   assert.deepEqual(subscriptionNodes(rendered), rendered);
+});
+
+test("excluding VLESS keeps the remaining fallback order and omits groups left empty", () => {
+  const nodes = parseNodesConfig([
+    { group: "🇭🇰HK-ISP", value: ["A-VLESS = VLESS, a.example.com, 8443, username=TEST_ONLY", "A-VMess = vmess, a.example.com, 443, username=TEST_ONLY",
+      "B-VLESS = vless, b.example.com, 8443, username=TEST_ONLY", "B-Hy2 = hysteria2, b.example.com, 443, password=TEST_ONLY"] },
+    { group: "🇺🇸USA-ISP", value: ["C-VLESS = vless, c.example.com, 8443, username=TEST_ONLY"] },
+  ]);
+  const groups = [{ group: "🇭🇰HK-ISP", primaryId: "a", nodes: nodes.slice(0, 4) }, { group: "🇺🇸USA-ISP", primaryId: "c", nodes: nodes.slice(4) }];
+  const before = structuredClone(groups);
+  assert.deepEqual(excludeVless(groups), [{ group: "🇭🇰HK-ISP", primaryId: "a", nodes: [nodes[1], nodes[3]] }]);
+  assert.deepEqual(groups, before);
 });
 
 test("parses grouped node object config", () => {

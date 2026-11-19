@@ -314,6 +314,10 @@ function accountPanel(preview, { development, developmentAvailable }) {
             <span class="setting-text"><span>启用 DoH</span><span>加密 DNS 查询，降低窃听和篡改风险；可能增加解析延迟。</span></span>
             <input id="enable-doh" type="checkbox" role="switch" checked>
           </label>
+          <label class="setting" for="enable-vless">
+            <span class="setting-text"><span>包含 VLESS 节点</span><span>输出 VLESS REALITY 节点，Surge 需要 iOS 6.0.0+ / Mac 6.12.0+；关闭时订阅不包含 VLESS 节点。</span></span>
+            <input id="enable-vless" type="checkbox" role="switch">
+          </label>
           <label class="setting" for="enable-wifi-assist">
             <span class="setting-text"><span>Wi-Fi Assist</span><span id="wifi-assist-help">Surge iOS 在 Wi-Fi 连接不佳时尝试使用蜂窝数据。</span></span>
             <input id="enable-wifi-assist" type="checkbox" role="switch" aria-describedby="wifi-assist-help">
@@ -353,6 +357,7 @@ function accountPanel(preview, { development, developmentAvailable }) {
     const rotate = root.querySelector("#rotate");
     const client = root.querySelector("#subscription-client");
     const doh = root.querySelector("#enable-doh");
+    const vless = root.querySelector("#enable-vless");
     const tencentOa = root.querySelector("#enable-tencent-oa");
     const wifiAssist = root.querySelector("#enable-wifi-assist");
     const development = root.querySelector("#enable-dev");
@@ -361,6 +366,7 @@ function accountPanel(preview, { development, developmentAvailable }) {
       const params = new URL(location.href).searchParams;
       if (["surge", "clash"].includes(params.get("client"))) client.value = params.get("client");
       doh.checked = params.get("doh") !== "0";
+      vless.checked = params.get("vless") === "1";
       tencentOa.checked = params.get("tencent_oa") === "1";
       wifiAssist.checked = params.get("wifi_assist") === "1";
     }
@@ -381,14 +387,17 @@ function accountPanel(preview, { development, developmentAvailable }) {
       url.searchParams.delete("doh");
       url.searchParams.delete("tencent_oa");
       url.searchParams.delete("wifi_assist");
+      url.searchParams.delete("vless");
       if (client.value === "clash") url.searchParams.set("client", "clash");
       if (!doh.checked) url.searchParams.set("doh", "0");
       if (tencentOa.checked && !tencentOa.disabled) url.searchParams.set("tencent_oa", "1");
       if (wifiAssist.checked) url.searchParams.set("wifi_assist", "1");
+      if (vless.checked) url.searchParams.set("vless", "1");
       subscription.value = url.toString();
     }
     client.onchange = updateSubscription;
     doh.onchange = updateSubscription;
+    vless.onchange = updateSubscription;
     tencentOa.onchange = updateSubscription;
     wifiAssist.onchange = updateSubscription;
     if (development) development.onchange = async () => {
@@ -416,11 +425,13 @@ function accountPanel(preview, { development, developmentAvailable }) {
         url.searchParams.delete("doh");
         url.searchParams.delete("tencent_oa");
         url.searchParams.delete("wifi_assist");
+        url.searchParams.delete("vless");
         if (selected) url.searchParams.set("environment", "development");
         if (client.value === "clash") url.searchParams.set("client", "clash");
         if (!doh.checked) url.searchParams.set("doh", "0");
         if (tencentOa.checked) url.searchParams.set("tencent_oa", "1");
         if (wifiAssist.checked) url.searchParams.set("wifi_assist", "1");
+        if (vless.checked) url.searchParams.set("vless", "1");
         const response = await fetch(url.pathname + url.search, {
           credentials: "same-origin", cache: "no-store", redirect: "error",
         });
@@ -500,7 +511,7 @@ function accountPanel(preview, { development, developmentAvailable }) {
     if (!previewData) pageState.panels.push({
       lock: (locked) => {
         copy.disabled = rotate.disabled = locked || !baseSubscriptionUrl;
-        client.disabled = doh.disabled = wifiAssist.disabled = locked;
+        client.disabled = doh.disabled = vless.disabled = wifiAssist.disabled = locked;
         tencentOa.disabled = locked || client.value !== "surge";
       },
     });
