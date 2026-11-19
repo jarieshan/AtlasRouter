@@ -51,18 +51,18 @@ Clash 输出将开启状态映射为 ProjectClash 扩展 `network-strategy: fall
 
 MagicRule Direct 和 Apple 列表在 `[Rule]` 中同样直连，但绝大部分域名不在 China 名单内（如 `download.windowsupdate.com`、`apple.com`）。不做映射时，开启 DoH 后这些直连域名经 `DoH Proxy` 由境外 DoH 解析，可能得到按境外位置调度的 CDN 地址，IDC 节点全部不可用时直连也会因解析失败而中断。Apple 列表同时覆盖进入 `GlobalMedia`、`AIProxy` 和 `ISP First` 的 Apple TV+、Apple Intelligence 与 AppleProxy 域名。这些请求由代理端远程解析。
 
-`[Host]` 固定为 `zslab.ai` 和 `*.zslab.ai` 指定 `server:223.5.5.5, 119.29.29.29`，覆盖根域名及所有层级子域名，不受 DoH 开关影响；这是 DNS 服务器分配，不是把域名绑定到这两个 IP。按 [Surge Host 语法](https://manual.nssurge.com/dns/local-dns-mapping.html)，多 DNS 服务器需要 Surge Mac 6.8.0+ / iOS 5.21.0+。节点使用域名时，需要普通 DNS 映射或 IP 地址完成引导解析，避免“连接代理前先通过该代理解析节点”的循环；`zslab.ai` 下的 IDC 节点由上述映射覆盖，非 IDC 节点使用下述 DNS 脚本，其他域名的 IDC 节点需另配映射。相关行为见 [Surge Mac 版本说明](https://kb.nssurge.com/surge-knowledge-base/release-notes/surge-mac-legacy#version-5.6.0)。
+Surge 订阅的 `[Host]` 将 `zslab.ai` 和 `*.zslab.ai` 映射到 DNS 脚本 `script:node-dns`，覆盖根域名及所有层级子域名，不受 DoH 开关影响。节点使用域名时，需要不经代理的 DNS 映射或 IP 地址完成引导解析，避免“连接代理前先通过该代理解析节点”的循环；`zslab.ai` 下的节点由该脚本覆盖，其他节点域名需另配映射。相关行为见 [Surge Mac 版本说明](https://kb.nssurge.com/surge-knowledge-base/release-notes/surge-mac-legacy#version-5.6.0)。
 
-非 IDC（ISP、WARP）节点的服务器域名由 [`scripts/node-dns.js`](../scripts/node-dns.js) 解析。Surge 订阅在 `[Script]` 中声明 `node-dns`（`type=dns`、`engine=jsc`、`timeout=10`），与仓库规则集一样经 jsDelivr 引用部署配置的分支；`[Host]` 最前面为每个域名生成 `<域名> = script:node-dns`，先于 `*.zslab.ai` 匹配。脚本同时直连阿里 `https://223.5.5.5/resolve` 和腾讯 `https://1.12.12.12/resolve` 的 JSON 接口查询 A 记录，单个请求 2 秒超时，采用最先返回的有效结果，以 `ttl: 300` 交给 Surge 缓存并写入 `$persistentStore`。切换网络后 Surge 清空 DNS 缓存，两个请求都失败时脚本返回上次保存的地址且不设 TTL，下次查询重新尝试；从未成功时交回 `223.5.5.5`、`119.29.29.29` 普通 DNS，与原映射相同。JSC 最多并行 2 个脚本会话，排队超过 `timeout` 的查询按超时结束，因此超时放宽到 10 秒。IDC 节点承载 `DoH Proxy`，其域名（含与非 IDC 节点共用的域名）保留原映射；以 IP 地址配置的节点不生成映射。没有需要映射的域名时省略 `[Script]`。参见 [Surge DNS 脚本](https://manual.nssurge.com/scripting/dns.html)和[脚本引擎](https://manual.nssurge.com/scripting/overview.html)。
+脚本为 [`scripts/node-dns.js`](../scripts/node-dns.js)，在 `[Script]` 中声明为 `node-dns`（`type=dns`、`engine=jsc`、`timeout=10`），与仓库规则集一样经 jsDelivr 引用部署配置的分支。脚本同时经 `DIRECT` 请求阿里 `https://223.5.5.5/resolve` 和腾讯 `https://1.12.12.12/resolve` 的 JSON 接口查询 A 记录，单个请求 2 秒超时，采用最先返回的有效结果，以 `ttl: 300` 交给 Surge 缓存并写入 `$persistentStore`。切换网络后 Surge 清空 DNS 缓存，两个请求都失败时脚本返回上次保存的地址且不设 TTL，下次查询重新尝试；从未成功时交回 `223.5.5.5`、`119.29.29.29` 普通 DNS，与原先的 `server:` 映射相同。JSC 最多并行 2 个脚本会话，排队超过 `timeout` 的查询按超时结束，因此超时放宽到 10 秒。IDC 节点以域名配置时，按 [Surge 加密 DNS](https://manual.nssurge.com/dns/encrypted-dns.html) 的说明，经 `DoH Proxy` 的加密 DNS 连接会回退 `DIRECT`；`server:` 和 `script:` 都不是 IP 映射，这一行为不变。参见 [Surge DNS 脚本](https://manual.nssurge.com/scripting/dns.html)和[脚本引擎](https://manual.nssurge.com/scripting/overview.html)。
 
-`[Host]` 还固定包含以下两条映射，为国内 DoH 上游自身的域名使用普通 DNS 引导解析；两条均放在直连名单映射之前，不受 DoH 开关影响：
+`[Host]` 还固定包含以下两条映射，为国内 DoH 上游自身的域名使用普通 DNS 引导解析；两条均放在直连名单映射之前，不受 DoH 开关影响。这是 DNS 服务器分配，不是把域名绑定到这两个 IP；按 [Surge Host 语法](https://manual.nssurge.com/dns/local-dns-mapping.html)，多 DNS 服务器需要 Surge Mac 6.8.0+ / iOS 5.21.0+：
 
 ```ini
 dns.alidns.com = server:223.5.5.5, 119.29.29.29
 doh.pub = server:223.5.5.5, 119.29.29.29
 ```
 
-Clash 为默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则。Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`。节点域名使用普通 `proxy-server-nameserver`；节点 DNS 脚本只用于 Surge，Clash 订阅不生成 `[Script]` 和对应的 Host 映射。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射。每份使用国内 DNS 的名单都复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项。IBKR、Direct、iCloud、Apple 和 China 名单使用 Worker 中转的 MagicRule Mihomo 产物，CustomDirect 和 WeChat 使用 jsDelivr 地址，均不携带订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试。
+Clash 为默认和 Host 指定的 DoH 地址追加 `#RULES`，使用相同的上游域名规则。Cloudflare、Google 走 `DoH Proxy`，阿里、腾讯走 `DIRECT`。节点域名使用普通 `proxy-server-nameserver`。Clash 没有 DNS 脚本，订阅不生成 `[Script]`，`zslab.ai` 和 `*.zslab.ai` 仍映射到 `223.5.5.5`、`119.29.29.29`。`[Host]` 的 DNS 映射转换为 `nameserver-policy`，包括上述两个上游域名的普通 DNS 映射。每份使用国内 DNS 的名单都复用 `[Rule]` 中对应的规则提供器，生成 `rule-set:<提供器名>` 项。IBKR、Direct、iCloud、Apple 和 China 名单使用 Worker 中转的 MagicRule Mihomo 产物，CustomDirect 和 WeChat 使用 jsDelivr 地址，均不携带订阅 token。普通 DNS 仍用于关闭 DoH 时的解析、上游域名引导解析和连通性测试。
 
 DNS 劫持固定为以下两个目标，不随 DoH 开关变化；DoH 开关只控制加密 DNS 上游：
 
