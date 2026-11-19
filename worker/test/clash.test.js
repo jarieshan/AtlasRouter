@@ -95,7 +95,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     assert.ok(config.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${iconBase}Auto.png`));
     assert.doesNotMatch(config, /tailnet|tailscale/i);
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
-    assert.match(config, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
+    assert.match(config, /\[Host\]\n# .+\nvmess\.example\.com = script:node-dns\nwarp\.example\.com = script:node-dns\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
     assert.ok(config.split("\n").includes(`DoH Proxy = smart, 🇭🇰 HK IDC, icon-url=${iconBase}Server.png, hidden=true`));
     assert.doesNotMatch(config, /^PROTOCOL,DOH,/m);
     const hosts = config.split("[Host]\n")[1].split("[Proxy]\n")[0];
@@ -187,7 +187,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
   }
   assert.equal(await findClashRuleSource(`${directSource.id}.txt`), null);
   for (const doh of [false, true]) {
-    const surge = renderSurgeProfile({ ...input, options: { doh } });
+    const surge = renderSurgeProfile({ ...input, options: { doh, client: "clash" } });
     const output = await renderClashProfile(surge, context);
     const config = parse(output);
     assert.doesNotMatch(output, /tailnet|tailscale/i);
@@ -589,6 +589,40 @@ test("Host DoH mappings follow the outbound setting and only reuse declared doma
   const mapped = await convertSurgeToClash(`[Host]\nRULE-SET:${genericUrl} = server:223.5.5.5\nRULE-SET:${directUrl} = server:119.29.29.29\n[Proxy]\nnode = ${vmess}\n[Rule]\nRULE-SET,${genericUrl},DIRECT,no-resolve\nRULE-SET,${directUrl},DIRECT,no-resolve\nFINAL,node\n`, context);
   assert.deepEqual({ ...mapped.config.dns["nameserver-policy"] }, { ...dohCanary, [`rule-set:${ruleSet.id}`]: ["223.5.5.5"], "rule-set:China": ["119.29.29.29"] });
   assert.deepEqual(mapped.warnings, []);
+});
+
+test("Surge resolves non-IDC node hostnames through the node DNS script and Clash omits it", async () => {
+  const state = { nodes: parsePoolNodes([
+    { id: "idc", line: "🇭🇰 HK IDC = trojan, shared.example.com, 443, password=TEST_ONLY" },
+    { id: "shared", line: "🇭🇰 HK ISP = trojan, shared.example.com, 443, password=TEST_ONLY" },
+    { id: "ip", line: "🇯🇵 JP ISP = trojan, 192.0.2.1, 443, password=TEST_ONLY" },
+    { id: "dot", line: "🇺🇸 US WARP = trojan, Z.Example.com., 443, password=TEST_ONLY" },
+    { id: "us", line: "🇺🇸 US ISP = trojan, a.example.com, 443, password=TEST_ONLY" },
+    { id: "jp", line: "🇯🇵 JP WARP = trojan, a.example.com, 443, password=TEST_ONLY" },
+  ]), users: [{ id: "user", enabled: true }] };
+  allocateNodes(state, "2026-01-01T00:00:00Z");
+  const groups = userGroups(state, "user");
+  const input = { ...context, groups, nodes: groups.flatMap((group) => group.nodes) };
+  const surge = surgeSections(renderSurgeProfile({ ...input, repositoryRulesRef: "develop" }));
+  assert.deepEqual(surge.get("script"), [
+    "node-dns = type=dns,script-path=https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/scripts/node-dns.js,engine=jsc,timeout=10",
+  ]);
+  assert.deepEqual(surge.get("host").slice(0, 4), [
+    "a.example.com = script:node-dns", "z.example.com = script:node-dns",
+    "zslab.ai = server:223.5.5.5, 119.29.29.29", "*.zslab.ai = server:223.5.5.5, 119.29.29.29",
+  ]);
+  assert.equal(surge.get("host").filter((line) => line.includes("script:")).length, 2);
+
+  const source = renderSurgeProfile({ ...input, options: { client: "clash" } });
+  assert.ok(!surgeSections(source).has("script"));
+  assert.doesNotMatch(source, /script:/);
+  const { warnings } = await convertSurgeToClash(source, context);
+  assert.doesNotMatch(warnings.join("\n"), /Section script|Host entry/);
+
+  const ineligible = groups.filter(({ group }) => ["🇭🇰HK-IDC", "🇯🇵JP-ISP"].includes(group));
+  const plain = renderSurgeProfile({ ...context, groups: ineligible, nodes: ineligible.flatMap((group) => group.nodes) });
+  assert.ok(!surgeSections(plain).has("script"));
+  assert.doesNotMatch(plain, /script:/);
 });
 
 test("smart conversion includes only proxy nodes and retains automatic selection references", async () => {

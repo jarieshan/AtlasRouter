@@ -20,10 +20,13 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   groups = groups.map((group) => ({ ...group, nodes: group.nodes.map((node) => byName.get(node.name)) }));
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const doh = options.doh ?? true;
+  // Clash has no DNS scripts; its node hostnames keep proxy-server-nameserver.
+  const scriptHosts = options.client === "clash" ? [] : nodeScriptHosts(nodes);
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
     WIFI_ASSIST: String(options.wifiAssist ?? false),
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
+    NODE_DNS_LINES: scriptHosts.map((host) => `${host} = script:node-dns`).join("\n"),
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
     RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT"),
     US_ISP_POLICY: groups.find(({ nodes }) => nodes[0]?.region === "US" && nodes[0]?.ipType === "ISP")?.group ?? "REJECT",
@@ -35,7 +38,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${doh ? "" : "# "}${setting}`);
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => ASSETS.tencentOa.match(/^skip-proxy[ \t]*=.*$/m)[0]);
     return heading + general;
-  });
+  }).replace(/^\[Script\]\n[\s\S]*?(?=^\[)/m, (section) => scriptHosts.length ? section : "");
   const profile = replaceTemplate(template, {
     ...replacements,
     DOMESTIC_RULESET_DNS_LINES: (rendered) => renderDomesticRuleSetDns(rendered, doh),
@@ -81,6 +84,24 @@ function renderPoolRules(rules, dohPolicy) {
     if (parts[2]?.trim() === "DoH Proxy") parts[2] = dohPolicy;
     return parts.join(",");
   }).join("\n");
+}
+
+// IDC nodes back DoH Proxy, so hostnames they use keep their existing DNS resolution.
+function nodeScriptHosts(nodes) {
+  const idcHosts = new Set(nodes.filter((node) => node.ipType === "IDC").map(nodeHostname));
+  return [...new Set(nodes.filter((node) => node.ipType !== "IDC").map(nodeHostname))]
+    .filter((host) => host && !idcHosts.has(host))
+    .sort();
+}
+
+function nodeHostname(node) {
+  try {
+    const [, server = ""] = splitSurgeList(node.value);
+    const hostname = surgeValue(server).toLowerCase().replace(/\.$/, "");
+    return /^(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*$/.test(hostname) ? hostname : null;
+  } catch {
+    return null;
+  }
 }
 
 function renderDomesticRuleSetDns(profile, doh) {
