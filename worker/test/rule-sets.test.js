@@ -5,18 +5,19 @@ import { ASSETS } from "../src/generated/assets.js";
 import { convertClashRuleSet, findClashRuleSource, ruleSource } from "../src/clash-rules.js";
 import { repositoryTemplate } from "../src/repository-rules.js";
 
-test("repository rule sets referenced by the template exist on this branch and convert for Clash", () => {
+test("repository files referenced by the template exist on this branch and rule sets convert for Clash", () => {
   assert.match(ASSETS.template, /AtlasRouter@\{\{REPOSITORY_RULES_REF\}\}/);
   assert.doesNotMatch(ASSETS.template, /AtlasRouter@(?:master|develop)\//);
   const references = repositoryTemplate().match(/https:\/\/cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@[^/\s]+\/[^\s,]+/g);
   const paths = [...new Set(references.map((url) => {
-    const match = /^https:\/\/cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@master\/(surge\/rule-sets\/[A-Za-z]+\.list)$/.exec(url);
+    const match = /^https:\/\/cdn\.jsdelivr\.net\/gh\/jarieshan\/AtlasRouter@master\/(surge\/rule-sets\/[A-Za-z]+\.list|scripts\/[a-z-]+\.js)$/.exec(url);
     assert.ok(match, url);
     return match[1];
   }))];
-  assert.deepEqual(paths.sort(), ["surge/rule-sets/Coin.list", "surge/rule-sets/CustomAI.list", "surge/rule-sets/CustomDirect.list", "surge/rule-sets/CustomReject.list", "surge/rule-sets/RedPocket.list", "surge/rule-sets/WeChat.list"]);
+  assert.deepEqual(paths.sort(), ["scripts/node-dns.js", "surge/rule-sets/Coin.list", "surge/rule-sets/CustomAI.list", "surge/rule-sets/CustomDirect.list", "surge/rule-sets/CustomReject.list", "surge/rule-sets/RedPocket.list", "surge/rule-sets/WeChat.list"]);
   for (const path of paths) {
     const text = readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+    if (!path.endsWith(".list")) continue;
     const rules = text.split("\n").filter((line) => line && !line.startsWith("#"));
     assert.ok(rules.length > 0, path);
     const userAgents = rules.filter((line) => line.startsWith("USER-AGENT,")).length;

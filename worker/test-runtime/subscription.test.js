@@ -729,6 +729,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
       const encrypted = doh !== "0";
       if (client === "clash") {
         assert.match(response.headers.get("content-type"), /application\/yaml/);
+        assert.doesNotMatch(text, /Section script|Host entry/);
         const config = parseYaml(text);
         assert.equal(config["network-strategy"], wifiAssist === "1" ? "fallback" : undefined);
         assert.deepEqual(config["fallback-network-type"], wifiAssist === "1" ? ["cellular"] : undefined);
@@ -828,7 +829,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`FINAL = select, Auto, Proxy, 🇭🇰HK-IDC, 🇺🇸USA-ISP, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
         assert.ok(text.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png, hidden=true`));
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
-        assert.match(text, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
+        assert.ok(text.split("\n").includes("node-dns = type=dns,script-path=https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/scripts/node-dns.js,engine=jsc,timeout=10"));
+        assert.match(text, /\[Host\]\nzslab\.ai = script:node-dns\n\*\.zslab\.ai = script:node-dns\n/);
         const directDns = encrypted ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
         for (const url of [CUSTOM_DIRECT_URL, WECHAT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
         for (const name of ["IBKR", "Direct", "iCloud", "Apple"]) assert.ok(text.split("\n").some((line) => {
@@ -903,7 +905,7 @@ test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token chec
       assert.equal(/^encrypted-dns-server =/m.test(body), doh === "1");
       assert.deepEqual(body.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
       assert.doesNotMatch(body, /TencentOA|10\.28\.0\.21|tencent-oa\.sgmodule/);
-      assert.match(body, /\[Host\]\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
+      assert.match(body, /\[Host\]\nzslab\.ai = script:node-dns\n\*\.zslab\.ai = script:node-dns\n/);
       const skip = body.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
       for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*tencentcos.cn", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) {
         assert.equal(skip.includes(value), tencentOa === "1", value);
