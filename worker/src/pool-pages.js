@@ -316,11 +316,11 @@ function accountPanel(preview, { development, developmentAvailable }) {
             <input id="enable-doh" type="checkbox" role="switch" checked>
           </label>
           <label class="setting" for="enable-vless">
-            <span class="setting-text"><span>包含 VLESS 节点</span><span>输出 VLESS REALITY 节点，Surge 需要 iOS 6.0.0+ / Mac 6.12.0+；关闭时订阅不包含 VLESS 节点。</span></span>
+            <span class="setting-text"><span>包含 VLESS 节点</span><span>比 VMess 更快、更难被识别和封锁：少了一层重复加密，REALITY 让流量看起来像在访问普通网站。Surge 6 及以上版本才支持（iOS 6.0.0+ / Mac 6.12.0+）。</span></span>
             <input id="enable-vless" type="checkbox" role="switch">
           </label>
           <label class="setting" for="enable-wifi-assist">
-            <span class="setting-text"><span>Wi-Fi Assist</span><span id="wifi-assist-help">Surge iOS 在 Wi-Fi 连接不佳时尝试使用蜂窝数据。</span></span>
+            <span class="setting-text"><span>Wi-Fi Assist</span><span id="wifi-assist-help">Wi-Fi 网络不佳时，Surge iOS 同时通过蜂窝网络并行请求，会消耗更多移动数据流量。</span></span>
             <input id="enable-wifi-assist" type="checkbox" role="switch" aria-describedby="wifi-assist-help">
           </label>
           <label class="setting" for="enable-tencent-oa">
@@ -376,8 +376,8 @@ function accountPanel(preview, { development, developmentAvailable }) {
         ? "在使用 Mihomo（Clash Meta）内核的客户端中添加订阅。不兼容的 Surge 配置项会被跳过。"
         : "在 Surge 中通过 URL 安装配置。";
       root.querySelector("#wifi-assist-help").textContent = client.value === "clash"
-        ? "需要支持 network-strategy 的 ProjectClash，默认网络连接不佳时尝试使用蜂窝数据。"
-        : "Surge iOS 在 Wi-Fi 连接不佳时尝试使用蜂窝数据。";
+        ? "需要支持 network-strategy 的 ProjectClash；默认网络连接不佳时同时通过蜂窝网络并行请求，会消耗更多移动数据流量。"
+        : "Wi-Fi 网络不佳时，Surge iOS 同时通过蜂窝网络并行请求，会消耗更多移动数据流量。";
       tencentOa.disabled = client.value !== "surge";
       root.querySelector("#tencent-oa-help").textContent = tencentOa.disabled
         ? "仅适用于 Surge；切回 Surge 后可启用腾讯公司内网兼容。"

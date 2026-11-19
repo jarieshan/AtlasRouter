@@ -42,9 +42,9 @@ Dev 开关在当前页面切换环境，不跳转或整页刷新。关闭时生�
 
 例如 `/AtlasRouter?token=<token>&client=clash&doh=0` 输出 Clash 并关闭 DoH。这些参数重复、为空或使用其他值时返回 400；无效 token 仍先返回 401。页面生成的 URL 省略默认选项。不带 `doh` 参数的现有订阅会在下次更新时启用 DoH；需要保持关闭时，在页面取消“启用 DoH”后重新复制链接，或在链接中加上 `doh=0`。原有 `doh=1` 链接继续有效。
 
-“包含 VLESS 节点”关闭或省略 `vless` 参数时，Surge 和 Clash 订阅都不输出 VLESS 节点，回退组只保留同一节点的其他协议；某组只有 VLESS 节点时省略该组，全部节点都是 VLESS 时返回 503。开启后链接带 `vless=1`，托管更新地址也保留该参数，回退顺序为 VLESS → VMess → Hy2。现有链接没有该参数，下次更新后不再包含 VLESS 节点；需要时在页面开启后重新复制链接。节点分配不受影响，页面的节点与备份列表仍显示全部协议。页面切换 Client、切换 Dev、刷新节点和重置 token 时保留当前选择。
+VLESS 没有 VMess 那层重复加密，配合 REALITY 让流量看起来像在访问普通网站，因此比 VMess 更快、更难被识别和封锁；Surge 需要 6 及以上版本（iOS 6.0.0+ / Mac 6.12.0+）。“包含 VLESS 节点”关闭或省略 `vless` 参数时，Surge 和 Clash 订阅都不输出 VLESS 节点，回退组只保留同一节点的其他协议；某组只有 VLESS 节点时省略该组，全部节点都是 VLESS 时返回 503。开启后链接带 `vless=1`，托管更新地址也保留该参数，回退顺序为 VLESS → VMess → Hy2。现有链接没有该参数，下次更新后不再包含 VLESS 节点；需要时在页面开启后重新复制链接。节点分配不受影响，页面的节点与备份列表仍显示全部协议。页面切换 Client、切换 Dev、刷新节点和重置 token 时保留当前选择。
 
-Wi-Fi Assist 开关开启时，链接带 `wifi_assist=1`，Surge 的 `[General]` 写入 `wifi-assist = true`，托管更新地址也保留该参数。关闭或省略参数时写入 `wifi-assist = false`。这是 Surge iOS 的功能，Wi-Fi 连接不佳时会尝试使用蜂窝数据。页面切换 Client、切换 Dev、刷新节点和重置 token 时保留当前选择。[Surge Wi-Fi Assist](https://manual.nssurge.com/profile/general.html#wifi-assist)
+Wi-Fi Assist 开关开启时，链接带 `wifi_assist=1`，Surge 的 `[General]` 写入 `wifi-assist = true`，托管更新地址也保留该参数。关闭或省略参数时写入 `wifi-assist = false`。这是 Surge iOS 的功能，Wi-Fi 网络不佳时会同时通过蜂窝网络并行请求，会消耗更多移动数据流量。页面切换 Client、切换 Dev、刷新节点和重置 token 时保留当前选择。[Surge Wi-Fi Assist](https://manual.nssurge.com/profile/general.html#wifi-assist)
 
 Clash 输出将开启状态映射为 ProjectClash 扩展 `network-strategy: fallback` 和 `fallback-network-type: [cellular]`，主网络使用系统默认接口。ProjectClash 在 TCP 建连失败或 300 毫秒内尚未成功时尝试蜂窝网络，近期成功回退后有 15 秒的快速回退窗口。该能力要求客户端支持这些扩展及平台网络接口枚举，UDP 在创建套接字时依次尝试接口。关闭时省略两项扩展，采用默认网络策略。这是 ProjectClash 的扩展能力，页面在选择 Clash 时会显示对应的客户端要求。[ProjectClash 网络策略](https://github.com/ProjectClash/Clash/blob/main/component/dialer/network_strategy.go) · [Mihomo 配置定义](https://github.com/MetaCubeX/mihomo/blob/Meta/config/config.go)
 

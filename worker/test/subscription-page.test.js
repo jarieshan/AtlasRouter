@@ -72,7 +72,9 @@ test("subscription controls customize copied URLs and retain choices across toke
   assert.match(html, /<span>Tencent OA Compatibility<\/span>/);
   assert.match(html, /id="enable-tencent-oa" type="checkbox" role="switch" aria-describedby="tencent-oa-help">/);
   assert.match(html, /id="enable-wifi-assist" type="checkbox" role="switch" aria-describedby="wifi-assist-help">/);
-  assert.match(html, /<span>包含 VLESS 节点<\/span>/);
+  const surgeWifiAssist = html.match(/<span id="wifi-assist-help">([^<]+)<\/span>/)[1];
+  assert.equal(surgeWifiAssist, "Wi-Fi 网络不佳时，Surge iOS 同时通过蜂窝网络并行请求，会消耗更多移动数据流量。");
+  assert.match(html, /<span>包含 VLESS 节点<\/span><span>比 VMess 更快、更难被识别和封锁：[^<]*Surge 6 及以上版本才支持（iOS 6\.0\.0\+ \/ Mac 6\.12\.0\+）。<\/span>/);
   assert.match(html, /id="enable-vless" type="checkbox" role="switch">/);
   assert.doesNotMatch(html, /install-module|tencent-oa\.sgmodule/);
   vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], {
@@ -110,7 +112,7 @@ test("subscription controls customize copied URLs and retain choices across toke
   client.onchange();
   assert.equal(tencentOa.disabled, true);
   assert.equal(wifiAssist.disabled, false);
-  assert.match(fields.get("#wifi-assist-help").textContent, /ProjectClash/);
+  assert.match(fields.get("#wifi-assist-help").textContent, /^需要支持 network-strategy 的 ProjectClash；.*蜂窝网络并行请求，会消耗更多移动数据流量。$/);
   assert.match(fields.get("#tencent-oa-help").textContent, /仅适用于 Surge/);
   doh.checked = false;
   doh.onchange();
@@ -124,7 +126,7 @@ test("subscription controls customize copied URLs and retain choices across toke
   client.onchange();
   assert.equal(tencentOa.disabled, false);
   assert.match(fields.get("#tencent-oa-help").textContent, /iOA/);
-  assert.match(fields.get("#wifi-assist-help").textContent, /Surge iOS/);
+  assert.equal(fields.get("#wifi-assist-help").textContent, surgeWifiAssist);
   assert.equal(fields.get("#subscription").value, `https://atlas.example/AtlasRouter?token=${token}&doh=0&tencent_oa=1&wifi_assist=1&vless=1`);
   doh.checked = true;
   doh.onchange();
