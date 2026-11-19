@@ -3,6 +3,7 @@ import { convertClashNode } from "./clash-nodes.js";
 import { convertClashRules, ruleSource } from "./clash-rules.js";
 import { HttpError } from "./errors.js";
 import { nativeMagicRuleSource } from "./magic-rules.js";
+import { isIpv4 } from "./nodes.js";
 import { applyRuleSetVisibility } from "./rule-visibility.js";
 import { orderedSmartPriority, positiveInteger, SMART_PRIORITY_SCHEMES, splitSurgeList, surgeAssignment, surgeBoolean, surgeOptions, surgeSections } from "./surge-format.js";
 
@@ -45,8 +46,9 @@ export async function convertSurgeToClash(profile, { requestUrl, token }) {
   const policies = new Set(["DIRECT", "REJECT", ...proxies.map(({ name }) => name), ...groups.map(({ name }) => name)]);
   const udp = { udpless: udpIncapablePolicies(proxies, groups), udpFallback: udpFallbackPolicy(general, warn) };
   const { rules, providers } = await convertClashRules(sections.get("rule") ?? [], policies, requestUrl, token, warn, udp);
-  const hostDns = await convertHostDns(sections.get("host") ?? [], providers, general, requestUrl, warn);
+  const { policies: hostDns, hosts } = await convertHostDns(sections.get("host") ?? [], providers, general, requestUrl, warn);
   config.dns["nameserver-policy"] = { "use-application-dns.net": "rcode://name_error", ...hostDns };
+  if (Object.keys(hosts).length) config.hosts = { ...hosts };
   for (const name of sections.keys()) {
     if (!["general", "host", "proxy", "proxy group", "rule"].includes(name)) {
       // Section names are syntax labels, never include section contents in diagnostics.
@@ -170,11 +172,17 @@ function udpIncapablePolicies(proxies, groups) {
 
 async function convertHostDns(lines, providers, general, requestUrl, warn) {
   const policies = Object.create(null);
+  const hosts = Object.create(null);
   for (const [index, line] of lines.entries()) {
     try {
       // A rule-set URL can contain "=" in its query. Generated Host entries use a spaced separator.
       const assignment = line.match(/^(\S+)\s+=\s*(.+)$/);
       const [name, value] = assignment ? assignment.slice(1) : surgeAssignment(line);
+      const addresses = splitSurgeList(value);
+      if (addresses.every(isIpv4) && /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(name)) {
+        hosts[name.toLowerCase()] ??= addresses.length === 1 ? addresses[0] : addresses;
+        continue;
+      }
       if (!value.startsWith("server:")) throw new Error();
       const servers = splitSurgeList(value.slice(7)).map((server) => {
         if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(server)
@@ -198,7 +206,7 @@ async function convertHostDns(lines, providers, general, requestUrl, warn) {
       policies[pattern] ??= servers;
     } catch { warn(`Host entry ${index + 1}: unsupported DNS mapping omitted`); }
   }
-  return policies;
+  return { policies, hosts };
 }
 
 function convertGroups(lines, proxies, general, warn) {

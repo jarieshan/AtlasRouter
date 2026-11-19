@@ -14,7 +14,7 @@ test("repository files referenced by the template exist on this branch and rule 
     assert.ok(match, url);
     return match[1];
   }))];
-  assert.deepEqual(paths.sort(), ["scripts/node-dns.js", "surge/rule-sets/Coin.list", "surge/rule-sets/CustomAI.list", "surge/rule-sets/CustomDirect.list", "surge/rule-sets/CustomReject.list", "surge/rule-sets/RedPocket.list", "surge/rule-sets/WeChat.list"]);
+  assert.deepEqual(paths.sort(), ["surge/rule-sets/Coin.list", "surge/rule-sets/CustomAI.list", "surge/rule-sets/CustomDirect.list", "surge/rule-sets/CustomReject.list", "surge/rule-sets/RedPocket.list", "surge/rule-sets/WeChat.list"]);
   for (const path of paths) {
     const text = readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
     if (!path.endsWith(".list")) continue;

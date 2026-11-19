@@ -16,7 +16,6 @@ AtlasRouter 是基于 Cloudflare Workers 的多用户 Surge 配置订阅系统�
 - `worker/`：Cloudflare Worker 订阅服务。
 - `surge/`：Surge 主配置模板。
 - `modules/`：Surge 模块。
-- `scripts/`：Surge 脚本。
 - `references/`：历史配置和样例，仅用于理解已有想法，不作为事实来源或实现依据。
 
 ## 目标组成

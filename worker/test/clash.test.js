@@ -95,7 +95,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
     assert.ok(config.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${iconBase}Auto.png`));
     assert.doesNotMatch(config, /tailnet|tailscale/i);
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
-    assert.match(config, /\[Host\]\nzslab\.ai = script:node-dns\n\*\.zslab\.ai = script:node-dns\n/);
+    assert.match(config, /\[Host\]\n\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
     assert.ok(config.split("\n").includes(`DoH Proxy = smart, 🇭🇰 HK IDC, icon-url=${iconBase}Server.png, hidden=true`));
     assert.doesNotMatch(config, /^PROTOCOL,DOH,/m);
     const hosts = config.split("[Host]\n")[1].split("[Proxy]\n")[0];
@@ -607,21 +607,22 @@ test("Host DoH mappings follow the outbound setting and only reuse declared doma
   assert.deepEqual(mapped.warnings, []);
 });
 
-test("Surge resolves zslab.ai through the node DNS script and Clash keeps plain DNS", async () => {
-  const input = profile();
-  const surge = surgeSections(renderSurgeProfile({ ...input, repositoryRulesRef: "develop" }));
-  assert.deepEqual(surge.get("script"), [
-    "node-dns = type=dns,script-path=https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/scripts/node-dns.js,engine=jsc,timeout=10",
-  ]);
-  assert.deepEqual(surge.get("host").filter((line) => line.includes("script:")), ["zslab.ai = script:node-dns", "*.zslab.ai = script:node-dns"]);
-
-  const source = renderSurgeProfile({ ...input, options: { client: "clash" } });
-  assert.ok(!surgeSections(source).has("script"));
-  assert.doesNotMatch(source, /script:/);
-  assert.deepEqual(surgeSections(source).get("host").slice(0, 2), ["zslab.ai = server:223.5.5.5, 119.29.29.29", "*.zslab.ai = server:223.5.5.5, 119.29.29.29"]);
-  const { config, warnings } = await convertSurgeToClash(source, context);
+test("resolved node hostnames are pinned ahead of zslab.ai in Surge Host and Clash hosts", async () => {
+  const hosts = new Map([["hk-1.example.com", ["192.0.2.1"]], ["us-1.example.com", ["192.0.2.2", "192.0.2.3"]]]);
+  for (const client of ["surge", "clash"]) {
+    const source = renderSurgeProfile({ ...profile(), hosts, options: { client } });
+    assert.ok(!surgeSections(source).has("script"));
+    assert.doesNotMatch(source, /script:/);
+    assert.deepEqual(surgeSections(source).get("host").slice(0, 4), [
+      "hk-1.example.com = 192.0.2.1", "us-1.example.com = 192.0.2.2, 192.0.2.3",
+      "zslab.ai = server:223.5.5.5, 119.29.29.29", "*.zslab.ai = server:223.5.5.5, 119.29.29.29",
+    ]);
+  }
+  const { config, warnings } = await convertSurgeToClash(renderSurgeProfile({ ...profile(), hosts, options: { client: "clash" } }), context);
+  assert.deepEqual(config.hosts, { "hk-1.example.com": "192.0.2.1", "us-1.example.com": ["192.0.2.2", "192.0.2.3"] });
   assert.deepEqual([config.dns["nameserver-policy"]["zslab.ai"], config.dns["nameserver-policy"][".zslab.ai"]], [["223.5.5.5", "119.29.29.29"], ["223.5.5.5", "119.29.29.29"]]);
   assert.doesNotMatch(warnings.join("\n"), /Section script|Host entry/);
+  assert.equal((await convertSurgeToClash(renderSurgeProfile(profile()), context)).config.hosts, undefined);
 });
 
 test("smart conversion includes only proxy nodes and retains automatic selection references", async () => {

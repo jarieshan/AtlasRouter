@@ -38,6 +38,40 @@ export function excludeVless(groups) {
     .filter((group) => group.nodes.length);
 }
 
+const DOH_RESOLVERS = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"];
+
+// Node hostnames are resolved once when a subscription is served, so clients dial the
+// pinned addresses without DNS. A hostname that does not resolve keeps client DNS.
+export async function resolveNodeHosts(nodes, fetcher = fetch) {
+  const hosts = new Set();
+  for (const node of nodes) {
+    let server;
+    try { server = splitSurgeList(node.value)[1]?.toLowerCase(); } catch { continue; }
+    if (server && /^(?=.*[a-z])[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(server)) hosts.add(server);
+  }
+  const entries = await Promise.all([...hosts].map(async (host) => [host, await resolveIpv4(host, fetcher)]));
+  return new Map(entries.filter(([, addresses]) => addresses.length));
+}
+
+async function resolveIpv4(host, fetcher) {
+  for (const resolver of DOH_RESOLVERS) {
+    try {
+      const response = await fetcher(`${resolver}?name=${host}&type=A`, {
+        headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(3000),
+      });
+      if (!response.ok) continue;
+      const answers = (await response.json()).Answer ?? [];
+      const addresses = [...new Set(answers.filter((answer) => answer.type === 1 && isIpv4(answer.data)).map((answer) => answer.data))];
+      if (addresses.length) return addresses;
+    } catch {}
+  }
+  return [];
+}
+
+export function isIpv4(value) {
+  return typeof value === "string" && /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value) && value.split(".").every((part) => Number(part) <= 255);
+}
+
 export function spaceBeforeIpType(name) {
   return name.replace(/([^\s-])-(?=(?:ISP|IDC|WARP)(?=$|[^a-z0-9]))/i, "$1 ");
 }

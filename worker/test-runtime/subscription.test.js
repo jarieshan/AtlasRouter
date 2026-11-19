@@ -80,8 +80,16 @@ function runtimeOptions(directory, bindings = {}, outboundService) {
   });
 }
 
+const TEST_NODE_ADDRESS = "192.0.2.10";
+
+// Subscriptions resolve node hostnames over DoH when served.
+async function answerDoh(upstream) {
+  if (!["cloudflare-dns.com", "dns.google"].includes(new URL(upstream.url).hostname)) return new Response(null, { status: 404 });
+  return Response.json({ Answer: [{ type: 1, data: TEST_NODE_ADDRESS }] });
+}
+
 async function createRuntime(t, bindings) {
-  const mf = new Miniflare(runtimeOptions(undefined, bindings));
+  const mf = new Miniflare(runtimeOptions(undefined, bindings, answerDoh));
   t.after(() => mf.dispose());
   await initializeDatabase(mf);
   return mf;
@@ -131,10 +139,11 @@ test("Dev imports paired protocols, preserves allocations and renders normalized
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
     { name: "portal", modules: true, compatibilityDate: "2026-05-12", scriptPath: ".wrangler/test-dist/index.js",
       d1Databases: { DB: "production", DEV_DB: "development" }, serviceBindings: { DEV_SUBSCRIPTION_SERVICE: "development" },
+      outboundService: answerDoh,
       bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
         ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG } },
     { name: "development", modules: true, compatibilityDate: "2026-05-12", scriptPath: ".wrangler/test-development/index.js",
-      d1Databases: { DB: "development" }, bindings: developmentConfig.vars },
+      d1Databases: { DB: "development" }, outboundService: answerDoh, bindings: developmentConfig.vars },
   ] }));
   t.after(() => mf.dispose());
   const prodDb = await mf.getD1Database("DB", "portal");
@@ -246,7 +255,7 @@ test("development uses independent identities, tokens and node data with ordered
 test("unconfigured Dev cannot change production accounts or the retained test database", async (t) => {
   const mf = new Miniflare(convertV4MiniflareOptions({ name: "production-only", modules: true,
     scriptPath: ".wrangler/test-dist/index.js", compatibilityDate: "2026-05-12",
-    d1Databases: { DB: "production", DEV_DB: "retained-test" },
+    d1Databases: { DB: "production", DEV_DB: "retained-test" }, outboundService: answerDoh,
     bindings: { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: "portal-app", ACCESS_JWKS_JSON: JSON.stringify({ keys: [jwk] }),
       ADMIN_EMAILS: "admin@example.com", ADMIN_API_SLUG, DEV_SUBSCRIPTION_ORIGIN: "https://retired.example" },
   }));
@@ -292,7 +301,7 @@ test("Dev serves its own page code and isolates data, tokens, module links and t
   assert.match(developmentCode, /Development-only control/);
   const devNodes = nodes(3).map((node) => ({ ...node, line: node.line.replace("Example", "Development")
     .replace("trojan,", "vmess,").replace("password=TEST_ONLY", "username=11111111-2222-4333-8444-555555555555, vmess-aead=true, tls=true") }));
-  const common = { modules: true, compatibilityDate: "2026-05-12" };
+  const common = { modules: true, compatibilityDate: "2026-05-12", outboundService: answerDoh };
   const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
     { ...common, name: "portal", scriptPath: ".wrangler/test-dist/index.js", d1Databases: { DB: "production", DEV_DB: "development" },
       serviceBindings: { DEV_SUBSCRIPTION_SERVICE: "development" },
@@ -762,6 +771,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
             ? ["https://dns.alidns.com/dns-query#RULES", "https://doh.pub/dns-query#RULES"]
             : ["223.5.5.5", "119.29.29.29"]])),
         });
+        assert.deepEqual(Object.keys(config.hosts).sort(), [...new Set(config.proxies.map(({ server }) => server))].sort());
+        assert.ok(Object.values(config.hosts).every((address) => address === TEST_NODE_ADDRESS));
         assert.equal(config["rule-providers"][CUSTOM_DIRECT_RULE_ID].url, CUSTOM_DIRECT_URL);
         assert.equal(config["rule-providers"][RED_POCKET_RULE_ID].url, RED_POCKET_URL);
         assert.ok(config.rules.includes(`RULE-SET,${RED_POCKET_RULE_ID},🇺🇸USA-ISP,no-resolve`));
@@ -839,8 +850,8 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.ok(text.split("\n").includes(`FINAL = select, Auto, Proxy, 🇭🇰HK-IDC, 🇺🇸USA-ISP, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
         assert.ok(text.split("\n").includes(`DoH Proxy = smart, 🇭🇰 Example - IDC 1, icon-url=${ICON_BASE}Server.png, hidden=true`));
         assert.doesNotMatch(text, /^PROTOCOL,DOH,/m);
-        assert.ok(text.split("\n").includes("node-dns = type=dns,script-path=https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/scripts/node-dns.js,engine=jsc,timeout=10"));
-        assert.match(text, /\[Host\]\nzslab\.ai = script:node-dns\n\*\.zslab\.ai = script:node-dns\n/);
+        assert.doesNotMatch(text, /^\[Script\]$|script:/m);
+        assert.match(text, /\[Host\]\n(?:node-\d\.example\.com = 192\.0\.2\.10\n)+zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
         const directDns = encrypted ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
         for (const url of [CUSTOM_DIRECT_URL, WECHAT_URL, DIRECT_URL]) assert.ok(text.split("\n").includes(`RULE-SET:${url} = server:${directDns}`));
         for (const name of ["IBKR", "Direct", "iCloud", "Apple"]) assert.ok(text.split("\n").some((line) => {
@@ -937,7 +948,7 @@ test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token chec
       assert.equal(/^encrypted-dns-server =/m.test(body), doh === "1");
       assert.deepEqual(body.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
       assert.doesNotMatch(body, /TencentOA|10\.28\.0\.21|tencent-oa\.sgmodule/);
-      assert.match(body, /\[Host\]\nzslab\.ai = script:node-dns\n\*\.zslab\.ai = script:node-dns\n/);
+      assert.match(body, /\[Host\]\n(?:node-\d\.example\.com = 192\.0\.2\.10\n)+zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
       const skip = body.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
       for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*tencentcos.cn", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) {
         assert.equal(skip.includes(value), tencentOa === "1", value);

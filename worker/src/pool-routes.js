@@ -1,7 +1,7 @@
 import { isAdminEmail, requireAccessAdmin, requireAccessUser } from "./access-auth.js";
 import { HttpError } from "./errors.js";
 import { importPoolNodes } from "./node-import.js";
-import { excludeVless } from "./nodes.js";
+import { excludeVless, resolveNodeHosts } from "./nodes.js";
 import { downloadClashRuleSet, findClashRuleSource } from "./clash-rules.js";
 import { findMagicRuleSource, serveMagicRuleSet } from "./magic-rules.js";
 import { renderAccountPage } from "./pool-pages.js";
@@ -120,8 +120,9 @@ export async function handlePoolRequest(request, env) {
     const options = readSubscriptionOptions(url.searchParams);
     const visible = options.vless ? groups : excludeVless(groups);
     if (!visible.length) throw new HttpError(503, "No nodes remain without VLESS; add vless=1 to include them");
+    const nodes = visible.flatMap((group) => group.nodes);
     const surge = renderSurgeProfile({
-      requestUrl: request.url, token: tokens[0], groups: visible, nodes: visible.flatMap((group) => group.nodes), options,
+      requestUrl: request.url, token: tokens[0], groups: visible, nodes, options, hosts: await resolveNodeHosts(nodes),
       showAllGroups: env.SHOW_ALL_PROXY_GROUPS === "true",
       repositoryRulesRef,
     });

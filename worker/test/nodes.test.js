@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { excludeVless, parseNodesConfig, renderProxyLines, serializeNodesConfig, subscriptionNodes } from "../src/nodes.js";
+import { excludeVless, parseNodesConfig, renderProxyLines, resolveNodeHosts, serializeNodesConfig, subscriptionNodes } from "../src/nodes.js";
 
 test("subscription names replace compact region/type separators and retain numbered suffixes", () => {
   const names = ["🇭🇰 HongKong-ISP-1", "🇭🇰 HK-IDC-1", "🇺🇸 US(LA)-WARP-1", "🇭🇰 Hong-Kong-isp-2",
@@ -172,4 +172,33 @@ test("rejects duplicate node names", () => {
       ),
     /Duplicate node name/,
   );
+});
+
+test("node hostnames resolve once over DoH with a fallback resolver and unresolved hosts are left out", async () => {
+  const nodes = parseNodesConfig({ group: "test", value: [
+    "HK-1 = trojan, HK-1.example.com, 443, password=TEST_ONLY",
+    "HK-2 = trojan, hk-1.example.com, 8443, password=TEST_ONLY",
+    "US-1 = vmess, us-1.example.com, 443, username=TEST_ONLY",
+    "DOWN-1 = trojan, down.example.com, 443, password=TEST_ONLY",
+    "IP-1 = trojan, 192.0.2.9, 443, password=TEST_ONLY",
+    "DIRECT-1 = direct",
+  ] });
+  const requests = [];
+  const fetcher = async (url, init) => {
+    requests.push(url);
+    assert.equal(init.headers.accept, "application/dns-json");
+    const { hostname, searchParams } = new URL(url);
+    const name = searchParams.get("name");
+    if (name === "hk-1.example.com") {
+      return Response.json({ Answer: [{ type: 5, data: "edge.example.net." }, { type: 1, data: "192.0.2.1" }, { type: 1, data: "192.0.2.1" }] });
+    }
+    if (name === "us-1.example.com" && hostname === "cloudflare-dns.com") return new Response("unavailable", { status: 503 });
+    if (name === "us-1.example.com") return Response.json({ Answer: [{ type: 1, data: "192.0.2.2" }, { type: 1, data: "192.0.2.3" }] });
+    throw new Error("network down");
+  };
+  assert.deepEqual([...await resolveNodeHosts(nodes, fetcher)], [["hk-1.example.com", ["192.0.2.1"]], ["us-1.example.com", ["192.0.2.2", "192.0.2.3"]]]);
+  assert.deepEqual(requests.filter((url) => url.includes("hk-1.example.com")), ["https://cloudflare-dns.com/dns-query?name=hk-1.example.com&type=A"]);
+  assert.deepEqual(requests.filter((url) => url.includes("us-1.example.com")).map((url) => new URL(url).hostname), ["cloudflare-dns.com", "dns.google"]);
+  assert.equal(requests.filter((url) => url.includes("down.example.com")).length, 2);
+  assert.ok(!requests.some((url) => url.includes("192.0.2.9")));
 });

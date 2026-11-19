@@ -13,20 +13,18 @@ const IP_TYPE_ORDER = { ISP: 0, WARP: 1, IDC: 2 };
 const IDC_FIRST_IP_TYPE_ORDER = { IDC: 0, WARP: 1, ISP: 2 };
 const WARP_FIRST_IP_TYPE_ORDER = { WARP: 0, IDC: 1, ISP: 2 };
 
-export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, showAllGroups = false, repositoryRulesRef = "master" }) {
+export function renderSurgeProfile({ requestUrl, token, nodes, groups, options = {}, hosts = new Map(), showAllGroups = false, repositoryRulesRef = "master" }) {
   const namedNodes = subscriptionNodes(nodes);
   const byName = new Map(nodes.map((node, index) => [node.name, namedNodes[index]]));
   nodes = namedNodes;
   groups = groups.map((group) => ({ ...group, nodes: group.nodes.map((node) => byName.get(node.name)) }));
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const doh = options.doh ?? true;
-  // Clash has no DNS scripts, so zslab.ai keeps plain DNS there.
-  const clash = options.client === "clash";
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
     WIFI_ASSIST: String(options.wifiAssist ?? false),
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
-    ZSLAB_DNS: clash ? "server:223.5.5.5, 119.29.29.29" : "script:node-dns",
+    NODE_HOST_LINES: [...hosts].map(([host, addresses]) => `${host} = ${addresses.join(", ")}`).join("\n"),
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
     RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT"),
     US_ISP_POLICY: groups.find(({ nodes }) => nodes[0]?.region === "US" && nodes[0]?.ipType === "ISP")?.group ?? "REJECT",
@@ -38,7 +36,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
     let general = body.replace(/^[ \t]*(?:#[ \t]*)?(encrypted-dns-(?:server|follow-outbound-mode)[ \t]*=.+)$/gm, (_, setting) => `${doh ? "" : "# "}${setting}`);
     if (options.tencentOa) general = general.replace(/^skip-proxy[ \t]*=.*$/m, () => ASSETS.tencentOa.match(/^skip-proxy[ \t]*=.*$/m)[0]);
     return heading + general;
-  }).replace(/^\[Script\]\n[\s\S]*?(?=^\[)/m, (section) => clash ? "" : section);
+  });
   const profile = replaceTemplate(template, {
     ...replacements,
     DOMESTIC_RULESET_DNS_LINES: (rendered) => renderDomesticRuleSetDns(rendered, doh),
