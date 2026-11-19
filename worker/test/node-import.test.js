@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resetPoolNodes, importPoolNodes } from "../src/node-import.js";
-import { parsePoolNodes } from "../src/node-pool.js";
+import { groupNodeVariants, parsePoolNodes } from "../src/node-pool.js";
 
 const UUID = "00000000-0000-4000-8000-000000000001";
 const URL = "https://subscription.example.com:2096/test-only/node";
@@ -22,13 +22,14 @@ function vless(overrides = {}, name = "🇭🇰 HongKong-ISP-1", host = "node.ex
   return `vless://${UUID}@${host}?${query}#${encodeURIComponent(name)}`;
 }
 function unreachable() { assert.fail("must not fetch"); }
+function draftNames({ nodes }) { return nodes.map(({ line }) => line.slice(0, line.indexOf(" = "))); }
 
 test("converts REALITY Vision links and mixed Base64 subscriptions with both protocols", async () => {
   const result = await importPoolNodes({ text: URL, nodes: [] }, async () => new Response(Buffer.from([
     vmess({ ps: "🇭🇰 HK-ISP-1" }), vless(),
   ].join("\n")).toString("base64")));
   assert.equal(result.added, 2);
-  assert.equal(result.nodes[1].line, `🇭🇰 HongKong-ISP-1 = vless, node.example.com, 8443, username=${UUID}, flow=xtls-rprx-vision, sni=target.example.com, reality-public-key=${Buffer.alloc(32, 1).toString("base64url")}, reality-short-id=0123456789abcdef`);
+  assert.equal(result.nodes[1].line, `🇭🇰 HongKong ISP-1 = vless, node.example.com, 8443, username=${UUID}, flow=xtls-rprx-vision, sni=target.example.com, reality-public-key=${Buffer.alloc(32, 1).toString("base64url")}, reality-short-id=0123456789abcdef`);
   assert.ok(result.warnings.some((warning) => warning.includes("iOS 6.0.0+ / Mac 6.12.0+")));
   assert.doesNotMatch(result.nodes[1].line, /fp=|spx=/);
   assert.deepEqual(parsePoolNodes(result.nodes).map((node) => node.group), ["🇭🇰HK-ISP", "🇭🇰HK-ISP"]);
@@ -44,7 +45,7 @@ test("3x-ui Hy2 links preserve TLS, credentials and names in direct and subscrip
   const read = async () => new Response(Buffer.from([vmess(), vless(), uri].join("\n")).toString("base64"));
   const batch = await importPoolNodes({ text: "ISP-1\t" + URL, nodes: [] }, read);
   assert.equal(batch.added, 3);
-  assert.equal(batch.nodes[2].line, `${name} = hysteria2, [2001:db8::1], 443, password="test,user:pass#word", sni=target.example.com, alpn=h3`);
+  assert.equal(batch.nodes[2].line, `🇭🇰 HK-Hy2 ISP-1 = hysteria2, [2001:db8::1], 443, password="test,user:pass#word", sni=target.example.com, alpn=h3`);
   const again = await importPoolNodes({ text: "Other = " + uri.replace("hysteria2:", "hy2:"), nodes: batch.nodes }, unreachable);
   assert.equal(again.duplicates, 1);
   assert.deepEqual(again.nodes, batch.nodes);
@@ -58,7 +59,7 @@ test("VLESS imports support explicit names, IPv6, empty short IDs and quoted ALP
   const result = await importPoolNodes({
     text: `🇭🇰 HK-IDC-1 = ${vless({ sid: "", alpn: "h2,http/1.1" }, "bad,name", "[2001:db8::1]:8443")}`, nodes: [],
   }, unreachable);
-  assert.match(result.nodes[0].line, /^🇭🇰 HK-IDC-1 = vless, \[2001:db8::1\], 8443,/);
+  assert.match(result.nodes[0].line, /^🇭🇰 HK IDC-1 = vless, \[2001:db8::1\], 8443,/);
   assert.match(result.nodes[0].line, /reality-short-id=, alpn="h2,http\/1.1"$/);
 });
 
@@ -160,7 +161,7 @@ test("imports 3x-ui export rows with the original names of every upstream node",
   assert.equal(result.added, 4);
   assert.equal(result.duplicates, 2);
   assert.deepEqual(parsePoolNodes(result.nodes).map((node) => node.name),
-    ["🇺🇸 Example-IDC", "🇭🇰 HK-ISP-1", "🇭🇰 HongKong-ISP-1", "🇺🇸 Example-WARP"]);
+    ["🇺🇸 Example IDC", "🇭🇰 HK ISP-1", "🇭🇰 HongKong ISP-1", "🇺🇸 Example WARP"]);
   assert.ok(!JSON.stringify(result).includes(URL));
 });
 
@@ -349,7 +350,7 @@ test("an upstream VMess protocol tag renames only the exact legacy name and conn
   const existing = { id: "existing", enabled: false, line: native(oldName) };
   const result = await importPoolNodes({ text: URL, nodes: [existing] }, async () => new Response(vmess({ ps: name })));
   assert.equal(result.duplicates, 1);
-  assert.deepEqual(result.nodes, [{ ...existing, line: existing.line.replace(oldName, name) }]);
+  assert.deepEqual(result.nodes, [{ ...existing, line: existing.line.replace(oldName, "🇭🇰 HK-VMess ISP-1") }]);
   assert.equal(existing.line, native(oldName));
   const custom = { ...existing, line: native("🇭🇰 Custom-ISP-1") };
   const repeated = await importPoolNodes({ text: vmess({ ps: name }), nodes: [custom] }, unreachable);
@@ -363,17 +364,100 @@ test("mixed subscriptions free the old VMess name and preserve custom exit count
   const hyName = "🇭🇰 HK-Hy2-" + client;
   const shares = [vless({}, vlName), "hy2://TEST_ONLY@node.example.com#" + encodeURIComponent(hyName), vmess({ ps: vmName })];
   const read = async () => new Response(shares.join("\n"));
-  for (const [oldName, flag, expectedVm] of [[vlName, "🇭🇰", vmName], ["🇦🇺 Custom-ISP-9", "🇦🇺", "🇦🇺 Custom-ISP-9"]]) {
+  const spaced = (name) => name.replace("-ISP", " ISP");
+  for (const [oldName, flag, expectedVm] of [[vlName, "🇭🇰", spaced(vmName)], ["🇦🇺 Custom-ISP-9", "🇦🇺", "🇦🇺 Custom-ISP-9"]]) {
     const original = { id: "keeper", line: native(oldName), enabled: true };
     const result = await importPoolNodes({ text: URL, nodes: [original] }, read);
     const parsed = parsePoolNodes(result.nodes);
     assert.equal(result.added, 2);
     assert.equal(result.duplicates, 1);
-    assert.deepEqual(parsed.map((node) => node.name), [expectedVm, vlName.replace("🇭🇰", flag), hyName.replace("🇭🇰", flag)]);
+    assert.deepEqual(parsed.map((node) => node.name), [expectedVm, ...[vlName, hyName].map((name) => spaced(name).replace("🇭🇰", flag))]);
     assert.equal(parsed[0].id, original.id);
     assert.equal(original.line, native(oldName));
     const again = await importPoolNodes({ text: URL, nodes: result.nodes }, read);
     assert.deepEqual(again.nodes, result.nodes);
+  }
+});
+
+test("names relay clients after their exit countries and keeps their protocol variants together", async () => {
+  const shares = [
+    vless({}, "🇭🇰 HongKong-ISP-DE-1"), vmess({ ps: "🇭🇰 HK-VMess-ISP-DE-1" }),
+    "hy2://TEST_ONLY@node.example.com#" + encodeURIComponent("🇭🇰 HK-Hy2-ISP-DE-1"),
+    "hy2://TEST_ONLY_AU@node.example.com#" + encodeURIComponent("🇭🇰 HK-Hy2-ISP-AU"),
+    vmess({ ps: "US(LA)-VMess-ISP-1", id: "00000000-0000-4000-8000-000000000002", add: "us.example.com", sni: "us.example.com" }),
+  ];
+  const read = async () => new Response(shares.join("\n"));
+  const result = await importPoolNodes({ text: URL, nodes: [] }, read);
+  assert.deepEqual(draftNames(result), ["🇩🇪 Germany ISP-1", "🇩🇪 DE-VMess ISP-1", "🇩🇪 DE-Hy2 ISP-1", "🇦🇺 AU-Hy2 ISP", "US(LA)-VMess ISP-1"]);
+  assert.deepEqual(result.unknownExits, []);
+  assert.ok(result.warnings.includes("第 1 行：已识别中转节点，改用出口国家的旗帜和名称。"));
+  const relays = parsePoolNodes(result.nodes.slice(0, 4));
+  assert.deepEqual(relays.map((node) => node.group), ["🇩🇪DE-ISP", "🇩🇪DE-ISP", "🇩🇪DE-ISP", "🇦🇺AU-ISP"]);
+  assert.deepEqual(groupNodeVariants(relays).map((node) => node.variants.length), [3, 1]);
+  const again = await importPoolNodes({ text: URL, nodes: result.nodes }, read);
+  assert.equal(again.duplicates, 5);
+  assert.deepEqual(again.nodes, result.nodes);
+  assert.deepEqual(again.warnings, []);
+});
+
+test("unknown relay exits are returned for manual entry and stay out of the inbound group until filled", async () => {
+  const read = async () => new Response([vless({}, "🇭🇰 HongKong-ISP-XY-1"), vmess({ ps: "🇭🇰 HK-VMess-ISP-XY-1" })].join("\n"));
+  const draft = await importPoolNodes({ text: URL, nodes: [] }, read);
+  assert.deepEqual(draft.unknownExits, [{ code: "XY", name: "🇭🇰 HongKong-ISP-XY-1" }]);
+  assert.deepEqual(draftNames(draft), ["HongKong ISP-XY-1", "HK-VMess ISP-XY-1"]);
+  assert.ok(draft.warnings.includes("第 1 行：无法识别中转出口 XY，新节点已去掉入口旗帜，请在待保存清单中补全出口国家后保存。"));
+  assert.throws(() => parsePoolNodes(draft.nodes), /country flag/);
+  const exits = { XY: { flag: "gb", code: "UK", name: "UnitedKingdom" } };
+  const filled = await importPoolNodes({ text: URL, nodes: [], exits }, read);
+  assert.deepEqual(draftNames(filled), ["🇬🇧 UnitedKingdom ISP-1", "🇬🇧 UK-VMess ISP-1"]);
+  assert.deepEqual(filled.unknownExits, []);
+  assert.deepEqual(groupNodeVariants(parsePoolNodes(filled.nodes)).map((node) => node.group), ["🇬🇧GB-ISP"]);
+  const text = [vless({}, "🇭🇰 HongKong-ISP-DE-1"), vmess({ ps: "🇭🇰 HK-VMess-ISP-DE-1" })].join("\n");
+  const custom = await importPoolNodes({ text, nodes: [], exits: { DE: { flag: "DE", code: "GER", name: "德国" } } }, unreachable);
+  assert.deepEqual(draftNames(custom), ["🇩🇪 德国 ISP-1", "🇩🇪 GER-VMess ISP-1"]);
+  const many = Object.fromEntries(Array.from({ length: 51 }, (_, i) => [String.fromCharCode(65 + Math.floor(i / 26), 65 + i % 26), exits.XY]));
+  for (const value of [null, [], "XY", many, { xy: exits.XY }, { XY: null }, { XY: { ...exits.XY, flag: "G" } },
+    { XY: { ...exits.XY, code: "U K" } }, { XY: { ...exits.XY, name: "United-Kingdom" } }, { XY: { ...exits.XY, name: "🇬🇧" } },
+    { XY: { ...exits.XY, name: "a,b=c" } }, { XY: { ...exits.XY, code: "" } }]) {
+    await assert.rejects(importPoolNodes({ text: URL, nodes: [], exits: value }, unreachable), (error) => error.status === 400);
+  }
+});
+
+test("re-imports convert saved upstream names but keep custom names and unknown relay names", async () => {
+  const relay = { id: "relay", enabled: false, line: native("🇭🇰 HK-VMess-ISP-DE-1") };
+  const hy2 = { id: "hy2", enabled: true, line: "🇭🇰 HK-Hy2-ISP-1 = hysteria2, hy2.example.com, 443, password=TEST_ONLY" };
+  const text = [vmess({ ps: "🇭🇰 HK-VMess-ISP-DE-1" }), "hy2://TEST_ONLY@hy2.example.com#" + encodeURIComponent("🇭🇰 HK-Hy2-ISP-1")].join("\n");
+  const result = await importPoolNodes({ text, nodes: [relay, hy2] }, unreachable);
+  assert.equal(result.duplicates, 2);
+  assert.deepEqual(result.nodes, [{ ...relay, line: native("🇩🇪 DE-VMess ISP-1") }, { ...hy2, line: hy2.line.replace("-ISP", " ISP") }]);
+  assert.deepEqual(result.warnings, ["第 1–2 行：已有节点仍使用上游原名，已在待保存清单中改为转换后的名称，保留原 ID 和启停状态。"]);
+  const legacy = { ...relay, line: native("🇭🇰 HK-ISP-DE-1") };
+  const tagged = await importPoolNodes({ text: vmess({ ps: "🇭🇰 HK-VMess-ISP-DE-1" }), nodes: [legacy] }, unreachable);
+  assert.deepEqual(tagged.nodes, [{ ...legacy, line: native("🇩🇪 DE-VMess ISP-1") }]);
+  for (const name of ["🇦🇺 Custom-ISP-9", "🇩🇪 DE-VMess ISP-1"]) {
+    const kept = { ...relay, line: native(name) };
+    assert.deepEqual((await importPoolNodes({ text: vmess({ ps: "🇭🇰 HK-VMess-ISP-DE-1" }), nodes: [kept] }, unreachable)).nodes, [kept]);
+  }
+  const unknown = { ...relay, line: native("🇭🇰 HK-VMess-ISP-PL-1") };
+  const waiting = await importPoolNodes({ text: vmess({ ps: "🇭🇰 HK-VMess-ISP-PL-1" }), nodes: [unknown] }, unreachable);
+  assert.deepEqual(waiting.nodes, [unknown]);
+  assert.deepEqual(waiting.unknownExits, [{ code: "PL", name: "🇭🇰 HK-VMess-ISP-PL-1" }]);
+  assert.deepEqual(waiting.warnings, []);
+  const exits = { PL: { flag: "PL", code: "PL", name: "Poland" } };
+  const filled = await importPoolNodes({ text: vmess({ ps: "🇭🇰 HK-VMess-ISP-PL-1" }), nodes: [unknown], exits }, unreachable);
+  assert.deepEqual(filled.nodes, [{ ...unknown, line: native("🇵🇱 PL-VMess ISP-1") }]);
+});
+
+test("a saved relay VMess that still has an upstream name follows its protocol variants to the exit group", async () => {
+  const shares = [vless({}, "🇭🇰 HongKong-ISP-DE-1"), "hy2://TEST_ONLY@node.example.com#" + encodeURIComponent("🇭🇰 HK-Hy2-ISP-DE-1"),
+    vmess({ ps: "🇭🇰 HK-VMess-ISP-DE-1" })];
+  const read = async () => new Response(shares.join("\n"));
+  for (const oldName of ["🇭🇰 HK-VMess-ISP-DE-1", "🇭🇰 HK-ISP-DE-1", "🇭🇰 HongKong-ISP-DE-1"]) {
+    const result = await importPoolNodes({ text: URL, nodes: [{ id: "keeper", line: native(oldName), enabled: true }] }, read);
+    const parsed = parsePoolNodes(result.nodes);
+    assert.deepEqual(parsed.map((node) => node.name), ["🇩🇪 DE-VMess ISP-1", "🇩🇪 Germany ISP-1", "🇩🇪 DE-Hy2 ISP-1"]);
+    assert.equal(parsed[0].id, "keeper");
+    assert.deepEqual(groupNodeVariants(parsed).map((node) => node.variants.length), [3]);
   }
 });
 

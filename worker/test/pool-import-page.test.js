@@ -12,7 +12,9 @@ function element(tagName) {
   };
 }
 
-async function portal(respond, { initialState = { nodes: [], users: [], revision: 3 }, confirm = () => true } = {}) {
+async function portal(respond, {
+  initialState = { nodes: [], users: [], revision: 3 }, confirm = () => true, prompt = () => assert.fail("unexpected prompt"),
+} = {}) {
   const routes = getAdminRoutes({ ADMIN_API_SLUG: "0123456789abcdef0123456789abcdef" });
   const fields = new Map([".status", "#inventory", "#import", "#import-notes", "#save", "#append", "#pool-reload", "#nodes", "#users", "#counts"].map((id) => [id, element()]));
   const details = { open: false };
@@ -27,7 +29,7 @@ async function portal(respond, { initialState = { nodes: [], users: [], revision
   const html = renderAccountPage({ isAdmin: true, adminRoutes: routes });
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   vm.runInNewContext(scripts.at(-1)[1], {
-    confirm, URL, Event, location: { href: "https://atlas.example/" },
+    confirm, prompt, URL, Event, location: { href: "https://atlas.example/" },
     document: { getElementById: () => root, createElement: element, dispatchEvent: (event) => events.push(event.type) },
     fetch: async (path, options) => {
       calls.push({ path, options });
@@ -58,7 +60,7 @@ function deleteButton(fields, index = 0) {
 }
 
 test("management reads and mutations use production endpoints without a branch selector", async () => {
-  const { fields, calls } = await portal(() => Response.json({ nodes: [], added: 0, duplicates: 0, warnings: [] }));
+  const { fields, calls } = await portal(() => Response.json({ nodes: [], added: 0, duplicates: 0, warnings: [], unknownExits: [] }));
   fields.get("#import").value = "https://subscription.example.com/node";
   await fields.get("#append").onclick();
   assert.equal(calls.length, 2);
@@ -79,7 +81,7 @@ test("the import button converts before updating the draft, shows warnings and p
   assert.equal(options.credentials, "same-origin");
   assert.deepEqual(JSON.parse(options.body), { text: "https://subscription.example.com/node", nodes: [] });
   const nodes = [{ id: "test-node", line: "🇺🇸 Example - ISP = vmess, node.example.com, 443", enabled: true }];
-  finish(Response.json({ nodes, added: 1, duplicates: 2, warnings: ["请补充关键词 <test>"] }));
+  finish(Response.json({ nodes, added: 1, duplicates: 2, warnings: ["请补充关键词 <test>"], unknownExits: [] }));
   await importing;
   assert.deepEqual(JSON.parse(fields.get("#inventory").value), nodes);
   assert.equal(fields.get("#import").value, "");
@@ -102,6 +104,52 @@ test("failed conversion preserves the pasted links and unsaved inventory", async
   assert.match(fields.get(".status").textContent, /订阅请求失败/);
   assert.equal(fields.get("#inventory").readOnly, false);
   assert.equal(fields.get("#append").disabled, false);
+});
+
+test("unknown relay exits are filled in through prompts and converted again before updating the draft", async () => {
+  const text = "https://subscription.example.com/node";
+  const unknownExits = [{ code: "XY", name: "🇭🇰 HK-VMess-ISP-XY-1" }, { code: "PL", name: "🇭🇰 HK-ISP-PL" }];
+  const responses = [
+    { nodes: [{ id: "draft", line: "HK-VMess ISP-XY-1 = direct", enabled: true }], added: 1, duplicates: 0, warnings: ["无法识别"], unknownExits },
+    { nodes: [{ id: "draft", line: "🇬🇧 UK-VMess ISP-1 = direct", enabled: true }], added: 1, duplicates: 0, warnings: [], unknownExits: [] },
+  ];
+  const converted = responses[1].nodes;
+  const prompts = [];
+  const answers = [" GB  UK UnitedKingdom ", null];
+  const { fields, calls } = await portal(() => Response.json(responses.shift()), {
+    prompt: (...args) => { prompts.push(args); return answers.shift(); },
+  });
+  fields.get("#import").value = text;
+  await fields.get("#append").onclick();
+  assert.deepEqual(prompts.map(([, value]) => value), ["XY XY ", "PL PL "]);
+  assert.match(prompts[0][0], /无法识别中转出口 XY（🇭🇰 HK-VMess-ISP-XY-1）/);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(JSON.parse(calls[1].options.body), { text, nodes: [] });
+  assert.deepEqual(JSON.parse(calls[2].options.body), { text, nodes: [], exits: { XY: { flag: "GB", code: "UK", name: "UnitedKingdom" } } });
+  assert.deepEqual(JSON.parse(fields.get("#inventory").value), converted);
+  assert.equal(fields.get("#import").value, "");
+  assert.equal(fields.get("#import-notes").children.length, 0);
+});
+
+test("cancelled exit prompts keep the first conversion, while malformed answers preserve the links and draft", async () => {
+  const text = "https://subscription.example.com/node";
+  const first = { nodes: [{ id: "draft", line: "HK-VMess ISP-XY-1 = direct", enabled: true }], added: 1, duplicates: 0,
+    warnings: ["无法识别中转出口 XY"], unknownExits: [{ code: "XY", name: "🇭🇰 HK-VMess-ISP-XY-1" }] };
+  const cancelled = await portal(() => Response.json(first), { prompt: () => null });
+  cancelled.fields.get("#import").value = text;
+  await cancelled.fields.get("#append").onclick();
+  assert.equal(cancelled.calls.length, 2);
+  assert.deepEqual(JSON.parse(cancelled.fields.get("#inventory").value), first.nodes);
+  assert.equal(cancelled.fields.get("#import-notes").children[0].textContent, "无法识别中转出口 XY");
+  for (const answer of ["GB UnitedKingdom", "GB UK United Kingdom"]) {
+    const { fields, calls } = await portal(() => Response.json(first), { prompt: () => answer });
+    fields.get("#import").value = text;
+    await fields.get("#append").onclick();
+    assert.equal(calls.length, 2);
+    assert.equal(fields.get("#inventory").value, "[]");
+    assert.equal(fields.get("#import").value, text);
+    assert.match(fields.get(".status").textContent, /请按“旗帜代码 简称 全称”填写 XY/);
+  }
 });
 
 test("each node has a delete button; confirmed deletion saves only that removal and preserves other draft edits", async () => {
