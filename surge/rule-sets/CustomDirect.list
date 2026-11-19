@@ -29,3 +29,5 @@ DOMAIN-SUFFIX,cdn.kineticbloom.org
 DOMAIN-SUFFIX,snssdk.com
 # Anjuke images; foreign DoH resolves them to overseas CDN nodes.
 DOMAIN-SUFFIX,ajkimg.com
+# zFrontier (装备前线)
+DOMAIN-SUFFIX,zfrontier.com
