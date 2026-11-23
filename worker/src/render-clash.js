@@ -235,7 +235,7 @@ function convertGroups(lines, proxies, general, warn) {
         : `Proxy Group entry ${index + 1}: smart approximated by url-test; connection-quality scoring unavailable`);
       if (type !== "select") {
         group.url = general.get("proxy-test-url") ?? "http://bing.com/";
-        group.interval = smart ? 300 : positiveInteger(options.get("interval") ?? "600");
+        group.interval = smart ? 120 : positiveInteger(options.get("interval") ?? "600");
         group.timeout = positiveInteger(general.get("test-timeout") ?? "5") * 1000;
         // Mihomo counts any HTTP response as healthy, including captive portal and error pages.
         if (URL.canParse(group.url) && new URL(group.url).pathname === "/generate_204") group["expected-status"] = 204;
