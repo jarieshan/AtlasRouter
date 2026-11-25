@@ -31,3 +31,5 @@ DOMAIN-SUFFIX,snssdk.com
 DOMAIN-SUFFIX,ajkimg.com
 # zFrontier (装备前线)
 DOMAIN-SUFFIX,zfrontier.com
+# Carrier services, including Wi-Fi Calling gateways.
+DOMAIN-SUFFIX,3gppnetwork.org
