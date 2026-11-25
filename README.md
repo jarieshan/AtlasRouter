@@ -97,7 +97,7 @@ npm run check:live-security -- https://<worker-domain>
 
 ## Surge 配置约定
 
-- master 已合入 develop 的订阅实现。`surge/pool-groups.conf` 按个人主备次序生成地区/IP 类型 `fallback` 组，Surge 与 Clash 均使用 `interval=300`。`Auto` 使用 `url-test`、`interval=300`、`tolerance=50`。详见 [生产基线](docs/production-baseline.md)。
+- master 已合入 develop 的订阅实现。`surge/pool-groups.conf` 按个人主备次序生成地区/IP 类型 `fallback` 组，Surge 与 Clash 均使用 `interval=120`。`Auto` 使用 `url-test`、`interval=120`、`tolerance=50`。详见 [生产基线](docs/production-baseline.md)。
 - `[Rule]` 负责流量匹配，规则按文件顺序从上到下匹配，并以 `FINAL` 规则兜底。
 - 外部策略可通过 `policy-path` 引入，区域筛选可用 `policy-regex-filter`。
 - 模块文件用于对主配置做局部覆盖或追加，不应承担主配置无法解释的大段逻辑。

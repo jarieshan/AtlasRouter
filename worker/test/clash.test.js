@@ -92,7 +92,7 @@ test("subscription options default to Surge, validate duplicates, and preserve o
   }
   assert.doesNotMatch(plain, /jsdelivr\.net\/gh\/Loyalsoldier\/surge-rules/);
   for (const config of [plain, encrypted]) {
-    assert.ok(config.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${iconBase}Auto.png`));
+    assert.ok(config.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=120, tolerance=50, icon-url=${iconBase}Auto.png`));
     assert.doesNotMatch(config, /tailnet|tailscale/i);
     assert.match(config, /^Proxy = select, 🇺🇸USA-ISP, 🇺🇸USA-WARP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
     assert.match(config, /\[Host\]\n\nzslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
@@ -216,7 +216,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.deepEqual(config.proxies.map((node) => node.name), ["🇺🇸 US ISP 1", "🇺🇸 US ISP 2", "🇺🇸 US WARP", "🇭🇰 HK IDC"]);
     for (const group of input.groups) {
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).type, "fallback");
-      assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).interval, 300);
+      assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).interval, 120);
       assert.deepEqual(config["proxy-groups"].find(({ name }) => name === group.group).proxies, group.nodes.map(({ name }) => name));
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).hidden, group.group.endsWith("-ISP") ? undefined : true);
       assert.equal(config["proxy-groups"].find(({ name }) => name === group.group).icon, undefined);
@@ -304,7 +304,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) {
       assert.equal(group.url, "http://cp.cloudflare.com/generate_204", group.name);
       assert.equal(group.timeout, 10000, group.name);
-      assert.equal(group.interval, 300, group.name);
+      assert.equal(group.interval, 120, group.name);
       assert.equal(group["expected-status"], 204, group.name);
     }
     // Apple and MagicRule Direct are DIRECT too; foreign DoH would hand them overseas CDN addresses.
@@ -320,7 +320,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(auto.type, "url-test");
     assert.equal(auto.icon, `${iconBase}Auto.png`);
     assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
-    assert.equal(auto.interval, 300);
+    assert.equal(auto.interval, 120);
     assert.equal(auto.tolerance, 50);
     assert.ok(!auto.hidden);
     const dohProxy = config["proxy-groups"].find((group) => group.name === "DoH Proxy");
@@ -328,7 +328,7 @@ test("Clash output is derived from the rendered Surge profile and retains sortin
     assert.equal(dohProxy.icon, `${iconBase}Server.png`);
     assert.equal(dohProxy.hidden, true);
     assert.deepEqual(dohProxy.proxies, ["🇭🇰 HK IDC"]);
-    assert.equal(dohProxy.interval, 300);
+    assert.equal(dohProxy.interval, 120);
     assert.equal(dohProxy.tolerance, 50);
     for (const hostname of ["cloudflare-dns.com", "dns.google"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DoH Proxy`));
     for (const hostname of ["dns.alidns.com", "doh.pub"]) assert.ok(config.rules.includes(`DOMAIN,${hostname},DIRECT`));
@@ -629,7 +629,7 @@ test("smart conversion includes only proxy nodes and retains automatic selection
   const source = `[General]\nproxy-test-url = http://www.gstatic.com/generate_204\n[Proxy]\nnode = trojan, example.com, 443, password=TEST_ONLY\n[Proxy Group]\nbackup = fallback, node\nauto = smart, backup, DIRECT, REJECT, include-all-proxies=true\nProxy = select, auto, backup\n[Rule]\nDOMAIN,dns.google,auto\nFINAL,Proxy\n`;
   const { config, warnings } = await convertSurgeToClash(source, context);
   const auto = config["proxy-groups"].find(({ name }) => name === "auto");
-  assert.deepEqual(auto, { name: "auto", type: "url-test", proxies: ["node"], url: "http://www.gstatic.com/generate_204", interval: 300, timeout: 5000, "expected-status": 204, tolerance: 50 });
+  assert.deepEqual(auto, { name: "auto", type: "url-test", proxies: ["node"], url: "http://www.gstatic.com/generate_204", interval: 120, timeout: 5000, "expected-status": 204, tolerance: 50 });
   assert.deepEqual(config.rules, ["DOMAIN,dns.google,auto", "MATCH,Proxy"]);
   assert.ok(warnings.some((warning) => warning.includes("smart approximated")));
 });
@@ -647,7 +647,7 @@ test("fallback groups retain exact node names and each user's primary in both cl
     const options = surgeOptions(parts.filter((part) => part.includes("=")));
     const members = parts.filter((part) => !part.includes("="));
     assert.deepEqual(members, groups[0].nodes.map((node) => node.name));
-    assert.equal(options.get("interval"), "300");
+    assert.equal(options.get("interval"), "120");
     assert.equal(options.get("policy-priority"), undefined);
     const { config, warnings } = await convertSurgeToClash(source, context);
     const group = config["proxy-groups"].find(({ name }) => name === "🇺🇸USA-ISP");
@@ -655,7 +655,7 @@ test("fallback groups retain exact node names and each user's primary in both cl
     assert.deepEqual(group.proxies, members);
     assert.equal(group["policy-priority"], undefined);
     assert.equal(group.tolerance, undefined);
-    assert.equal(group.interval, 300);
+    assert.equal(group.interval, 120);
     assert.ok(warnings.every((warning) => !warning.includes("weighted scoring unavailable")));
     assert.deepEqual(warnings.filter((warning) => /unavailable members|invalid group|cyclic|empty group/.test(warning)), []);
   }
@@ -701,14 +701,14 @@ test("production and development render ordered fallback regions and a url-test 
       const members = splitSurgeList(surgeAssignment(line)[1]).slice(1).filter((part) => !part.includes("="));
       const group = config["proxy-groups"].find((group) => group.name === name);
       assert.equal(group?.type, "fallback", `${file} ${name}`);
-      assert.equal(group.interval, 300);
+      assert.equal(group.interval, 120);
       assert.deepEqual(group.proxies, members);
     }
     assert.doesNotMatch(source, /policy-priority=/);
-    assert.match(source, /^Auto = url-test, include-all-proxies=true, interval=300, tolerance=50,/m);
+    assert.match(source, /^Auto = url-test, include-all-proxies=true, interval=120, tolerance=50,/m);
     const auto = config["proxy-groups"].find((group) => group.name === "Auto");
     assert.equal(auto.type, "url-test");
-    assert.equal(auto.interval, 300);
+    assert.equal(auto.interval, 120);
     assert.equal(auto.tolerance, 50);
   }
 });

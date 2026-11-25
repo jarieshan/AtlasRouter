@@ -53,7 +53,7 @@ function renderPoolTemplate(groups, idcNames, repositoryRulesRef) {
   const section = replaceTemplate(ASSETS.poolGroups, {
     POOL_GROUP_LINES: orderedGroups.map(({ group, nodes }) => {
       const names = nodes.map((node) => node.name);
-      return `${group} = fallback, ${names.join(", ")}, interval=300${nodes[0].ipType === "ISP" ? "" : ", hidden=true"}`;
+      return `${group} = fallback, ${names.join(", ")}, interval=120${nodes[0].ipType === "ISP" ? "" : ", hidden=true"}`;
     }).join("\n"),
     // An empty Surge Smart group substitutes DIRECT, so omit it and reject its traffic instead.
     DOH_PROXY_GROUP_LINE: idcNames.length ? `DoH Proxy = smart, ${idcNames.join(", ")}, icon-url=https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Server.png, hidden=true` : "",

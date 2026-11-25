@@ -191,7 +191,7 @@ test("paired subscriptions normalize compact names and keep fallback and DoH ref
   const before = structuredClone(state);
   const config = renderSurgeProfile({ requestUrl: "https://atlas.example/AtlasRouter-Dev", token: "test-token",
     groups, nodes: groups.flatMap((group) => group.nodes), repositoryRulesRef: "develop" });
-  assert.match(config, /^🇭🇰HK-ISP = fallback, 🇭🇰 HongKong ISP-1, 🇭🇰 HK ISP-1, 🇭🇰 HongKong ISP-2, 🇭🇰 HK ISP-2, 🇭🇰 HongKong ISP-3, 🇭🇰 HK ISP-3, interval=300$/m);
+  assert.match(config, /^🇭🇰HK-ISP = fallback, 🇭🇰 HongKong ISP-1, 🇭🇰 HK ISP-1, 🇭🇰 HongKong ISP-2, 🇭🇰 HK ISP-2, 🇭🇰 HongKong ISP-3, 🇭🇰 HK ISP-3, interval=120$/m);
   assert.match(config, /^DoH Proxy = smart, 🇭🇰 HongKong IDC-1, 🇭🇰 HK IDC-1,/m);
   assert.match(config, /^🇭🇰 HongKong ISP-1 = vless,/m);
   assert.match(config, /^🇭🇰 HK ISP-1 = vmess,/m);
@@ -309,13 +309,13 @@ test("renders ordered fallback groups with valid references and literal credenti
   allocateNodes(state, NOW);
   const groups = userGroups(state, "user-1");
   const config = renderSurgeProfile({ requestUrl: "https://atlas.example/AtlasRouter", token: "test-token", groups, nodes: groups.flatMap((group) => group.nodes) });
-  assert.match(config, /^🇺🇸USA-ISP = fallback, 🇺🇸 LosAngeles - ISP 2, 🇺🇸 LosAngeles - ISP 3, 🇺🇸 LosAngeles - ISP 1, interval=300$/m);
+  assert.match(config, /^🇺🇸USA-ISP = fallback, 🇺🇸 LosAngeles - ISP 2, 🇺🇸 LosAngeles - ISP 3, 🇺🇸 LosAngeles - ISP 1, interval=120$/m);
   assert.doesNotMatch(config, /policy-priority=/);
   assert.match(config, /password=\$&\$1\$\$/);
   assert.match(config, /^FINAL,FINAL,dns-failed$/m);
   assert.match(config, /^# Available modules:\n# - None$/m);
   assert.doesNotMatch(config, /{{|💎 Select/);
-  assert.ok(config.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${ICON_BASE}Auto.png`));
+  assert.ok(config.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=120, tolerance=50, icon-url=${ICON_BASE}Auto.png`));
   assert.doesNotMatch(config, /^\[MITM\]$/m);
   assert.doesNotMatch(config, /ca-p12|ca-passphrase/);
   const policyNames = new Set(["DIRECT", "REJECT"]);
@@ -391,13 +391,13 @@ test("orders selection options by IP type while preserving regional definitions 
       ["AppleIntelligence", "AIProxy"], ["AppleTV", "GlobalMedia"], ["iCloud", "iCloud"], ["AppleProxy", "ISP First"], ["Apple", "DIRECT"],
     ]);
     assert.doesNotMatch(config.split("[Rule]\n")[1], /^RULE-SET,.*hidden=/m);
-    const definitions = [...config.matchAll(/^(.+) = fallback, .+, interval=300/gm)].map((match) => match[1]);
+    const definitions = [...config.matchAll(/^(.+) = fallback, .+, interval=120/gm)].map((match) => match[1]);
     assert.deepEqual(definitions, expectedGroups);
     for (const line of config.split("\n").filter((line) => line.includes(" = fallback, "))) {
       assert.equal(line.endsWith(", hidden=true"), !line.split(" = ")[0].endsWith("-ISP"), line.split(" = ")[0]);
     }
     assert.deepEqual(groups, before);
-    for (const group of groups) assert.ok(config.includes(`${group.group} = fallback, ${group.nodes.map((node) => node.name).join(", ")}, interval=300`));
+    for (const group of groups) assert.ok(config.includes(`${group.group} = fallback, ${group.nodes.map((node) => node.name).join(", ")}, interval=120`));
     assert.match(config, /^FINAL,FINAL,dns-failed$/m);
   }
 });

@@ -47,7 +47,7 @@ function fallbackMembers(profile, name) {
   const members = parts.filter((part) => !part.includes("="));
   const options = surgeOptions(parts.filter((part) => part.includes("=")));
   assert.equal(options.get("hidden"), name.endsWith("-ISP") ? undefined : "true");
-  assert.equal(options.get("interval"), "300");
+  assert.equal(options.get("interval"), "120");
   assert.equal(options.get("policy-priority"), undefined);
   return members;
 }
@@ -385,8 +385,8 @@ test("Dev serves its own page code and isolates data, tokens, module links and t
       assert.match(text, /^test-timeout = 10$/m);
       assert.match(text, /^internet-test-url = http:\/\/bing\.com\/$/m);
       assert.match(text, /^proxy-test-url = http:\/\/cp\.cloudflare\.com\/generate_204$/m);
-      assert.match(text, /^🇺🇸USA-ISP = fallback, .+, interval=300$/m);
-      assert.match(text, /^Auto = url-test, include-all-proxies=true, interval=300, tolerance=50,/m);
+      assert.match(text, /^🇺🇸USA-ISP = fallback, .+, interval=120$/m);
+      assert.match(text, /^Auto = url-test, include-all-proxies=true, interval=120, tolerance=50,/m);
       assert.doesNotMatch(text, /policy-priority=/);
     } else {
       const config = parseYaml(text);
@@ -399,13 +399,13 @@ test("Dev serves its own page code and isolates data, tokens, module links and t
       for (const group of groups.filter(({ type }) => type !== "select")) {
         assert.equal(group.url, "http://cp.cloudflare.com/generate_204");
         assert.equal(group.timeout, 10000);
-        assert.equal(group.interval, 300);
+        assert.equal(group.interval, 120);
         assert.equal(group["expected-status"], 204);
       }
       assert.equal(groups.find(({ name }) => name === "🇺🇸USA-ISP").type, "fallback");
       const auto = groups.find(({ name }) => name === "Auto");
       assert.equal(auto.type, "url-test");
-      assert.equal(auto.interval, 300);
+      assert.equal(auto.interval, 120);
       assert.equal(auto.tolerance, 50);
     }
   }
@@ -782,12 +782,12 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.equal(auto.type, "url-test");
         assert.equal(auto.icon, `${ICON_BASE}Auto.png`);
         assert.deepEqual(auto.proxies, config.proxies.map(({ name }) => name));
-        assert.equal(auto.interval, 300);
+        assert.equal(auto.interval, 120);
         assert.equal(auto.tolerance, 50);
         for (const group of config["proxy-groups"].filter(({ type }) => type !== "select")) {
           assert.equal(group.url, "http://cp.cloudflare.com/generate_204", group.name);
           assert.equal(group.timeout, 10000, group.name);
-          assert.equal(group.interval, 300, group.name);
+          assert.equal(group.interval, 120, group.name);
           assert.equal(group["expected-status"], 204, group.name);
         }
         assert.equal(config["geo-auto-update"], true);
@@ -844,7 +844,7 @@ test("Surge and Clash options share a token and allocation, enable DoH and rejec
         assert.match(text, /^test-timeout = 10$/m);
         assert.match(text, /^internet-test-url = http:\/\/bing\.com\/$/m);
         assert.match(text, /^proxy-test-url = http:\/\/cp\.cloudflare\.com\/generate_204$/m);
-        assert.ok(text.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=300, tolerance=50, icon-url=${ICON_BASE}Auto.png`));
+        assert.ok(text.split("\n").includes(`Auto = url-test, include-all-proxies=true, interval=120, tolerance=50, icon-url=${ICON_BASE}Auto.png`));
         assert.doesNotMatch(text, /tailnet|tailscale/i);
         assert.match(text, /^Proxy = select, 🇺🇸USA-ISP, 🇭🇰HK-IDC, Auto, DIRECT, /m);
         assert.ok(text.split("\n").includes(`FINAL = select, Auto, Proxy, 🇭🇰HK-IDC, 🇺🇸USA-ISP, DIRECT, icon-url=${ICON_BASE}Proxy.png`));
