@@ -35,3 +35,4 @@ DOMAIN-WILDCARD,*qcloudimg.com
 DOMAIN-WILDCARD,*qcloud.com
 DOMAIN-WILDCARD,*cdn-go.cn
 DOMAIN-WILDCARD,*workbuddy.cn
+DOMAIN-WILDCARD,*.qq.com

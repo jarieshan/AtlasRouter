@@ -18,7 +18,7 @@ const companyDomains = [
   "oa.com", "*.oa.com", "woa.com", "*.woa.com",
   "*tencentyun.com", "*tencent-cloud.net", "*tencent-cloud.com", "*tencentcloud.com",
   "*tencentcloudapi.com", "*tencentcloudcr.com", "*tencentcos.cn", "*tcloudbase.com", "*tcloudbaseapp.com",
-  "*qcloudimg.com", "*qcloud.com", "*cdn-go.cn", "*workbuddy.cn",
+  "*qcloudimg.com", "*qcloud.com", "*cdn-go.cn", "*workbuddy.cn", "*.qq.com",
 ];
 const profileList = () => ASSETS.template.match(/^skip-proxy = (.+)$/m)[1].split(", ");
 const tencentOaList = () => ASSETS.tencentOa.match(/^skip-proxy = (.+)$/m)[1].split(", ");

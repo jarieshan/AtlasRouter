@@ -961,7 +961,7 @@ test("tencent_oa=1 adds skip-proxy, direct routing and system DNS with token che
         ? [`RULE-SET:${oaUrl} = server:system`, `RULE-SET,${oaUrl},DIRECT,no-resolve`] : []);
       assert.match(withoutOverrides(body), /\[Host\]\n(?:node-\d\.example\.com = 192\.0\.2\.10\n)+zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
       const skip = body.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
-      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*tencentcos.cn", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) {
+      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*tencentcos.cn", "*workbuddy.cn", "*.qq.com", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) {
         assert.equal(skip.includes(value), tencentOa === "1", value);
       }
       for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
