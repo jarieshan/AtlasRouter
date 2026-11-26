@@ -369,6 +369,12 @@ test("Dev serves its own page code and isolates data, tokens, module links and t
   }
   assert.equal((await request(mf, INTERNAL_ACCOUNT_PAGE_PATH, { subject: "admin", method: "POST",
     body: { adminApiSlug: ADMIN_API_SLUG, preview: false, previewIdentity: false } })).status, 404);
+  const devOa = await request(mf, `${dev.subscriptionUrl}&tencent_oa=1`);
+  assert.equal(devOa.status, 200);
+  const devOaUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@develop/surge/rule-sets/TencentOA.list";
+  assert.deepEqual((await devOa.text()).split("\n").filter((line) => line.includes("/TencentOA.list")), [
+    `RULE-SET:${devOaUrl} = server:system`, `RULE-SET,${devOaUrl},DIRECT,no-resolve`,
+  ]);
   for (const client of ["surge", "clash"]) for (const doh of [0, 1]) for (const wifiAssist of [0, 1]) {
     const response = await request(mf, dev.subscriptionUrl + "&client=" + client + "&doh=" + doh + "&wifi_assist=" + wifiAssist);
     assert.equal(response.status, 200);
@@ -378,6 +384,7 @@ test("Dev serves its own page code and isolates data, tokens, module links and t
     assert.doesNotMatch(text, /tailnet|tailscale/i);
     assert.match(text, /AtlasRouter@develop\/surge\/rule-sets\//);
     assert.doesNotMatch(text, /AtlasRouter@master\/|\{\{REPOSITORY_RULES_REF\}\}/);
+    assert.doesNotMatch(text, /TencentOA\.list/);
     if (client === "surge") {
       for (const node of devNodes) assert.ok(text.split("\n").includes(node.line));
       assert.ok(text.split("\n").includes(`wifi-assist = ${wifiAssist === 1}`));
@@ -930,12 +937,14 @@ test("subscriptions omit VLESS-only groups unless vless=1 and refuse to render w
   assert.equal((await request(mf, `${profile.subscriptionUrl}&vless=1`)).status, 200);
 });
 
-test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token checks", async (t) => {
+test("tencent_oa=1 adds skip-proxy, direct routing and system DNS with token checks", async (t) => {
   const mf = await createRuntime(t);
   await save(mf);
   const profile = await account(mf);
   const before = await json(await request(mf, POOL_STATE_PATH, { subject: "admin" }));
-  const withoutOverrides = (value) => value.replace(/^#!MANAGED-CONFIG .*\n/m, "").replace(/^skip-proxy = .*\n/m, "");
+  const oaUrl = "https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@master/surge/rule-sets/TencentOA.list";
+  const withoutOverrides = (value) => value.split("\n").filter((line) => !line.startsWith("#!MANAGED-CONFIG ")
+    && !line.startsWith("skip-proxy = ") && !line.includes(oaUrl)).join("\n");
   for (const doh of ["0", "1"]) {
     let plain;
     for (const tencentOa of [null, "0", "1"]) {
@@ -947,10 +956,12 @@ test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token chec
       assert.equal(managed.searchParams.get("doh"), doh === "0" ? "0" : null);
       assert.equal(/^encrypted-dns-server =/m.test(body), doh === "1");
       assert.deepEqual(body.match(/^hijack-dns\s*=.*$/gm), ["hijack-dns = 8.8.8.8:53, 8.8.4.4:53"]);
-      assert.doesNotMatch(body, /TencentOA|10\.28\.0\.21|tencent-oa\.sgmodule/);
-      assert.match(body, /\[Host\]\n(?:node-\d\.example\.com = 192\.0\.2\.10\n)+zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
+      assert.doesNotMatch(body, /10\.28\.0\.21|tencent-oa\.sgmodule/);
+      assert.deepEqual(body.split("\n").filter((line) => line.includes("/TencentOA.list")), tencentOa === "1"
+        ? [`RULE-SET:${oaUrl} = server:system`, `RULE-SET,${oaUrl},DIRECT,no-resolve`] : []);
+      assert.match(withoutOverrides(body), /\[Host\]\n(?:node-\d\.example\.com = 192\.0\.2\.10\n)+zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n\*\.zslab\.ai = server:223\.5\.5\.5, 119\.29\.29\.29\n/);
       const skip = body.match(/^skip-proxy = (.+)$/m)[1].split(",").map((value) => value.trim());
-      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*tencentcos.cn", "*workbuddy.cn", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) {
+      for (const value of ["oa.com", "*.oa.com", "woa.com", "*.woa.com", "*tencentyun.com", "*tencentcos.cn", "*workbuddy.cn", "*.qq.com", "10.0.0.0/7", "21.0.0.0/8", "28.0.0.0/7"]) {
         assert.equal(skip.includes(value), tencentOa === "1", value);
       }
       for (const value of ["127.0.0.1", "localhost", "*.local", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", "www.abchina.com.cn"]) assert.ok(skip.includes(value), value);
@@ -962,6 +973,9 @@ test("tencent_oa=1 adds Tencent OA exceptions to skip-proxy and keeps token chec
   assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?tencent_oa=1`, { subject: "alice" })).status, 401);
   assert.equal((await request(mf, `${POOL_SUBSCRIPTION_PATH}?token=invalid&tencent_oa=1`)).status, 401);
   const enabledUrl = `${profile.subscriptionUrl}&tencent_oa=1`;
+  const clash = await request(mf, `${profile.subscriptionUrl}&client=clash&tencent_oa=0`);
+  assert.equal(clash.status, 200);
+  assert.doesNotMatch(await clash.text(), /TencentOA\.list/);
   assert.equal((await request(mf, `${enabledUrl}&token=duplicate`)).status, 401);
   for (const method of ["POST", "PUT", "DELETE", "HEAD"]) assert.equal((await request(mf, enabledUrl, { method })).status, 405);
   for (const query of ["tencent_oa=", "tencent_oa=true", "tencent_oa=1&tencent_oa=1", "client=clash&tencent_oa=1"]) {

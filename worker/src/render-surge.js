@@ -20,13 +20,18 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   groups = groups.map((group) => ({ ...group, nodes: group.nodes.map((node) => byName.get(node.name)) }));
   const idcNames = nodes.filter((node) => node.ipType === "IDC").sort(compareNodes).map((node) => node.name);
   const doh = options.doh ?? true;
+  const tencentOaUrl = options.tencentOa
+    ? `https://cdn.jsdelivr.net/gh/jarieshan/AtlasRouter@${repositoryRulesRef}/surge/rule-sets/TencentOA.list`
+    : null;
   const replacements = {
     MANAGED_CONFIG: `#!MANAGED-CONFIG ${buildSubscriptionUrl(requestUrl, token, options)} interval=86400 strict=false`,
     WIFI_ASSIST: String(options.wifiAssist ?? false),
     MODULE_URL_LINES: renderModuleUrlLines(requestUrl, token, `${subscriptionPath(requestUrl)}/modules`),
+    TENCENT_OA_DNS: tencentOaUrl && `RULE-SET:${tencentOaUrl} = server:system`,
     NODE_HOST_LINES: [...hosts].map(([host, addresses]) => `${host} = ${addresses.join(", ")}`).join("\n"),
     PROXY_LINES: renderProxyLines([...nodes].sort(compareNodes)),
     RULE_LINES: renderPoolRules(ASSETS.rules, idcNames.length ? "DoH Proxy" : "REJECT"),
+    TENCENT_OA_RULE: tencentOaUrl && `RULE-SET,${tencentOaUrl},DIRECT,no-resolve`,
     US_ISP_POLICY: groups.find(({ nodes }) => nodes[0]?.region === "US" && nodes[0]?.ipType === "ISP")?.group ?? "REJECT",
     ...Object.fromEntries(Object.keys(ASSETS.magicRules).map((name) => [
       `RULESET_${name}`, magicRuleUrl(name, "surge", requestUrl),
@@ -39,7 +44,7 @@ export function renderSurgeProfile({ requestUrl, token, nodes, groups, options =
   });
   const profile = replaceTemplate(template, {
     ...replacements,
-    DOMESTIC_RULESET_DNS_LINES: (rendered) => renderDomesticRuleSetDns(rendered, doh),
+    DOMESTIC_RULESET_DNS_LINES: (rendered) => renderDomesticRuleSetDns(rendered, doh, tencentOaUrl),
   });
   return applyRuleSetVisibility(profile, { showAllGroups });
 }
@@ -84,7 +89,7 @@ function renderPoolRules(rules, dohPolicy) {
   }).join("\n");
 }
 
-function renderDomesticRuleSetDns(profile, doh) {
+function renderDomesticRuleSetDns(profile, doh, systemDnsUrl) {
   const servers = doh ? "https://dns.alidns.com/dns-query, https://doh.pub/dns-query" : "223.5.5.5, 119.29.29.29";
   const mappings = new Set();
   for (const line of surgeSections(profile).get("rule") ?? []) {
@@ -92,7 +97,7 @@ function renderDomesticRuleSetDns(profile, doh) {
     const [type, source, policy] = splitSurgeList(line);
     if (!/^("?)(?:DIRECT|WeChat|iCloud)\1(?=$|\s*[#;]|\s*\/\/)/.test(policy)) continue;
     const url = surgeValue(source);
-    if (/^https?:\/\//i.test(url)) mappings.add(`${type}:${url} = server:${servers}`);
+    if (url !== systemDnsUrl && /^https?:\/\//i.test(url)) mappings.add(`${type}:${url} = server:${servers}`);
   }
   return [...mappings].join("\n");
 }
@@ -130,7 +135,9 @@ function replaceTemplate(template, replacements) {
   let output = template;
   for (const [name, value] of Object.entries(replacements)) {
     const replacement = typeof value === "function" ? value(output) : value;
-    output = output.replaceAll(`{{${name}}}`, () => replacement);
+    const marker = `{{${name}}}`;
+    // Null omits an optional whole-line directive from the profile.
+    output = replacement === null ? output.replaceAll(`${marker}\n`, "") : output.replaceAll(marker, () => replacement);
   }
 
   const unresolved = output.match(/{{[A-Za-z0-9_]+}}/g);

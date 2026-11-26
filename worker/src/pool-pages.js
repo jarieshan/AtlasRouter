@@ -337,6 +337,7 @@ export function renderAccountPage({ isAdmin = false, adminRoutes = null, preview
 
 function accountPanel(preview, { development, developmentAvailable }) {
   const linkTitle = preview ? "示例订阅链接" : "专属订阅链接";
+  const tencentOaHelp = "OA 名单内的流量直连，域名使用系统 DNS。配合 iOA 全局模式时，Surge Mac 仅开启系统代理、关闭增强模式。";
   return { id: "account-panel", previewData: preview, body: `
   <div class="account-grid">
     <div class="account-main">
@@ -360,7 +361,7 @@ function accountPanel(preview, { development, developmentAvailable }) {
             <input id="enable-wifi-assist" type="checkbox" role="switch" aria-describedby="wifi-assist-help">
           </label>
           <label class="setting" for="enable-tencent-oa">
-            <span class="setting-text"><span>Tencent OA Compatibility</span><span id="tencent-oa-help">腾讯公司内网用：Surge Mac 仅开启系统代理、关闭增强模式时使用；iOA 需设置为全局模式。</span></span>
+            <span class="setting-text"><span>Tencent OA Compatibility</span><span id="tencent-oa-help">${tencentOaHelp}</span></span>
             <input id="enable-tencent-oa" type="checkbox" role="switch" aria-describedby="tencent-oa-help">
           </label>
           ${developmentAvailable ? `<label class="setting" for="enable-dev">
@@ -423,7 +424,7 @@ function accountPanel(preview, { development, developmentAvailable }) {
       tencentOa.disabled = client.value !== "surge";
       root.querySelector("#tencent-oa-help").textContent = tencentOa.disabled
         ? "仅适用于 Surge；切回 Surge 后可启用腾讯公司内网兼容。"
-        : "腾讯公司内网用：Surge Mac 仅开启系统代理、关闭增强模式时使用；iOA 需设置为全局模式。";
+        : ${JSON.stringify(tencentOaHelp)};
       if (!baseSubscriptionUrl) return;
       const url = new URL(baseSubscriptionUrl);
       url.searchParams.delete("client");
