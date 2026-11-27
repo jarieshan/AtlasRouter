@@ -16,7 +16,7 @@ const banks = ["yunbusiness.ccb.com", "www.abchina.com.cn", "*.psbc.com", "*.bos
 const companyNetworks = ["9.0.0.0/8", "30.0.0.0/8", "21.0.0.0/8", "22.0.0.0/8", "26.0.0.0/8", "28.0.0.0/7"];
 const companyDomains = [
   "oa.com", "*.oa.com", "woa.com", "*.woa.com",
-  "*tencentyun.com", "*tencent-cloud.net", "*tencent-cloud.com", "*tencentcloud.com",
+  "*tencent.com", "*tencentyun.com", "*tencent-cloud.net", "*tencent-cloud.com", "*tencentcloud.com",
   "*tencentcloudapi.com", "*tencentcloudcr.com", "*tencentcos.cn", "*tcloudbase.com", "*tcloudbaseapp.com",
   "*qcloudimg.com", "*qcloud.com", "*cdn-go.cn", "*workbuddy.cn", "*.qq.com",
 ];
