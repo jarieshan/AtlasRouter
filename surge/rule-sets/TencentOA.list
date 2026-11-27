@@ -22,6 +22,7 @@ DOMAIN,oa.com
 DOMAIN-WILDCARD,*.oa.com
 DOMAIN,woa.com
 DOMAIN-WILDCARD,*.woa.com
+DOMAIN-WILDCARD,*tencent.com
 DOMAIN-WILDCARD,*tencentyun.com
 DOMAIN-WILDCARD,*tencent-cloud.net
 DOMAIN-WILDCARD,*tencent-cloud.com
